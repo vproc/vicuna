@@ -1,0 +1,225 @@
+name: CI
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+
+jobs:
+  toolchain:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/cache@v2
+        id: cache-riscv-gcc
+        with:
+          path: /opt/riscv-gcc
+          key: ubuntu-20_04-riscv-gcc-rvv0_10
+
+      - name: Install GNU toolchain
+        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev
+          git clone https://github.com/riscv/riscv-gnu-toolchain -b rvv-intrinsic
+          cd riscv-gnu-toolchain
+          git submodule update --init --recursive -- riscv-binutils riscv-dejagnu riscv-gcc riscv-glibc riscv-newlib
+          mkdir build && cd build
+          ../configure --prefix=/opt/riscv-gcc --with-arch=rv32imc --with-abi=ilp32 --disable-gdb
+          make
+          sudo make install
+          df -h
+          cd ..
+          rm -rf build
+
+
+  lsu:
+    needs: toolchain
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/cache@v2
+        id: cache-riscv-gcc
+        with:
+          path: /opt/riscv-gcc
+          key: ubuntu-20_04-riscv-gcc-rvv0_10
+
+      - name: Abort if no cache
+        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install srecord verilator
+
+      - name: Run tests
+        run: |
+          verilator --version
+          export PATH=$PATH:/opt/riscv-gcc/bin
+          cd test && make lsu
+
+
+  alu:
+    needs: toolchain
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/cache@v2
+        id: cache-riscv-gcc
+        with:
+          path: /opt/riscv-gcc
+          key: ubuntu-20_04-riscv-gcc-rvv0_10
+
+      - name: Abort if no cache
+        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install srecord verilator
+
+      - name: Run tests
+        run: |
+          verilator --version
+          export PATH=$PATH:/opt/riscv-gcc/bin
+          cd test && make alu
+
+
+  mul:
+    needs: toolchain
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/cache@v2
+        id: cache-riscv-gcc
+        with:
+          path: /opt/riscv-gcc
+          key: ubuntu-20_04-riscv-gcc-rvv0_10
+
+      - name: Abort if no cache
+        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install srecord verilator
+
+      - name: Run tests
+        run: |
+          verilator --version
+          export PATH=$PATH:/opt/riscv-gcc/bin
+          cd test && make mul
+
+
+  sld:
+    needs: toolchain
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/cache@v2
+        id: cache-riscv-gcc
+        with:
+          path: /opt/riscv-gcc
+          key: ubuntu-20_04-riscv-gcc-rvv0_10
+
+      - name: Abort if no cache
+        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install srecord verilator
+
+      - name: Run tests
+        run: |
+          verilator --version
+          export PATH=$PATH:/opt/riscv-gcc/bin
+          cd test && make sld
+
+
+  elem:
+    needs: toolchain
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/cache@v2
+        id: cache-riscv-gcc
+        with:
+          path: /opt/riscv-gcc
+          key: ubuntu-20_04-riscv-gcc-rvv0_10
+
+      - name: Abort if no cache
+        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install srecord verilator
+
+      - name: Run tests
+        run: |
+          verilator --version
+          export PATH=$PATH:/opt/riscv-gcc/bin
+          cd test && make elem
+
+
+  csr:
+    needs: toolchain
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/cache@v2
+        id: cache-riscv-gcc
+        with:
+          path: /opt/riscv-gcc
+          key: ubuntu-20_04-riscv-gcc-rvv0_10
+
+      - name: Abort if no cache
+        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install srecord verilator
+
+      - name: Run tests
+        run: |
+          verilator --version
+          export PATH=$PATH:/opt/riscv-gcc/bin
+          cd test && make csr
