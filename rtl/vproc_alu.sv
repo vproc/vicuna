@@ -518,7 +518,7 @@ module vproc_alu #(
     // result byte mask:
     logic [VREG_W-1:0] vl_mask;
     assign vl_mask       = state_ex2_q.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_ex2_q.vl));
-    assign result_mask_d = (state_ex2_q.mode.masked ? operand_mask_q : {(ALU_OP_W/8){1'b1}}) & vl_mask[state_ex2_q.count.val*ALU_OP_W/8 +: ALU_OP_W/8];
+    assign result_mask_d = (state_ex2_q.mode.masked ? operand_mask_tmp_q : {(ALU_OP_W/8){1'b1}}) & vl_mask[state_ex2_q.count.val*ALU_OP_W/8 +: ALU_OP_W/8];
 
     // conversion from results to destination registers:
     logic [ALU_OP_W  -1:0] vd_alu;
