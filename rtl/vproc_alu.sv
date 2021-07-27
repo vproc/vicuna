@@ -199,7 +199,7 @@ module vproc_alu #(
                     state_d.vs2[2:0]  = state_q.vs2[2:0] + 3'b1;
                     state_d.vs2_fetch = state_q.vs2_vreg;
                 end
-                if (~state_q.vd_narrow | state_q.count.part.mul[0]) begin
+                if (~state_q.mode.cmp & (~state_q.vd_narrow | state_q.count.part.mul[0])) begin
                     state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
                 end
             end
@@ -261,6 +261,7 @@ module vproc_alu #(
 
     // vreg write buffers
     logic              vreg_wr_en_q  [MAX_WR_DELAY], vreg_wr_en_d;
+    logic              vreg_wr_last_q[MAX_WR_DELAY], vreg_wr_last_d;
     logic [4:0]        vreg_wr_addr_q[MAX_WR_DELAY], vreg_wr_addr_d;
     logic [VMSK_W-1:0] vreg_wr_mask_q[MAX_WR_DELAY], vreg_wr_mask_d;
     logic [VREG_W-1:0] vreg_wr_q     [MAX_WR_DELAY], vreg_wr_d;
@@ -361,11 +362,13 @@ module vproc_alu #(
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_alu_wr_delay
                 vreg_wr_en_q  [0] = vreg_wr_en_d;
+                vreg_wr_last_q[0] = vreg_wr_last_d;
                 vreg_wr_addr_q[0] = vreg_wr_addr_d;
                 vreg_wr_mask_q[0] = vreg_wr_mask_d;
                 vreg_wr_q     [0] = vreg_wr_d;
                 for (int i = 1; i < MAX_WR_DELAY; i++) begin
                     vreg_wr_en_q  [i] = vreg_wr_en_q  [i-1];
+                    vreg_wr_last_q[i] = vreg_wr_last_q[i-1];
                     vreg_wr_addr_q[i] = vreg_wr_addr_q[i-1];
                     vreg_wr_mask_q[i] = vreg_wr_mask_q[i-1];
                     vreg_wr_q     [i] = vreg_wr_q     [i-1];
@@ -396,9 +399,9 @@ module vproc_alu #(
 
     // write hazard clearing
     always_comb begin
-        clear_wr_hazards_d     = vreg_wr_en_d                 ? (32'b1 << vreg_wr_addr_d                ) : 32'b0;
+        clear_wr_hazards_d     = vreg_wr_last_d                 ? (32'b1 << vreg_wr_addr_d                ) : 32'b0;
         if (MAX_WR_DELAY > 0) begin
-            clear_wr_hazards_d = vreg_wr_en_q[MAX_WR_DELAY-1] ? (32'b1 << vreg_wr_addr_q[MAX_WR_DELAY-1]) : 32'b0;
+            clear_wr_hazards_d = vreg_wr_last_q[MAX_WR_DELAY-1] ? (32'b1 << vreg_wr_addr_q[MAX_WR_DELAY-1]) : 32'b0;
         end
     end
     assign clear_wr_hazards_o = clear_wr_hazards_q;
@@ -589,6 +592,7 @@ module vproc_alu #(
 
     //
     assign vreg_wr_en_d   = state_vd_q.busy & state_vd_q.vd_store;
+    assign vreg_wr_last_d = state_vd_q.busy & (state_vd_q.mode.cmp ? state_vd_q.last_cycle : state_vd_q.vd_store);
     assign vreg_wr_addr_d = state_vd_q.vd;
     assign vreg_wr_mask_d = vreg_wr_en_o ? (state_vd_q.mode.cmp ? vdmsk_cmp_q : vdmsk_alu_shift_q) : '0;
     assign vreg_wr_d      = state_vd_q.mode.cmp ? {8{vd_cmp_shift_q}} : vd_alu_shift_q;

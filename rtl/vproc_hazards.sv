@@ -207,6 +207,11 @@ module vproc_hazards #(
                     wr_hazards_o  = '0;
                 end
             end
+            UNIT_ALU: begin
+                if (mode_i.alu.cmp) begin
+                    wr_hazards_o = rd_i.vreg ? (32'h1 << rd_i.addr) : 32'b0;
+                end
+            end
             UNIT_MUL: begin
                 if (mode_i.mul.op == MUL_VMACC) begin
                     rd_hazards_o |= vd_hazards;
