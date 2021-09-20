@@ -6,6 +6,7 @@
 module vproc_tb #(
         parameter              MAIN_CORE       = "",
         parameter              PROG_PATHS_LIST = "",
+        parameter int unsigned MEM_W           = 32,
         parameter int unsigned MEM_SZ          = 262144,
         parameter int unsigned MEM_LATENCY     = 1,
         parameter int unsigned VREG_W          = 128,
@@ -16,8 +17,6 @@ module vproc_tb #(
         parameter int unsigned DCACHE_SZ       = 0,   // data cache size in bytes
         parameter int unsigned DCACHE_LINE_W   = 512  // data cache line width in bits
     );
-
-    localparam int unsigned MEM_W = 32;
 
     logic clk, rst;
     always begin
@@ -37,6 +36,7 @@ module vproc_tb #(
     logic [31:0] mem_rdata;
 
     vproc_top #(
+        .MEM_W         ( MEM_W                       ),
         .MAIN_CORE     ( MAIN_CORE                   ),
         .VREG_W        ( VREG_W                      ),
         .VMEM_W        ( VMEM_W                      ),

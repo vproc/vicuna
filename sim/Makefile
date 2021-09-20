@@ -39,7 +39,8 @@ ICACHE_LINE_W ?= 128
 DCACHE_SZ     ?= 0
 DCACHE_LINE_W ?= $$(($(VMEM_W) * 2))
 
-# select memory size in bytes and latency in cycles (1 cycle is minimum)
+# select memory width (bits), size (bytes), and latency (cycles, 1 is minimum)
+MEM_W		?= 32
 MEM_SZ      ?= 262144
 MEM_LATENCY ?= 1
 
@@ -49,7 +50,7 @@ vivado:
 	    "VREG_W=$(VREG_W) VMEM_W=$(VMEM_W) VMUL_W=$(VMUL_W)                   \
 	    ICACHE_SZ=$(ICACHE_SZ) ICACHE_LINE_W=$(ICACHE_LINE_W)                 \
 	    DCACHE_SZ=$(DCACHE_SZ) DCACHE_LINE_W=$(DCACHE_LINE_W)                 \
-	    MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)"                          \
+	    MEM_W=$(MEM_W) MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)"           \
 	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS_LIST)) $(TRACE_SIGS)
 
 verilator:
@@ -66,6 +67,7 @@ verilator:
 	    -I$(CORE_DIR)/vendor/lowrisc_ip/dv/sv/dv_utils/                       \
 	    -I$(CORE_DIR)/vendor/lowrisc_ip/ip/prim/rtl/                          \
 	    -I$(CORE_DIR)/vendor/lowrisc_ip/ip/prim_generic/rtl/                  \
+	    -GMEM_W=$(MEM_W)                                                      \
 	    -GVREG_W=$(VREG_W) -GVMEM_W=$(VMEM_W) -GVMUL_W=$(VMUL_W)              \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
@@ -75,5 +77,5 @@ verilator:
 	    --top-module vproc_top --clk clk_i $$trace --exe verilator_main.cpp;  \
 	make -C $(PROJ_DIR)/obj_dir -f Vvproc_top.mk Vvproc_top;                  \
 	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST))              \
-	    $(MEM_SZ) $(MEM_LATENCY)  $$(($(VREG_W) * 2))                         \
+	    $(MEM_W) $(MEM_SZ) $(MEM_LATENCY)  $$(($(VREG_W) * 2))                \
 	    $(abspath $(TRACE_FILE)) $(abspath $(TRACE_VCD))

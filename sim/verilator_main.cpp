@@ -4,6 +4,7 @@
 
 
 #include <stdio.h>
+#include <stdint.h>
 #include "Vvproc_top.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
@@ -11,25 +12,30 @@
 static void log_cycle(Vvproc_top *top, VerilatedVcdC* tfp, FILE *fcsv);
 
 int main(int argc, char **argv) {
-    if (argc != 6 && argc != 7) {
-        fprintf(stderr, "Usage: %s PROG_PATHS_LIST MEM_SZ MEM_LATENCY EXTRA_CYCLES TRACE_FILE [WAVEFORM_FILE]\n", argv[0]);
+    if (argc != 7 && argc != 8) {
+        fprintf(stderr, "Usage: %s PROG_PATHS_LIST MEM_W MEM_SZ MEM_LATENCY EXTRA_CYCLES TRACE_FILE [WAVEFORM_FILE]\n", argv[0]);
         return 1;
     }
 
-    int mem_sz, mem_latency, extra_cycles;
+    int mem_w, mem_sz, mem_latency, extra_cycles;
     {
         char *endptr;
-        mem_sz = strtol(argv[2], &endptr, 10);
+        mem_w = strtol(argv[2], &endptr, 10);
+        if (mem_w == 0 || *endptr != 0) {
+            fprintf(stderr, "ERROR: invalid MEM_W argument\n");
+            return 1;
+        }
+        mem_sz = strtol(argv[3], &endptr, 10);
         if (mem_sz == 0 || *endptr != 0) {
             fprintf(stderr, "ERROR: invalid MEM_SZ argument\n");
             return 1;
         }
-        mem_latency = strtol(argv[3], &endptr, 10);
+        mem_latency = strtol(argv[4], &endptr, 10);
         if (*endptr != 0) {
             fprintf(stderr, "ERROR: invalid MEM_LATENCY argument\n");
             return 1;
         }
-        extra_cycles = strtol(argv[4], &endptr, 10);
+        extra_cycles = strtol(argv[5], &endptr, 10);
         if (*endptr != 0) {
             fprintf(stderr, "ERROR: invalid EXTRA_CYCLES argument\n");
             return 1;
@@ -45,9 +51,9 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    FILE *fcsv = fopen(argv[5], "w");
+    FILE *fcsv = fopen(argv[6], "w");
     if (fcsv == NULL) {
-        fprintf(stderr, "ERROR: opening `%s': %s\n", argv[5], strerror(errno));
+        fprintf(stderr, "ERROR: opening `%s': %s\n", argv[6], strerror(errno));
         return 2;
     }
     fprintf(fcsv, "rst_ni;mem_req;mem_addr;vreg_rd_hazard_map_q;vreg_wr_hazard_map_q;state_init_q;\n");
@@ -57,17 +63,17 @@ int main(int argc, char **argv) {
         fprintf(stderr, "ERROR: allocating %d bytes of memory: %s\n", mem_sz, strerror(errno));
         return 3;
     }
-    int *mem_rvalid_queue = (int *)malloc(sizeof(int) * mem_latency);
-    int *mem_rdata_queue  = (int *)malloc(sizeof(int) * mem_latency);
-    int *mem_err_queue    = (int *)malloc(sizeof(int) * mem_latency);
+    int64_t *mem_rvalid_queue = (int64_t *)malloc(sizeof(int64_t) * mem_latency);
+    int64_t *mem_rdata_queue  = (int64_t *)malloc(sizeof(int64_t) * mem_latency);
+    int64_t *mem_err_queue    = (int64_t *)malloc(sizeof(int64_t) * mem_latency);
 
     Vvproc_top *top = new Vvproc_top;
     VerilatedVcdC* tfp = NULL;
 #ifdef TRACE_VCD
-    if (argc == 7) {
+    if (argc == 8) {
         tfp = new VerilatedVcdC;
         top->trace(tfp, 99);  // Trace 99 levels of hierarchy
-        tfp->open(argv[6]);
+        tfp->open(argv[7]);
     }
 #endif
 
@@ -150,15 +156,17 @@ int main(int argc, char **argv) {
             int end_cnt = 0;
             while (end_cnt < extra_cycles) {
                 // read memory request
-                int addr = (top->mem_addr_o % mem_sz) & ~3;
+                int addr = (top->mem_addr_o % mem_sz) & ~(mem_w/8-1);
                 if (top->mem_req_o && top->mem_we_o) {
-                    for (i = 0; i < 4; i++)
+                    for (i = 0; i < mem_w / 8; i++)
                         if ((top->mem_be_o & (1<<i)))
                             mem[addr+i] = top->mem_wdata_o >> (i*8);
                 }
                 mem_rvalid_queue[0] = top->mem_req_o;
-                mem_rdata_queue [0] = mem[addr] | (mem[addr+1] << 8) | (mem[addr+2] << 16) | (mem[addr+3] << 24);
                 mem_err_queue   [0] = addr >= mem_sz;
+                mem_rdata_queue [0] = 0;
+                for (i = 0; i < mem_w / 8; i++)
+                    mem_rdata_queue[0] |= ((int64_t)mem[addr+i]) << (i*8);
 
                 // rising clock edge
                 top->clk_i = 1;

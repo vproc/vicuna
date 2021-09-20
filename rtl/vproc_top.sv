@@ -4,6 +4,7 @@
 
 
 module vproc_top #(
+        parameter int unsigned MEM_W           = 32,  // memory bus width in bits
         parameter              MAIN_CORE       = "",
         parameter int unsigned VREG_W          = 128,
         parameter int unsigned VMEM_W          = 32,
@@ -15,17 +16,17 @@ module vproc_top #(
         parameter int unsigned DCACHE_SZ       = 0,   // data cache size in bytes
         parameter int unsigned DCACHE_LINE_W   = 512  // data cache line width in bits
     )(
-        input  logic        clk_i,
-        input  logic        rst_ni,
+        input  logic               clk_i,
+        input  logic               rst_ni,
 
-        output logic        mem_req_o,
-        output logic [31:0] mem_addr_o,
-        output logic        mem_we_o,
-        output logic [3:0]  mem_be_o,
-        output logic [31:0] mem_wdata_o,
-        input  logic        mem_rvalid_i,
-        input  logic        mem_err_i,
-        input  logic [31:0] mem_rdata_i
+        output logic               mem_req_o,
+        output logic [31:0]        mem_addr_o,
+        output logic               mem_we_o,
+        output logic [MEM_W/8-1:0] mem_be_o,
+        output logic [MEM_W  -1:0] mem_wdata_o,
+        input  logic               mem_rvalid_i,
+        input  logic               mem_err_i,
+        input  logic [MEM_W  -1:0] mem_rdata_i
     );
 
     // Instruction fetch interface
@@ -296,19 +297,19 @@ module vproc_top #(
     // Caches
 
     // instruction cache
-    logic        imem_req;
-    logic        imem_gnt;
-    logic [31:0] imem_addr;
-    logic        imem_rvalid;
-    logic [31:0] imem_rdata;
-    logic        imem_err;
+    logic             imem_req;
+    logic             imem_gnt;
+    logic [31:0]      imem_addr;
+    logic             imem_rvalid;
+    logic [MEM_W-1:0] imem_rdata;
+    logic             imem_err;
     generate
         if (ICACHE_SZ != 0) begin
             localparam ICACHE_WAY_LEN = ICACHE_SZ / (ICACHE_LINE_W / 8) / 2;
             vproc_cache #(
                 .ADDR_BIT_W   ( 32                ),
                 .CPU_BYTE_W   ( 4                 ),
-                .MEM_BYTE_W   ( 4                 ),
+                .MEM_BYTE_W   ( MEM_W / 8         ),
                 .LINE_BYTE_W  ( ICACHE_LINE_W / 8 ),
                 .WAY_LEN      ( ICACHE_WAY_LEN    )
             ) icache (
@@ -344,15 +345,15 @@ module vproc_top #(
     endgenerate
 
     // data cache
-    logic        dmem_req;
-    logic        dmem_gnt;
-    logic [31:0] dmem_addr;
-    logic        dmem_we;
-    logic [4:0]  dmem_be;
-    logic [31:0] dmem_wdata;
-    logic        dmem_rvalid;
-    logic [31:0] dmem_rdata;
-    logic        dmem_err;
+    logic               dmem_req;
+    logic               dmem_gnt;
+    logic [31:0]        dmem_addr;
+    logic               dmem_we;
+    logic [MEM_W/8-1:0] dmem_be;
+    logic [MEM_W  -1:0] dmem_wdata;
+    logic               dmem_rvalid;
+    logic [MEM_W  -1:0] dmem_rdata;
+    logic               dmem_err;
     generate
         if (DCACHE_SZ != 0) begin
             localparam DCACHE_WAY_LEN = DCACHE_SZ / (DCACHE_LINE_W / 8) / 2;
@@ -365,7 +366,7 @@ module vproc_top #(
             vproc_cache #(
                 .ADDR_BIT_W   ( 32                ),
                 .CPU_BYTE_W   ( VMEM_W / 8        ),
-                .MEM_BYTE_W   ( 4                 ),
+                .MEM_BYTE_W   ( MEM_W / 8         ),
                 .LINE_BYTE_W  ( DCACHE_LINE_W / 8 ),
                 .WAY_LEN      ( DCACHE_WAY_LEN    )
             ) vcache (
