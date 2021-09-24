@@ -8,7 +8,8 @@ module vproc_core #(
         parameter int unsigned        VMEM_W         = 32,   // vector memory interface width in bits
         parameter int unsigned        ALU_OP_W       = 64,   // ALU operand width in bits
         parameter int unsigned        MUL_OP_W       = 64,   // MUL unit operand width in bits
-        parameter int unsigned        SLD_OP_W       = 64,   // SLD unit operand size
+        parameter int unsigned        SLD_OP_W       = 64,   // SLD unit operand width in bits
+        parameter int unsigned        GATHER_OP_W    = 32,   // ELEM unit GATHER operand width in bits
         parameter int unsigned        QUEUE_SZ       = 2,    // instruction queue size
         parameter vproc_pkg::ram_type RAM_TYPE       = vproc_pkg::RAM_GENERIC,
         parameter vproc_pkg::mul_type MUL_TYPE       = vproc_pkg::MUL_GENERIC,
@@ -63,6 +64,11 @@ module vproc_core #(
     );
 
     import vproc_pkg::*;
+
+    if ((VREG_W & (VREG_W - 1)) != 0 || VREG_W < 64) begin
+        $fatal(1, "The vector register width VREG_W must be at least 64 and a power of two.  ",
+                  "The current value of %d is invalid.", VREG_W);
+    end
 
     localparam int unsigned VMSK_W = VREG_W / 8;   // single register mask size
 
@@ -741,7 +747,7 @@ module vproc_core #(
         .VREG_W             ( VREG_W                   ),
         .VMSK_W             ( VMSK_W                   ),
         .CFG_VL_W           ( CFG_VL_W                 ),
-        .GATHER_OP_W        ( 32                       ),
+        .GATHER_OP_W        ( GATHER_OP_W              ),
         .MAX_WR_ATTEMPTS    ( 3                        ),
         .COMB_INIT_ZERO     ( COMB_INIT_ZERO           ),
         .ASYNC_RESET        ( ASYNC_RESET              )

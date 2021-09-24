@@ -46,6 +46,12 @@ module vproc_sld #(
 
     import vproc_pkg::*;
 
+    if ((SLD_OP_W & (SLD_OP_W - 1)) != 0 || SLD_OP_W < 32 || SLD_OP_W >= VREG_W) begin
+        $fatal(1, "The vector SLD operand width SLD_OP_W must be at least 32, less than ",
+                  "the vector register width VREG_W and a power of two.  ",
+                  "The current value of %d is invalid.", SLD_OP_W);
+    end
+
     // max number of cycles by which a write can be delayed
     localparam int unsigned MAX_WR_DELAY = (1 << MAX_WR_ATTEMPTS) - 1;
 

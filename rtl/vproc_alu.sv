@@ -51,6 +51,12 @@ module vproc_alu #(
 
     import vproc_pkg::*;
 
+    if ((ALU_OP_W & (ALU_OP_W - 1)) != 0 || ALU_OP_W < 32 || ALU_OP_W >= VREG_W) begin
+        $fatal(1, "The vector ALU operand width ALU_OP_W must be at least 32, less than ",
+                  "the vector register width VREG_W and a power of two.  ",
+                  "The current value of %d is invalid.", ALU_OP_W);
+    end
+
     // max number of cycles by which a write can be delayed
     localparam int unsigned MAX_WR_DELAY = (1 << MAX_WR_ATTEMPTS) - 1;
 

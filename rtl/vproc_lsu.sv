@@ -64,6 +64,12 @@ module vproc_lsu #(
 
     import vproc_pkg::*;
 
+    if ((VMEM_W & (VMEM_W - 1)) != 0 || VMEM_W < 32 || VMEM_W >= VREG_W) begin
+        $fatal(1, "The vector memory interface width VMEM_W must be at least 32, less than ",
+                  "the vector register width VREG_W and a power of two.  ",
+                  "The current value of %d is invalid.", VMEM_W);
+    end
+
     // max number of cycles by which a write can be delayed
     localparam int unsigned MAX_WR_DELAY = (1 << MAX_WR_ATTEMPTS) - 1;
 
