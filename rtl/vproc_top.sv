@@ -339,7 +339,7 @@ module vproc_top #(
             assign imem_addr    = instr_addr;
             assign instr_gnt    = imem_gnt;
             assign instr_rvalid = imem_rvalid;
-            assign instr_rdata  = imem_rdata;
+            assign instr_rdata  = imem_rdata[31:0];
             assign instr_err    = imem_err;
         end
     endgenerate
@@ -425,23 +425,29 @@ module vproc_top #(
     assign dmem_gnt =             dmem_req;
 
     // shift register keeping track of the source of mem requests for up to 32 cycles
-    logic [31:0] req_sources;
+    logic        req_sources  [32];
+    logic [31:0] imem_req_addr[32]; // keeping track of address for instruction memory requests
     logic [4:0]  req_count;
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (~rst_ni) begin
             req_count <= '0;
         end else begin
             if (mem_rvalid_i) begin
-                req_sources[30:0] <= req_sources[31:1];
+                for (int i = 0; i < 31; i++) begin
+                    req_sources  [i] <= req_sources  [i+1];
+                    imem_req_addr[i] <= imem_req_addr[i+1];
+                end
                 if (~imem_gnt & ~dmem_gnt) begin
                     req_count <= req_count - 1;
                 end else begin
-                    req_sources[req_count-1] <= dmem_gnt;
+                    req_sources  [req_count-1] <= dmem_gnt;
+                    imem_req_addr[req_count-1] <= imem_addr;
                 end
             end
             else if (imem_gnt | dmem_gnt) begin
-                req_sources[req_count] <= dmem_gnt;
-                req_count              <= req_count + 1;
+                req_sources  [req_count] <= dmem_gnt;
+                imem_req_addr[req_count] <= imem_addr;
+                req_count                <= req_count + 1;
             end
         end
     end
@@ -449,7 +455,8 @@ module vproc_top #(
     assign dmem_rvalid = mem_rvalid_i &  req_sources[0];
     assign imem_err    = mem_err_i;
     assign dmem_err    = mem_err_i;
-    assign imem_rdata  = mem_rdata_i;
+    assign imem_rdata  = (ICACHE_SZ != 0) ? mem_rdata_i : mem_rdata_i[
+        (imem_req_addr[0][$clog2(MEM_W/8)-1:0] & {{$clog2(MEM_W/32){1'b1}}, 2'b00})*8 +: 32];
     assign dmem_rdata  = mem_rdata_i;
 
 endmodule
