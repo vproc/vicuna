@@ -4,17 +4,17 @@
 
 
 module vproc_top #(
-        parameter int unsigned MEM_W           = 32,  // memory bus width in bits
-        parameter              MAIN_CORE       = "",
-        parameter int unsigned VREG_W          = 128,
-        parameter int unsigned VMEM_W          = 32,
-        parameter int unsigned VMUL_W          = 64,
-        parameter vproc_pkg::ram_type RAM_TYPE = vproc_pkg::RAM_GENERIC,
-        parameter vproc_pkg::mul_type MUL_TYPE = vproc_pkg::MUL_GENERIC,
-        parameter int unsigned ICACHE_SZ       = 0,   // instruction cache size in bytes
-        parameter int unsigned ICACHE_LINE_W   = 128, // instruction cache line width in bits
-        parameter int unsigned DCACHE_SZ       = 0,   // data cache size in bytes
-        parameter int unsigned DCACHE_LINE_W   = 512  // data cache line width in bits
+        parameter int unsigned        MEM_W         = 32,  // memory bus width in bits
+        parameter                     MAIN_CORE     = "",
+        parameter int unsigned        VREG_W        = 128, // vector register width in bits
+        parameter int unsigned        VMEM_W        = 32,  // vector memory interface width in bits
+        parameter int unsigned        VMUL_W        = 64,  // MUL unit operand width in bits
+        parameter vproc_pkg::ram_type RAM_TYPE      = vproc_pkg::RAM_GENERIC,
+        parameter vproc_pkg::mul_type MUL_TYPE      = vproc_pkg::MUL_GENERIC,
+        parameter int unsigned        ICACHE_SZ     = 0,   // instruction cache size in bytes
+        parameter int unsigned        ICACHE_LINE_W = 128, // instruction cache line width in bits
+        parameter int unsigned        DCACHE_SZ     = 0,   // data cache size in bytes
+        parameter int unsigned        DCACHE_LINE_W = 512  // data cache line width in bits
     )(
         input  logic               clk_i,
         input  logic               rst_ni,
@@ -28,6 +28,11 @@ module vproc_top #(
         input  logic               mem_err_i,
         input  logic [MEM_W  -1:0] mem_rdata_i
     );
+
+    if ((MEM_W & (MEM_W - 1)) != 0 || MEM_W < 32) begin
+        $fatal(1, "The memory bus width MEM_W must be at least 32 and a power of two.  ",
+                  "The current value of %d is invalid.", MEM_W);
+    end
 
     // Instruction fetch interface
     logic        instr_req;
@@ -393,6 +398,12 @@ module vproc_top #(
             );
             assign dmem_be = '1;
         end else begin
+            if (MEM_W != VMEM_W) begin
+                $fatal(1, "If no data cache is used, the memory bus width MEM_W and the vector ",
+                          "memory interface width VMEM_W must be equal.  ",
+                          "Currently, MEM_W == %d and VMEM_W == %d.", MEM_W, VMEM_W);
+            end
+
             assign dmem_req    = data_req;
             assign dmem_addr   = data_addr;
             assign dmem_we     = data_we;

@@ -75,6 +75,9 @@ verilator:
 	    ibex_register_file_ff.sv vproc_pkg.sv vproc_top.sv vproc_hazards.sv   \
 	    vproc_vregpack.sv vproc_vregunpack.sv                                 \
 	    --top-module vproc_top --clk clk_i $$trace --exe verilator_main.cpp;  \
+	if [ "$$?" != "0" ]; then                                                 \
+	    exit 1;                                                               \
+	fi;                                                                       \
 	make -C $(PROJ_DIR)/obj_dir -f Vvproc_top.mk Vvproc_top;                  \
 	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST))              \
 	    $(MEM_W) $(MEM_SZ) $(MEM_LATENCY)  $$(($(VREG_W) * 2))                \
