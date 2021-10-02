@@ -115,6 +115,7 @@ module vproc_decoder #(
                         rs2_o.vreg        = 1'b1;
                         rs2_o.r.vaddr     = instr_vs2;
                     end
+                    default: ;
                 endcase
 
                 unique case (instr_i[14:12])
@@ -173,6 +174,7 @@ module vproc_decoder #(
                         rs2_o.vreg        = 1'b1;
                         rs2_o.r.vaddr     = instr_vs2;
                     end
+                    default: ;
                 endcase
 
                 unique case (instr_i[14:12])
@@ -227,6 +229,7 @@ module vproc_decoder #(
                         rs2_o.vreg    = 1'b0; // rs2 is either x reg or immediate
                         rs2_o.r.xval  = (instr_i[31:30] == 2'b10) ? x_rs2_i : {{21{1'b0}}, instr_i[30] & ~instr_i[31], instr_i[29:20]};
                     end
+                    default: ;
                 endcase
 
                 // configuration instructions:
@@ -1217,6 +1220,7 @@ module vproc_decoder #(
             LMUL_8: begin
                 regaddr_mask   = 3'b111;
             end
+            default: ;
         endcase
     end
 

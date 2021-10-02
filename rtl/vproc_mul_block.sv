@@ -158,6 +158,8 @@ module vproc_mul_block #(
 
             end
 
+            default: ;
+
         endcase
     endgenerate
 

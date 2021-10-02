@@ -52,10 +52,11 @@
                     shift_d[SHIFT_W-9:0] = shift_q[2*SHIFT_W-9:SHIFT_W];                         \
                 end else begin                                                                   \
                     shift_d[SHIFT_W-9:0] = COMB_INIT_ZERO ? '0 : 'x;                             \
-                    case(eew)                                                                    \
+                    unique case(eew)                                                             \
                         VSEW_8:  shift_d[SHIFT_W-9:0] = shift_q[SHIFT_W-1 :8 ];                  \
                         VSEW_16: shift_d[SHIFT_W-9:0] = shift_q[SHIFT_W+7 :16];                  \
                         VSEW_32: shift_d[SHIFT_W-9:0] = shift_q[SHIFT_W+23:32];                  \
+                        default: ;                                                               \
                     endcase                                                                      \
                 end                                                                              \
             end                                                                                  \
@@ -79,9 +80,10 @@
                 shift_d[(OP_W*3)/32-1:0] = shift_q[(OP_W*7)/32-1:OP_W/8];               \
             end else begin                                                              \
                 shift_d[(OP_W*3)/32-1:0] = COMB_INIT_ZERO ? '0 : 'x;                    \
-                case (eew)                                                              \
+                unique case (eew)                                                       \
                     VSEW_16: shift_d[(OP_W*3)/32-1:0] = shift_q[(OP_W*5)/32-1:OP_W/16]; \
                     VSEW_32: shift_d[(OP_W*3)/32-1:0] = shift_q[(OP_W*4)/32-1:OP_W/32]; \
+                    default: ;                                                          \
                 endcase                                                                 \
             end                                                                         \
         end                                                                             \

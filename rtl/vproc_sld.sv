@@ -148,6 +148,7 @@ module vproc_sld #(
                         byte_slide = {rs1_i[$clog2(VREG_W)-3:0], 2'b00};
                         sld_valid  =  rs1_i[31:$clog2(VREG_W)-2] == '0;
                     end
+                    default: ;
                 endcase
             end
             SLD_1UP, SLD_1DOWN: begin
@@ -155,9 +156,11 @@ module vproc_sld #(
                     VSEW_8:  byte_slide = 1;
                     VSEW_16: byte_slide = 2;
                     VSEW_32: byte_slide = 4;
+                    default: ;
                 endcase
                 sld_valid = 1'b1;
             end
+            default: ;
         endcase
     end
 
@@ -181,6 +184,7 @@ module vproc_sld #(
                 LMUL_2: state_d.emul = EMUL_2;
                 LMUL_4: state_d.emul = EMUL_4;
                 LMUL_8: state_d.emul = EMUL_8;
+                default: ;
             endcase
             state_d.vl          = vl_i;
             state_d.vl_0        = vl_0_i;
@@ -198,6 +202,7 @@ module vproc_sld #(
                     state_d.count_store.val = ~byte_slide[$clog2(VREG_W)-1:SLD_OP_SHFT_W];
                     state_d.op_shift        =  byte_slide[SLD_OP_SHFT_W-1:0];
                 end
+                default: ;
             endcase
             if (~sld_valid) begin
                 state_d.count_store.val = {1'b1, {(SLD_COUNTER_W-1){1'b0}}};
@@ -376,6 +381,7 @@ module vproc_sld #(
                 EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_d                [4:1], 1'b0};
                 EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_d                [4:2], 2'b0};
                 EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_d                [4:3], 3'b0};
+                default: ;
             endcase
             if (~vreg_wr_last_d) begin
                 clear_wr_hazards_d = '0;
@@ -386,6 +392,7 @@ module vproc_sld #(
                 EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_q[MAX_WR_DELAY-1][4:1], 1'b0};
                 EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_q[MAX_WR_DELAY-1][4:2], 2'b0};
                 EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_q[MAX_WR_DELAY-1][4:3], 3'b0};
+                default: ;
             endcase
             if (~vreg_wr_last_q[MAX_WR_DELAY-1]) begin
                 clear_wr_hazards_d = '0;
@@ -432,10 +439,11 @@ module vproc_sld #(
         operand_low_d  = vs2_tmp_q;
         operand_high_d = vs2_shift_q[SLD_OP_W-1:0];
         if (state_vs_q.first_cycle) begin
-            case (state_vs_q.eew)
+            unique case (state_vs_q.eew)
                 VSEW_8:  operand_low_d[SLD_OP_W-1:SLD_OP_W-8 ] = state_vs_q.rs1[7 :0];
                 VSEW_16: operand_low_d[SLD_OP_W-1:SLD_OP_W-16] = state_vs_q.rs1[15:0];
                 VSEW_32: operand_low_d[SLD_OP_W-1:SLD_OP_W-32] = state_vs_q.rs1      ;
+                default: ;
             endcase
         end
         if ((state_vs_q.mode.op == SLD_1UP) | (state_vs_q.mode.op == SLD_1DOWN)) begin
@@ -454,7 +462,7 @@ module vproc_sld #(
     // convert element mask to byte mask
     always_comb begin
         write_mask_d = COMB_INIT_ZERO ? '0 : 'x;
-        case (state_ex_q.eew)
+        unique case (state_ex_q.eew)
             VSEW_8: begin
                 write_mask_d = v0msk_part_q;
             end
@@ -472,6 +480,7 @@ module vproc_sld #(
                     write_mask_d[i*4+3] = v0msk_part_q[i];
                 end
             end
+            default: ;
         endcase
     end
 

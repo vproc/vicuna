@@ -189,7 +189,7 @@ module vproc_lsu #(
             {VSEW_8 , VSEW_8 },
             {VSEW_16, VSEW_16},
             {VSEW_32, VSEW_32}: begin   // EEW / SEW = 1
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
                     LMUL_F2,
@@ -197,31 +197,35 @@ module vproc_lsu #(
                     LMUL_2:  emul = EMUL_2;
                     LMUL_4:  emul = EMUL_4;
                     LMUL_8:  emul = EMUL_8;
+                    default: ;
                 endcase
                 vl   = vl_i;
             end
             {VSEW_16, VSEW_8 },
             {VSEW_32, VSEW_16}: begin   // EEW / SEW = 2
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
                     LMUL_F2: emul = EMUL_1;
                     LMUL_1:  emul = EMUL_2;
                     LMUL_2:  emul = EMUL_4;
                     LMUL_4:  emul = EMUL_8;
+                    default: ;
                 endcase
                 vl   = {vl_i[CFG_VL_W-2:0], 1'b1};
             end
             {VSEW_32, VSEW_8 }: begin   // EEW / SEW = 4
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4: emul = EMUL_1;
                     LMUL_F2: emul = EMUL_2;
                     LMUL_1:  emul = EMUL_4;
                     LMUL_2:  emul = EMUL_8;
+                    default: ;
                 endcase
                 vl   = {vl_i[CFG_VL_W-3:0], 2'b11};
             end
+            default: ;
         endcase
     end
 
@@ -243,7 +247,7 @@ module vproc_lsu #(
                 state_init_d.count.part.stri = '1;
                 state_load_d.count.part.stri = '1;
             end else begin
-                case (mode_i.eew)
+                unique case (mode_i.eew)
                     VSEW_16: begin
                         state_init_d.count.part.stri = 1;
                         state_load_d.count.part.stri = 1;
@@ -252,6 +256,7 @@ module vproc_lsu #(
                         state_init_d.count.part.stri = 3;
                         state_load_d.count.part.stri = 3;
                     end
+                    default: ;
                 endcase
             end
             state_init_d.busy        = 1'b1;
@@ -288,10 +293,11 @@ module vproc_lsu #(
                 if (state_init_q.mode.stride == LSU_UNITSTRIDE) begin
                     state_init_d.count.val = state_init_q.count.val + (1 << LSU_STRI_COUNTER_EXT_W);
                 end else begin
-                    case (state_init_q.mode.eew)
+                    unique case (state_init_q.mode.eew)
                         VSEW_8:  state_init_d.count.val = state_init_q.count.val + 1;
                         VSEW_16: state_init_d.count.val = state_init_q.count.val + 2;
                         VSEW_32: state_init_d.count.val = state_init_q.count.val + 4;
+                        default: ;
                     endcase
                 end
                 state_init_d.busy        = ~init_last_cycle;
@@ -299,7 +305,7 @@ module vproc_lsu #(
                 unique case (state_init_q.mode.stride)
                     LSU_UNITSTRIDE: state_init_d.base_addr = state_init_q.base_addr + (VMEM_W / 8);
                     LSU_STRIDED:    state_init_d.base_addr = state_init_q.base_addr + state_init_q.rs2.r.xval;
-                    // for indexed loads the base address stays the same
+                    default: ; // for indexed loads the base address stays the same
                 endcase
                 state_init_d.vs2_fetch = 1'b0;
                 state_init_d.vs3_fetch = 1'b0;
@@ -320,10 +326,11 @@ module vproc_lsu #(
                 if (state_load_q.mode.stride == LSU_UNITSTRIDE) begin
                     state_load_d.count.val = state_load_q.count.val + (1 << LSU_STRI_COUNTER_EXT_W);
                 end else begin
-                    case (state_load_q.mode.eew)
+                    unique case (state_load_q.mode.eew)
                         VSEW_8:  state_load_d.count.val = state_load_q.count.val + 1;
                         VSEW_16: state_load_d.count.val = state_load_q.count.val + 2;
                         VSEW_32: state_load_d.count.val = state_load_q.count.val + 4;
+                        default: ;
                     endcase
                 end
                 state_load_d.busy        = ~load_last_cycle;
@@ -576,6 +583,7 @@ module vproc_lsu #(
                 VSEW_8:  vs2_shift_d[VREG_W-9 :0] = vs2_shift_q[VREG_W-1:8 ];
                 VSEW_16: vs2_shift_d[VREG_W-17:0] = vs2_shift_q[VREG_W-1:16];
                 VSEW_32: vs2_shift_d[VREG_W-33:0] = vs2_shift_q[VREG_W-1:32];
+                default: ;
             endcase
         end
     end
@@ -597,10 +605,11 @@ module vproc_lsu #(
         if (~state_vs2_q.first_cycle) begin
             if (state_vs2_q.mode.stride == LSU_UNITSTRIDE) begin
                 v0msk_shift_d = COMB_INIT_ZERO ? '0 : 'x;
-                case (state_vs2_q.mode.eew)
+                unique case (state_vs2_q.mode.eew)
                     VSEW_8:  v0msk_shift_d[VREG_W-(VMEM_W/8 )-1:0] = v0msk_shift_q[VREG_W-1:VMEM_W/8 ];
                     VSEW_16: v0msk_shift_d[VREG_W-(VMEM_W/16)-1:0] = v0msk_shift_q[VREG_W-1:VMEM_W/16];
                     VSEW_32: v0msk_shift_d[VREG_W-(VMEM_W/32)-1:0] = v0msk_shift_q[VREG_W-1:VMEM_W/32];
+                    default: ;
                 endcase
             end else begin
                 v0msk_shift_d[VREG_W-2:0] = v0msk_shift_q[VREG_W-1:1];
@@ -609,10 +618,11 @@ module vproc_lsu #(
     end
     always_comb begin
         vs2_tmp_d = COMB_INIT_ZERO ? '0 : 'x;
-        case (state_vs2_q.mode.eew)
+        unique case (state_vs2_q.mode.eew)
             VSEW_8:  vs2_tmp_d = {24'b0, vs2_shift_q[7 :0]};
             VSEW_16: vs2_tmp_d = {16'b0, vs2_shift_q[15:0]};
             VSEW_32: vs2_tmp_d =         vs2_shift_q[31:0] ;
+            default: ;
         endcase
     end
 
@@ -623,7 +633,7 @@ module vproc_lsu #(
     logic [VMEM_W/8-1:0] byte_mask;
     always_comb begin
         byte_mask = COMB_INIT_ZERO ? '0 : 'x;
-        case (state_vs3_q.mode.eew)
+        unique case (state_vs3_q.mode.eew)
             VSEW_8: begin
                 byte_mask = v0msk_shift_q[VMEM_W/8-1:0];
             end
@@ -641,6 +651,7 @@ module vproc_lsu #(
                     byte_mask[i*4+3] = v0msk_shift_q[i];
                 end
             end
+            default: ;
         endcase
     end
     assign vmsk_tmp_d = byte_mask;
@@ -673,6 +684,7 @@ module vproc_lsu #(
                         wdata_buf_d[i*32 +: 32] = vs3_shift_q[31:0];
                     wmask_buf_d = {{VMEM_W/8-4{1'b0}}, {4{wdata_stri_mask}}} << (req_addr_d[$clog2(VMEM_W/8)-1:0] & ({$clog2(VMEM_W/8){1'b1}} << 2));
                 end
+                default: ;
             endcase
         end
     end
@@ -730,6 +742,7 @@ module vproc_lsu #(
                     vd_shift_d    = {rdata_buf_q[(rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)) * 8 +: 32], vd_shift_q   [VREG_W-1:32]};
                     vdmsk_shift_d = {{4{rdata_stri_vdmsk}}                                                 , vdmsk_shift_q[VMSK_W-1:4 ]};
                 end
+                default: ;
             endcase
         end
     end

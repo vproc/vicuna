@@ -37,7 +37,7 @@ module vproc_hazards #(
             {VSEW_8 , VSEW_8 },
             {VSEW_16, VSEW_16},
             {VSEW_32, VSEW_32}: begin   // EEW / SEW = 1
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
                     LMUL_F2,
@@ -45,35 +45,39 @@ module vproc_hazards #(
                     LMUL_2:  lsu_emul = EMUL_2;
                     LMUL_4:  lsu_emul = EMUL_4;
                     LMUL_8:  lsu_emul = EMUL_8;
+                    default: ;
                 endcase
             end
             {VSEW_16, VSEW_8 },
             {VSEW_32, VSEW_16}: begin   // EEW / SEW = 2
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
                     LMUL_F2: lsu_emul = EMUL_1;
                     LMUL_1:  lsu_emul = EMUL_2;
                     LMUL_2:  lsu_emul = EMUL_4;
                     LMUL_4:  lsu_emul = EMUL_8;
+                    default: ;
                 endcase
             end
             {VSEW_32, VSEW_8 }: begin   // EEW / SEW = 4
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4: lsu_emul = EMUL_1;
                     LMUL_F2: lsu_emul = EMUL_2;
                     LMUL_1:  lsu_emul = EMUL_4;
                     LMUL_2:  lsu_emul = EMUL_8;
+                    default: ;
                 endcase
             end
+            default: ;
         endcase
     end
 
     cfg_emul emul;
     always_comb begin
         emul = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
-        case (lmul_i)
+        unique case (lmul_i)
             LMUL_F8,
             LMUL_F4,
             LMUL_F2,
@@ -81,14 +85,16 @@ module vproc_hazards #(
             LMUL_2: emul = EMUL_2;
             LMUL_4: emul = EMUL_4;
             LMUL_8: emul = EMUL_8;
+            default: ;
         endcase
-        case (unit_i)
+        unique case (unit_i)
             UNIT_LSU: emul = lsu_emul;
             UNIT_ALU: begin
                 if (mode_i.alu.op_mask == ALU_MASK_ARIT) begin
                     emul = EMUL_1;
                 end
             end
+            default: ;
         endcase
     end
 
@@ -146,6 +152,7 @@ module vproc_hazards #(
             {EMUL_8, 1'b0}: begin
                 vs1_hazards = rs1_i.vreg ? (32'h000000FF << {rs1_i.r.vaddr[4:3], 3'b000}) : 32'b0;
             end
+            default: ;
         endcase
         vs2_hazards = COMB_INIT_ZERO ? '0 : 'x;
         unique case ({emul, vs2_wide})
@@ -164,6 +171,7 @@ module vproc_hazards #(
             {EMUL_8, 1'b0}: begin
                 vs2_hazards = rs2_i.vreg ? (32'h000000FF << {rs2_i.r.vaddr[4:3], 3'b000}) : 32'b0;
             end
+            default: ;
         endcase
         vd_hazards = COMB_INIT_ZERO ? '0 : 'x;
         unique case ({emul, vd_wide})
@@ -182,25 +190,27 @@ module vproc_hazards #(
             {EMUL_8, 1'b0}: begin
                 vd_hazards = rd_i.vreg ? (32'h000000FF << {rd_i.addr[4:3], 3'b000}) : 32'b0;
             end
+            default: ;
         endcase
     end
 
     logic masked;
     always_comb begin
         masked = '0;
-        case (unit_i)
+        unique case (unit_i)
             UNIT_LSU:  masked = mode_i.lsu.masked;
             UNIT_ALU:  masked = mode_i.alu.masked | mode_i.alu.op_mask;
             UNIT_MUL:  masked = mode_i.mul.masked;
             UNIT_SLD:  masked = mode_i.sld.masked;
             UNIT_ELEM: masked = mode_i.elem.masked;
+            default: ;
         endcase
     end
 
     always_comb begin
         rd_hazards_o = vs1_hazards | vs2_hazards | {31'b0, masked};
         wr_hazards_o = vd_hazards;
-        case (unit_i)
+        unique case (unit_i)
             UNIT_LSU: begin
                 if (mode_i.lsu.store) begin
                     rd_hazards_o |= vd_hazards;
@@ -222,6 +232,7 @@ module vproc_hazards #(
                     rd_hazards_o = vs1_hazards | (rs2_i.vreg ? (32'h1 << rs2_i.r.vaddr) : 32'b0) | {31'b0, masked};
                 end
             end
+            default: ;
         endcase
     end
 

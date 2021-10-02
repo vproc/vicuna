@@ -148,7 +148,7 @@ module vproc_mul #(
             state_d.emul        = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
             if (~widening_i) begin
                 state_d.eew = vsew_i;
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
                     LMUL_F2,
@@ -156,17 +156,19 @@ module vproc_mul #(
                     LMUL_2: state_d.emul = EMUL_2;
                     LMUL_4: state_d.emul = EMUL_4;
                     LMUL_8: state_d.emul = EMUL_8;
+                    default: ;
                 endcase
                 state_d.vl = vl_i;
             end else begin
                 state_d.eew = (vsew_i == VSEW_8) ? VSEW_16 : VSEW_32;
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
                     LMUL_F2: state_d.emul = EMUL_1;
                     LMUL_1:  state_d.emul = EMUL_2;
                     LMUL_2:  state_d.emul = EMUL_4;
                     LMUL_4:  state_d.emul = EMUL_8;
+                    default: ;
                 endcase
                 state_d.vl = {vl_i[CFG_VL_W-2:0], 1'b1};
             end
@@ -207,10 +209,11 @@ module vproc_mul #(
             end
             state_d.vs1_shift = ~state_q.vs1_narrow | state_q.count.part.low[0];
             state_d.vs2_shift = ~state_q.vs2_narrow | state_q.count.part.low[0];
-            case (state_q.eew)
+            unique case (state_q.eew)
                 VSEW_8:  state_d.v0msk_shift = 1'b1;
                 VSEW_16: state_d.v0msk_shift = state_q.count.val[0];
                 VSEW_32: state_d.v0msk_shift = state_q.count.val[1:0] == '1;
+                default: ;
             endcase
         end
     end
@@ -499,15 +502,17 @@ module vproc_mul #(
     always_comb begin
         ex1_vsew_8  = COMB_INIT_ZERO ? '0 : 'x;
         ex1_vsew_32 = COMB_INIT_ZERO ? '0 : 'x;
-        case (state_ex1_q.eew)
+        unique case (state_ex1_q.eew)
             VSEW_8:  ex1_vsew_8 = 1'b1;
             VSEW_16: ex1_vsew_8 = 1'b0;
             VSEW_32: ex1_vsew_8 = 1'b0;
+            default: ;
         endcase
-        case (state_ex1_q.eew)
+        unique case (state_ex1_q.eew)
             VSEW_8:  ex1_vsew_32 = 1'b0;
             VSEW_16: ex1_vsew_32 = 1'b0;
             VSEW_32: ex1_vsew_32 = 1'b1;
+            default: ;
         endcase
     end
 
@@ -549,9 +554,11 @@ module vproc_mul #(
                     VSEW_8:  accumulator2_d = {MUL_OP_W/32{32'h40404040}};
                     VSEW_16: accumulator2_d = {MUL_OP_W/32{32'h40004000}};
                     VSEW_32: accumulator2_d = {MUL_OP_W/32{32'h40000000}};
+                    default: ;
                 endcase
             end
             MUL_VMACC: accumulator2_d = accumulator1_q;
+            default: ;
         endcase
     end
 
@@ -560,20 +567,23 @@ module vproc_mul #(
         ex2_vsew_8  = COMB_INIT_ZERO ? '0 : 'x;
         ex2_vsew_16 = COMB_INIT_ZERO ? '0 : 'x;
         ex2_vsew_32 = COMB_INIT_ZERO ? '0 : 'x;
-        case (state_ex2_q.eew)
+        unique case (state_ex2_q.eew)
             VSEW_8:  ex2_vsew_8 = 1'b1;
             VSEW_16: ex2_vsew_8 = 1'b0;
             VSEW_32: ex2_vsew_8 = 1'b0;
+            default: ;
         endcase
-        case (state_ex2_q.eew)
+        unique case (state_ex2_q.eew)
             VSEW_8:  ex2_vsew_16 = 1'b0;
             VSEW_16: ex2_vsew_16 = 1'b1;
             VSEW_32: ex2_vsew_16 = 1'b0;
+            default: ;
         endcase
-        case (state_ex2_q.eew)
+        unique case (state_ex2_q.eew)
             VSEW_8:  ex2_vsew_32 = 1'b0;
             VSEW_16: ex2_vsew_32 = 1'b0;
             VSEW_32: ex2_vsew_32 = 1'b1;
+            default: ;
         endcase
     end
 
@@ -604,6 +614,7 @@ module vproc_mul #(
             MUL_VMULH: mul_accflag = 1'b0;
             MUL_VSMUL: mul_accflag = 1'b1;
             MUL_VMACC: mul_accflag = 1'b1;
+            default: ;
         endcase
     end
     assign mul_accsub = state_ex2_q.mode.accsub;
@@ -664,6 +675,7 @@ module vproc_mul #(
                         for (int i = 0; i < (MUL_OP_W / 32); i++)
                             result_d[32*i +: 32] = res32  [64*i +: 32];
                     end
+                    default: ;
                 endcase
             end
 
@@ -682,6 +694,7 @@ module vproc_mul #(
                         for (int i = 0; i < (MUL_OP_W / 32); i++)
                             result_d[32*i +: 32] = res32  [64*i+32 +: 32];
                     end
+                    default: ;
                 endcase
             end
 
@@ -700,8 +713,11 @@ module vproc_mul #(
                         for (int i = 0; i < (MUL_OP_W / 32); i++)
                             result_d[32*i +: 32] = (res32  [64*i+63] ^ res32  [64*i+62]) ? 32'h7fffffff : res32  [64*i+31 +: 32];
                     end
+                    default: ;
                 endcase
             end
+
+            default: ;
 
         endcase
     end

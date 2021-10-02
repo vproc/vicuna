@@ -39,6 +39,7 @@ module vproc_vregpack #(
                         vdmsk_o[i*2  +  1 ] = result_mask_i[i*4       ];
                     end
                 end
+                default: ;
             endcase
         end else begin
             vd_o    = result_i;

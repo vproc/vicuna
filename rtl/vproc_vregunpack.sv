@@ -45,6 +45,7 @@ module vproc_vregunpack #(
                         operand1_o[32*i +: 32] = rs1_i.r.xval;
                     end
                 end
+                default: ;
             endcase
         end else begin
             if (vs1_narrow_i) begin
@@ -60,6 +61,7 @@ module vproc_vregunpack #(
                             operand1_o[32*i +: 32] = {{16{vs1_sigext_i & vs1_i[16*i + 15]}}, vs1_i[16*i +: 16]};
                         end
                     end
+                    default: ;
                 endcase
             end else begin
                 operand1_o = vs1_i;
@@ -81,6 +83,7 @@ module vproc_vregunpack #(
                         operand2_o[32*i +: 32] = {{16{vs2_sigext_i & vs2_i[16*i + 15]}}, vs2_i[16*i +: 16]};
                     end
                 end
+                default: ;
             endcase
         end else begin
             operand2_o = vs2_i;
@@ -88,7 +91,7 @@ module vproc_vregunpack #(
 
         // convert element mask to byte mask
         operand_mask_o = COMB_INIT_ZERO ? '0 : 'x;
-        case (vsew_i)
+        unique case (vsew_i)
             VSEW_8: begin
                 operand_mask_o = vmsk_i;
             end
@@ -106,6 +109,7 @@ module vproc_vregunpack #(
                     operand_mask_o[i*4+3] = vmsk_i[i];
                 end
             end
+            default: ;
         endcase
 
     end

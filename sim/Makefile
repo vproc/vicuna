@@ -60,7 +60,7 @@ verilator:
 	if [[ "$(TRACE_VCD)" != "" ]]; then                                       \
 	    trace="--trace -CFLAGS -DTRACE_VCD";                                  \
 	fi;                                                                       \
-	verilator --unroll-count 1024 -Wno-CASEINCOMPLETE -Wno-UNSIGNED           \
+	verilator --unroll-count 1024 -Wno-UNSIGNED                               \
 	    -Wno-WIDTH -Wno-WIDTHCONCAT -Wno-PINMISSING -Wno-UNOPTFLAT            \
 	    -I$(SIM_DIR)/ -I$(SIM_DIR)/../rtl/ -I$(CORE_DIR)/rtl/                 \
 	    -I$(CORE_DIR)/dv/uvm/core_ibex/common/prim/                           \

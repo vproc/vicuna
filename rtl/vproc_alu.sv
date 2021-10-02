@@ -150,7 +150,7 @@ module vproc_alu #(
             state_d.emul = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
             if (widenarrow_i == OP_SINGLEWIDTH) begin
                 state_d.eew = vsew_i;
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
                     LMUL_F2,
@@ -158,17 +158,19 @@ module vproc_alu #(
                     LMUL_2: state_d.emul = EMUL_2;
                     LMUL_4: state_d.emul = EMUL_4;
                     LMUL_8: state_d.emul = EMUL_8;
+                    default: ;
                 endcase
                 state_d.vl = vl_i;
             end else begin
                 state_d.eew = (vsew_i == VSEW_8) ? VSEW_16 : VSEW_32;
-                case (lmul_i)
+                unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
                     LMUL_F2: state_d.emul = EMUL_1;
                     LMUL_1:  state_d.emul = EMUL_2;
                     LMUL_2:  state_d.emul = EMUL_4;
                     LMUL_4:  state_d.emul = EMUL_8;
+                    default: ;
                 endcase
                 state_d.vl = {vl_i[CFG_VL_W-2:0], 1'b1};
             end
@@ -211,10 +213,11 @@ module vproc_alu #(
             end
             state_d.vs1_shift = ~state_q.vs1_narrow | state_q.count.part.low[0];
             state_d.vs2_shift = ~state_q.vs2_narrow | state_q.count.part.low[0];
-            case (state_q.eew)
+            unique case (state_q.eew)
                 VSEW_8:  state_d.v0msk_shift = 1'b1;
                 VSEW_16: state_d.v0msk_shift = state_q.count.val[0];
                 VSEW_32: state_d.v0msk_shift = state_q.count.val[1:0] == '1;
+                default: ;
             endcase
         end
     end
@@ -483,6 +486,7 @@ module vproc_alu #(
                         operand2[32*i +: 32] = {{16{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}}, vs2_shift_q[16*i +: 16]};
                     end
                 end
+                default: ;
             endcase
         end
     end
@@ -565,7 +569,7 @@ module vproc_alu #(
     always_comb begin
         vd_cmp_shift_d = COMB_INIT_ZERO ? '0 : 'x;
         vdmsk_cmp_d    = COMB_INIT_ZERO ? '0 : 'x;
-        case (state_res_q.eew)
+        unique case (state_res_q.eew)
             VSEW_8: begin
                 vd_cmp_shift_d[VMSK_W  -ALU_OP_W/8 -1:0] = vd_cmp_shift_q[VMSK_W  -1:ALU_OP_W/8 ];
                 for (int i = 0; i < ALU_OP_W / 8 ; i++) begin
@@ -587,12 +591,14 @@ module vproc_alu #(
                     vd_cmp_shift_d[VMSK_W/4-ALU_OP_W/32+i] = result_cmp_q[4*i] | ~result_mask_q[4*i];
                 end
             end
+            default: ;
         endcase
-        case (state_res_q.eew)
+        unique case (state_res_q.eew)
             VSEW_8:  vdmsk_cmp_d = {{VMSK_W*7 /8 {1'b0}}, {VMSK_W/8 {1'b1}}} << ((VMSK_W/8 ) * state_res_q.count.part.mul);
             VSEW_16: vdmsk_cmp_d = {{VMSK_W*15/16{1'b0}}, {VMSK_W/16{1'b1}}} << ((VMSK_W/16) * state_res_q.count.part.mul);
             VSEW_32: vdmsk_cmp_d = (VMSK_W == 16) ? 16'h0001 << state_res_q.count.part.mul[2:1] :
                                    {{VMSK_W*31/32{1'b0}}, {VMSK_W/32{1'b1}}} << ((VMSK_W/32) * state_res_q.count.part.mul);
+            default: ;
         endcase
     end
 
@@ -659,6 +665,7 @@ module vproc_alu #(
                     sig_op2[4 *i +: 4] = {4{operand2_q[36*i+35]}};
                     sig_res[4 *i +: 4] = {4{sum37     [37*i+35]}};
                 end
+                default: ;
             endcase
         end
     end
@@ -680,6 +687,7 @@ module vproc_alu #(
                     cmp_d[i] = (state_ex1_q.mode.op_mask == ALU_MASK_SEL) & operand_mask_q[i];
                 end
             end
+            default: ;
         endcase
     end
     // saturation value generation: generate the sign bit and fill bit for
@@ -697,6 +705,7 @@ module vproc_alu #(
         unique case (state_ex1_q.mode.opx1.sel)
             ALU_SEL_CARRY: mode_signed = 1'b0;
             ALU_SEL_OVFLW: mode_signed = 1'b1;
+            default: ;
         endcase
     end
     always_comb begin
@@ -717,6 +726,7 @@ module vproc_alu #(
                     satval_d[8*i +: 8] = mode_signed ? {~sig_res[4*i], {7{sig_res[4*i]}}} : {8{carry[4*i]}};
                 end
             end
+            default: ;
         endcase
     end
 
@@ -765,6 +775,7 @@ module vproc_alu #(
                 for (int i = 0; i < ALU_OP_W / 32; i++)
                     shift_res_d[32*i +: 32] = $signed(operand2_32[32*i +: 32]) >>> operand1_32[32*i +: 5];
             end
+            default: ;
         endcase
     end
 
@@ -809,7 +820,7 @@ module vproc_alu #(
                     result_alu_d[8*i +: 8] = cmp_q[i] ? operand2_tmp_q[8*i +: 8] : ~operand1_tmp_q[8*i +: 8];
                 end
             end
-
+            default: ;
         endcase
     end
 
@@ -834,6 +845,7 @@ module vproc_alu #(
                     neq[4*i] = |{sum_q[36*i+27 +: 8], sum_q[36*i+18 +: 8], sum_q[36*i+9 +: 8], sum_q[36*i +: 8]};
                 end
             end
+            default: ;
         endcase
     end
     always_comb begin
@@ -843,6 +855,7 @@ module vproc_alu #(
             ALU_CMP_CMPN: result_cmp_d = ~cmp_q;
             ALU_CMP_EQ:   result_cmp_d = ~neq;
             ALU_CMP_NE:   result_cmp_d =  neq;
+            default: ;
         endcase
     end
 

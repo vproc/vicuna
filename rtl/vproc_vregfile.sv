@@ -133,6 +133,8 @@ module vproc_vregfile #(
                     end
                 end
 
+                default: ;
+
             endcase
         end
     endgenerate

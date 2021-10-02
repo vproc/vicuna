@@ -256,6 +256,7 @@ module vproc_core #(
             VSEW_8:  cfg_avl = {2'b00, dec_data_d.rs1.r.xval - 1       };
             VSEW_16: cfg_avl = {1'b0 , dec_data_d.rs1.r.xval - 1, 1'b1 };
             VSEW_32: cfg_avl = {       dec_data_d.rs1.r.xval - 1, 2'b11};
+            default: ;
         endcase
     end
 
@@ -277,13 +278,16 @@ module vproc_core #(
                 vl_csr_d = '0;
             end else begin
                 vl_0_d = 1'b0;
+                vl_d   = COMB_INIT_ZERO ? '0 : 'x;
                 unique case (dec_data_d.mode.cfg.lmul)
                     // TODO support fractional LMUL
                     LMUL_1: vl_d = (cfg_avl[33:CFG_VL_W-3] == '0) ? cfg_avl[CFG_VL_W-1:0] : {3'b000, {(CFG_VL_W-3){1'b1}}};
                     LMUL_2: vl_d = (cfg_avl[33:CFG_VL_W-2] == '0) ? cfg_avl[CFG_VL_W-1:0] : {2'b00,  {(CFG_VL_W-2){1'b1}}};
                     LMUL_4: vl_d = (cfg_avl[33:CFG_VL_W-1] == '0) ? cfg_avl[CFG_VL_W-1:0] : {1'b0,   {(CFG_VL_W-1){1'b1}}};
                     LMUL_8: vl_d = (cfg_avl[33:CFG_VL_W  ] == '0) ? cfg_avl[CFG_VL_W-1:0] :          { CFG_VL_W   {1'b1}} ;
+                    default: ;
                 endcase
+                vl_csr_d = COMB_INIT_ZERO ? '0 : 'x;
                 unique case ({dec_data_d.mode.cfg.lmul, dec_data_d.mode.cfg.vsew})
                     // TODO support fractional LMUL
                     {LMUL_1, VSEW_32}: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W-5] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {6'b1, {(CFG_VL_W-5){1'b0}}};
@@ -298,6 +302,7 @@ module vproc_core #(
                     {LMUL_4, VSEW_8 },
                     {LMUL_8, VSEW_16}: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W-1] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {2'b1, {(CFG_VL_W-1){1'b0}}};
                     {LMUL_8, VSEW_8 }: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W  ] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {1'b1, {(CFG_VL_W  ){1'b0}}};
+                    default: ;
                 endcase
             end
         end
@@ -474,6 +479,7 @@ module vproc_core #(
                 UNIT_MUL:  op_rdy_mul  = queue_data_q.vsew != VSEW_INVALID;
                 UNIT_SLD:  op_rdy_sld  = queue_data_q.vsew != VSEW_INVALID;
                 UNIT_ELEM: op_rdy_elem = queue_data_q.vsew != VSEW_INVALID;
+                default: ;
             endcase
         end
     end

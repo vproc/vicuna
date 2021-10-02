@@ -129,7 +129,7 @@ module vproc_elem #(
     logic op_reduction;
     always_comb begin
         op_reduction = COMB_INIT_ZERO ? 1'b0 : 1'bx;
-        case (mode_i.op)
+        unique case (mode_i.op)
             ELEM_XMV:       op_reduction = 1'b0;
             ELEM_VPOPC:     op_reduction = 1'b0;
             ELEM_VFIRST:    op_reduction = 1'b0;
@@ -146,6 +146,7 @@ module vproc_elem #(
             ELEM_VREDMIN:   op_reduction = 1'b1;
             ELEM_VREDMAXU:  op_reduction = 1'b1;
             ELEM_VREDMAX:   op_reduction = 1'b1;
+            default: ;
         endcase
     end
 
@@ -168,10 +169,11 @@ module vproc_elem #(
             op_ack_o               = 1'b1;
             state_d.count.val      = '0;
             state_d.count.val[1:0] = COMB_INIT_ZERO ? '0 : 'x;
-            case (vsew_i)
+            unique case (vsew_i)
                 VSEW_8:  state_d.count.val[1:0] = 2'b00;
                 VSEW_16: state_d.count.val[1:0] = 2'b01;
                 VSEW_32: state_d.count.val[1:0] = 2'b11;
+                default: ;
             endcase
             state_d.count_gather   = (mode_i.op == ELEM_VRGATHER) ? '0 : '1;
             state_d.busy           = 1'b1;
@@ -188,6 +190,7 @@ module vproc_elem #(
                 LMUL_2: state_d.emul = EMUL_2;
                 LMUL_4: state_d.emul = EMUL_4;
                 LMUL_8: state_d.emul = EMUL_8;
+                default: ;
             endcase
             state_d.vl             = vl_i;
             state_d.vl_0           = vl_0_i;
@@ -203,10 +206,11 @@ module vproc_elem #(
         end
         else if (state_q.busy) begin
             if (state_q.count_gather == '1) begin
-                case (state_q.eew)
+                unique case (state_q.eew)
                     VSEW_8:  state_d.count.val = state_q.count.val + 1;
                     VSEW_16: state_d.count.val = state_q.count.val + 2;
                     VSEW_32: state_d.count.val = state_q.count.val + 4;
+                    default: ;
                 endcase
             end
             if (state_q.mode.op == ELEM_VRGATHER) begin
@@ -215,10 +219,11 @@ module vproc_elem #(
             if (last_cycle & state_q.requires_flush) begin
                 state_d.count.val      = '0;
                 state_d.count.val[1:0] = COMB_INIT_ZERO ? '0 : 'x;
-                case (vsew_i)
+                unique case (vsew_i)
                     VSEW_8:  state_d.count.val[1:0] = 2'b00;
                     VSEW_16: state_d.count.val[1:0] = 2'b01;
                     VSEW_32: state_d.count.val[1:0] = 2'b11;
+                    default: ;
                 endcase
                 state_d.count.part.mul = '1; // flush only one vreg
                 state_d.mode.op        = ELEM_FLUSH;
@@ -499,10 +504,11 @@ module vproc_elem #(
     always_comb begin
         vs1_tmp_d = vs1_shift_q[31:0];
         if (state_vs1_q.mode.op == ELEM_VRGATHER) begin
-            case (state_vs1_q.eew)
+            unique case (state_vs1_q.eew)
                 VSEW_8:  vs1_tmp_d = {24'b0                                              , vs1_shift_q[7 :0]       };
                 VSEW_16: vs1_tmp_d = {15'b0                                              , vs1_shift_q[15:0], 1'b0 };
                 VSEW_32: vs1_tmp_d = {vs1_shift_q[31] | vs1_shift_q[30] | vs1_shift_q[29], vs1_shift_q[28:0], 2'b00};
+                default: ;
             endcase
         end
         vsm_shift_d = vreg_rd_q;
@@ -550,7 +556,7 @@ module vproc_elem #(
         if (result_valid_q) begin
             //vd_shift_d    = COMB_INIT_ZERO ? '0 : 'x;
             //vdmsk_shift_d = COMB_INIT_ZERO ? '0 : 'x;
-            case (state_res_q.eew)
+            unique case (state_res_q.eew)
                 VSEW_8: begin
                     vd_shift_d    = {   result_q[7 :0] , vd_shift_q   [VREG_W-1:8 ]};
                     vdmsk_shift_d = {   result_mask_q  , vdmsk_shift_q[VMSK_W-1:1 ]};
@@ -563,6 +569,7 @@ module vproc_elem #(
                     vd_shift_d    = {   result_q       , vd_shift_q   [VREG_W-1:32]};
                     vdmsk_shift_d = {{4{result_mask_q}}, vdmsk_shift_q[VMSK_W-1:4 ]};
                 end
+                default: ;
             endcase
         end
     end
@@ -583,18 +590,20 @@ module vproc_elem #(
     end
     always_comb begin
         count_store_d.val = COMB_INIT_ZERO ? '0 : 'x;
-        case (state_res_q.eew)
+        unique case (state_res_q.eew)
             VSEW_8:  count_store_d.val = state_vd_q.count_store.val + {{(ELEM_COUNTER_W-1){1'b0}}, result_valid_q      };
             VSEW_16: count_store_d.val = state_vd_q.count_store.val + {{(ELEM_COUNTER_W-2){1'b0}}, result_valid_q, 1'b0};
             VSEW_32: count_store_d.val = state_vd_q.count_store.val + {{(ELEM_COUNTER_W-3){1'b0}}, result_valid_q, 2'b0};
+            default: ;
         endcase
         if (state_res_q.first_cycle | first_valid_result_q) begin
             count_store_d.val      = '0;
             count_store_d.val[1:0] = COMB_INIT_ZERO ? '0 : 'x;
-            case (state_res_q.eew)
+            unique case (state_res_q.eew)
                 VSEW_8:  count_store_d.val[1:0] = 2'b00;
                 VSEW_16: count_store_d.val[1:0] = 2'b01;
                 VSEW_32: count_store_d.val[1:0] = 2'b11;
+                default: ;
             endcase
         end
     end
@@ -636,6 +645,7 @@ module vproc_elem #(
                     VSEW_8:  result_d = {{24{elem_q[7 ]}}, elem_q[7 :0]};
                     VSEW_16: result_d = {{16{elem_q[15]}}, elem_q[15:0]};
                     VSEW_32: result_d =                    elem_q       ;
+                    default: ;
                 endcase
             end
             // vid writes each element's index to the destination vreg and can
@@ -725,6 +735,7 @@ module vproc_elem #(
                         VSEW_8:  result_d[7 :0] = (elem_q[7 :0] < reduct_val[7 :0]) ? elem_q[7 :0] : reduct_val[7 :0];
                         VSEW_16: result_d[15:0] = (elem_q[15:0] < reduct_val[15:0]) ? elem_q[15:0] : reduct_val[15:0];
                         VSEW_32: result_d       = (elem_q       < reduct_val      ) ? elem_q       : reduct_val      ;
+                        default: ;
                     endcase
                 end
                 result_mask_d  = ~state_ex_q.vl_0;
@@ -737,6 +748,7 @@ module vproc_elem #(
                         VSEW_8:  result_d[7 :0] = ($signed(elem_q[7 :0]) < $signed(reduct_val[7 :0])) ? elem_q[7 :0] : reduct_val[7 :0];
                         VSEW_16: result_d[15:0] = ($signed(elem_q[15:0]) < $signed(reduct_val[15:0])) ? elem_q[15:0] : reduct_val[15:0];
                         VSEW_32: result_d       = ($signed(elem_q      ) < $signed(reduct_val      )) ? elem_q       : reduct_val      ;
+                        default: ;
                     endcase
                 end
                 result_mask_d  = ~state_ex_q.vl_0;
@@ -749,6 +761,7 @@ module vproc_elem #(
                         VSEW_8:  result_d[7 :0] = (elem_q[7 :0] > reduct_val[7 :0]) ? elem_q[7 :0] : reduct_val[7 :0];
                         VSEW_16: result_d[15:0] = (elem_q[15:0] > reduct_val[15:0]) ? elem_q[15:0] : reduct_val[15:0];
                         VSEW_32: result_d       = (elem_q       > reduct_val      ) ? elem_q       : reduct_val      ;
+                        default: ;
                     endcase
                 end
                 result_mask_d  = ~state_ex_q.vl_0;
@@ -761,11 +774,13 @@ module vproc_elem #(
                         VSEW_8:  result_d[7 :0] = ($signed(elem_q[7 :0]) > $signed(reduct_val[7 :0])) ? elem_q[7 :0] : reduct_val[7 :0];
                         VSEW_16: result_d[15:0] = ($signed(elem_q[15:0]) > $signed(reduct_val[15:0])) ? elem_q[15:0] : reduct_val[15:0];
                         VSEW_32: result_d       = ($signed(elem_q      ) > $signed(reduct_val      )) ? elem_q       : reduct_val      ;
+                        default: ;
                     endcase
                 end
                 result_mask_d  = ~state_ex_q.vl_0;
                 result_valid_d = state_ex_q.last_cycle;
             end
+            default: ;
 
         endcase
     end
