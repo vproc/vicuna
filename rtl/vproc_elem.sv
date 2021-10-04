@@ -284,13 +284,13 @@ module vproc_elem #(
     logic [VMSK_W-1:0] vdmsk_shift_q, vdmsk_shift_d;
 
     // vreg write buffers
-    logic              vreg_wr_en_q  [MAX_WR_DELAY], vreg_wr_en_d;
-    logic [4:0]        vreg_wr_addr_q[MAX_WR_DELAY], vreg_wr_addr_d;
-    logic [VMSK_W-1:0] vreg_wr_mask_q[MAX_WR_DELAY], vreg_wr_mask_d;
-    logic [VREG_W-1:0] vreg_wr_q     [MAX_WR_DELAY], vreg_wr_d;
-    logic              vreg_wr_last_q[MAX_WR_DELAY], vreg_wr_last_d;
-    logic [4:0]        vreg_wr_base_q[MAX_WR_DELAY], vreg_wr_base_d;
-    cfg_emul           vreg_wr_emul_q[MAX_WR_DELAY], vreg_wr_emul_d;
+    logic              vreg_wr_en_q   [MAX_WR_DELAY], vreg_wr_en_d;
+    logic [4:0]        vreg_wr_addr_q [MAX_WR_DELAY], vreg_wr_addr_d;
+    logic [VMSK_W-1:0] vreg_wr_mask_q [MAX_WR_DELAY], vreg_wr_mask_d;
+    logic [VREG_W-1:0] vreg_wr_q      [MAX_WR_DELAY], vreg_wr_d;
+    logic              vreg_wr_clear_q[MAX_WR_DELAY], vreg_wr_clear_d;
+    logic [4:0]        vreg_wr_base_q [MAX_WR_DELAY], vreg_wr_base_d;
+    cfg_emul           vreg_wr_emul_q [MAX_WR_DELAY], vreg_wr_emul_d;
 
     // hazard clear registers
     logic [31:0] clear_rd_hazards_q, clear_rd_hazards_d;
@@ -373,21 +373,21 @@ module vproc_elem #(
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_elem_wr_delay
-                vreg_wr_en_q  [0] = vreg_wr_en_d;
-                vreg_wr_addr_q[0] = vreg_wr_addr_d;
-                vreg_wr_mask_q[0] = vreg_wr_mask_d;
-                vreg_wr_q     [0] = vreg_wr_d;
-                vreg_wr_last_q[0] = vreg_wr_last_d;
-                vreg_wr_base_q[0] = vreg_wr_base_d;
-                vreg_wr_emul_q[0] = vreg_wr_emul_d;
+                vreg_wr_en_q   [0] = vreg_wr_en_d;
+                vreg_wr_addr_q [0] = vreg_wr_addr_d;
+                vreg_wr_mask_q [0] = vreg_wr_mask_d;
+                vreg_wr_q      [0] = vreg_wr_d;
+                vreg_wr_clear_q[0] = vreg_wr_clear_d;
+                vreg_wr_base_q [0] = vreg_wr_base_d;
+                vreg_wr_emul_q [0] = vreg_wr_emul_d;
                 for (int i = 1; i < MAX_WR_DELAY; i++) begin
-                    vreg_wr_en_q  [i] = vreg_wr_en_q  [i-1];
-                    vreg_wr_addr_q[i] = vreg_wr_addr_q[i-1];
-                    vreg_wr_mask_q[i] = vreg_wr_mask_q[i-1];
-                    vreg_wr_q     [i] = vreg_wr_q     [i-1];
-                    vreg_wr_last_q[i] = vreg_wr_last_q[i-1];
-                    vreg_wr_base_q[i] = vreg_wr_base_q[i-1];
-                    vreg_wr_emul_q[i] = vreg_wr_emul_q[i-1];
+                    vreg_wr_en_q   [i] = vreg_wr_en_q   [i-1];
+                    vreg_wr_addr_q [i] = vreg_wr_addr_q [i-1];
+                    vreg_wr_mask_q [i] = vreg_wr_mask_q [i-1];
+                    vreg_wr_q      [i] = vreg_wr_q      [i-1];
+                    vreg_wr_clear_q[i] = vreg_wr_clear_q[i-1];
+                    vreg_wr_base_q [i] = vreg_wr_base_q [i-1];
+                    vreg_wr_emul_q [i] = vreg_wr_emul_q [i-1];
                 end
             end
         end
@@ -423,7 +423,7 @@ module vproc_elem #(
                 EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_d                [4:2], 2'b0};
                 EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_d                [4:3], 3'b0};
             endcase
-            if (~vreg_wr_last_d) begin
+            if (~vreg_wr_clear_d) begin
                 clear_wr_hazards_d = '0;
             end
         end else begin
@@ -433,7 +433,7 @@ module vproc_elem #(
                 EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_q[MAX_WR_DELAY-1][4:2], 2'b0};
                 EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_q[MAX_WR_DELAY-1][4:3], 3'b0};
             endcase
-            if (~vreg_wr_last_q[MAX_WR_DELAY-1]) begin
+            if (~vreg_wr_clear_q[MAX_WR_DELAY-1]) begin
                 clear_wr_hazards_d = '0;
             end
         end
@@ -601,13 +601,13 @@ module vproc_elem #(
     assign vd_store_d = ~state_res_q.mode.xreg & (count_store_d.part.low == '1);
 
     //
-    assign vreg_wr_en_d   = state_vd_q.busy & state_vd_q.vd_store;
-    assign vreg_wr_addr_d = state_vd_q.vd | {2'b0, state_vd_q.count_store.part.mul[2:0]};
-    assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
-    assign vreg_wr_d      = vd_shift_q;
-    assign vreg_wr_last_d = state_vd_q.busy & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg;
-    assign vreg_wr_base_d = state_vd_q.vd;
-    assign vreg_wr_emul_d = state_vd_q.emul;
+    assign vreg_wr_en_d    = state_vd_q.busy & state_vd_q.vd_store;
+    assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count_store.part.mul[2:0]};
+    assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
+    assign vreg_wr_d       = vd_shift_q;
+    assign vreg_wr_clear_d = state_vd_q.busy & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg;
+    assign vreg_wr_base_d  = state_vd_q.vd;
+    assign vreg_wr_emul_d  = state_vd_q.emul;
 
 
     ///////////////////////////////////////////////////////////////////////////
