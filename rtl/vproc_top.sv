@@ -34,6 +34,17 @@ module vproc_top #(
                   "The current value of %d is invalid.", MEM_W);
     end
 
+    // Reset synchronizer (sync reset is used for Vicuna by default, async reset for the core)
+    logic [3:0] rst_sync_qn;
+    logic sync_rst_n;
+    always_ff @(posedge clk_i) begin
+        rst_sync_qn[0] <= rst_ni;
+        for (int i = 1; i < 4; i++) begin
+            rst_sync_qn[i] <= rst_sync_qn[i-1];
+        end
+    end
+    assign sync_rst_n = rst_sync_qn[3];
+
     // Instruction fetch interface
     logic        instr_req;
     logic [31:0] instr_addr;
@@ -194,10 +205,11 @@ module vproc_top #(
         .ALU_OP_W         (  64                         ),
         .SLD_OP_W         ( (VMUL_W > 64) ? VMUL_W : 64 ),
         .RAM_TYPE         ( RAM_TYPE                    ),
-        .MUL_TYPE         ( MUL_TYPE                    )
+        .MUL_TYPE         ( MUL_TYPE                    ),
+        .ASYNC_RESET      ( 1'b0                        )
     ) v_core (
         .clk_i            ( clk_i              ),
-        .rst_ni           ( rst_ni             ),
+        .rst_ni           ( sync_rst_n         ),
 
         .instr_valid_i    ( vect_instr_valid   ),
         .instr_i          ( vect_instr         ),

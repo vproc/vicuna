@@ -80,6 +80,11 @@ module vproc_core #(
     // encoding the top 3 bits of VL are only used when LMUL > 1.
     localparam int unsigned CFG_VL_W = $clog2(VREG_W); // width of the vl config register
 
+    // define asynchronous and synchronous reset signals
+    logic async_rst_n, sync_rst_n;
+    assign async_rst_n = ASYNC_RESET ? rst_ni : 1'b1  ;
+    assign sync_rst_n  = ASYNC_RESET ? 1'b1   : rst_ni;
+
 
     ///////////////////////////////////////////////////////////////////////////
     // CONFIGURATION STATE AND CSR READ AND WRITES
@@ -92,49 +97,35 @@ module vproc_core #(
     logic [CFG_VL_W  :0] vl_csr_q,   vl_csr_d;   // VL (intentionally CFG_VL_W+1 wide)
     cfg_vxrm             vxrm_q,     vxrm_d;     // fixed-point rounding mode
     logic                vxsat_q,    vxsat_d;    // fixed-point saturation flag
-    if (ASYNC_RESET) begin
-        always_ff @(posedge clk_i or negedge rst_ni) begin : vproc_cfg_reg
-            if (!rst_ni) begin
-                vsew_q     <= VSEW_INVALID;
-                lmul_q     <= LMUL_1;
-                agnostic_q <= '0;
-                vl_0_q     <= 1'b0;
-                vl_q       <= '0;
-                vl_csr_q   <= '0;
-                vxrm_q     <= VXRM_RNU;
-                vxsat_q    <= 1'b0;
-            end else begin
-                vsew_q     <= vsew_d;
-                lmul_q     <= lmul_d;
-                agnostic_q <= agnostic_d;
-                vl_0_q     <= vl_0_d;
-                vl_q       <= vl_d;
-                vl_csr_q   <= vl_csr_d;
-                vxrm_q     <= vxrm_d;
-                vxsat_q    <= vxsat_d;
-            end
+    always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_cfg_reg
+        if (~async_rst_n) begin
+            vsew_q     <= VSEW_INVALID;
+            lmul_q     <= LMUL_1;
+            agnostic_q <= '0;
+            vl_0_q     <= 1'b0;
+            vl_q       <= '0;
+            vl_csr_q   <= '0;
+            vxrm_q     <= VXRM_RNU;
+            vxsat_q    <= 1'b0;
         end
-    end else begin
-        always_ff @(posedge clk_i) begin : vproc_cfg_reg
-            if (!rst_ni) begin
-                vsew_q     <= VSEW_INVALID;
-                lmul_q     <= LMUL_1;
-                agnostic_q <= '0;
-                vl_0_q     <= 1'b0;
-                vl_q       <= '0;
-                vl_csr_q   <= '0;
-                vxrm_q     <= VXRM_RNU;
-                vxsat_q    <= 1'b0;
-            end else begin
-                vsew_q     <= vsew_d;
-                lmul_q     <= lmul_d;
-                agnostic_q <= agnostic_d;
-                vl_0_q     <= vl_0_d;
-                vl_q       <= vl_d;
-                vl_csr_q   <= vl_csr_d;
-                vxrm_q     <= vxrm_d;
-                vxsat_q    <= vxsat_d;
-            end
+        else if (~sync_rst_n) begin
+            vsew_q     <= VSEW_INVALID;
+            lmul_q     <= LMUL_1;
+            agnostic_q <= '0;
+            vl_0_q     <= 1'b0;
+            vl_q       <= '0;
+            vl_csr_q   <= '0;
+            vxrm_q     <= VXRM_RNU;
+            vxsat_q    <= 1'b0;
+        end else begin
+            vsew_q     <= vsew_d;
+            lmul_q     <= lmul_d;
+            agnostic_q <= agnostic_d;
+            vl_0_q     <= vl_0_d;
+            vl_q       <= vl_d;
+            vl_csr_q   <= vl_csr_d;
+            vxrm_q     <= vxrm_d;
+            vxsat_q    <= vxsat_d;
         end
     end
     logic cfg_valid;
@@ -190,21 +181,14 @@ module vproc_core #(
     generate
         // add a pipeline stage to buffer the decoded instruction
         if (BUF_DEC) begin
-            if (ASYNC_RESET) begin
-                always_ff @(posedge clk_i or negedge rst_ni) begin : vproc_dec_buf_valid
-                    if (!rst_ni) begin
-                        dec_buf_valid_q <= 1'b0;
-                    end else begin
-                        dec_buf_valid_q <= dec_buf_valid_d;
-                    end
+            always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_dec_buf_valid
+                if (~async_rst_n) begin
+                    dec_buf_valid_q <= 1'b0;
                 end
-            end else begin
-                always_ff @(posedge clk_i) begin : vproc_dec_buf_valid
-                    if (!rst_ni) begin
-                        dec_buf_valid_q <= 1'b0;
-                    end else begin
-                        dec_buf_valid_q <= dec_buf_valid_d;
-                    end
+                else if (~sync_rst_n) begin
+                    dec_buf_valid_q <= 1'b0;
+                end else begin
+                    dec_buf_valid_q <= dec_buf_valid_d;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_dec_buf_data
@@ -330,23 +314,15 @@ module vproc_core #(
     generate
         // add an extra pipeline stage to calculate the hazards
         if (BUF_DEQUEUE) begin
-            if (ASYNC_RESET) begin
-                always_ff @(posedge clk_i or negedge rst_ni) begin : vproc_queue_valid
-                    if (!rst_ni) begin
-                        queue_valid_q <= 1'b0;
-                    end
-                    else if ((~queue_valid_q) | op_ack) begin
-                        queue_valid_q <= queue_valid_d;
-                    end
+            always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_queue_valid
+                if (~async_rst_n) begin
+                    queue_valid_q <= 1'b0;
                 end
-            end else begin
-                always_ff @(posedge clk_i) begin : vproc_queue_valid
-                    if (!rst_ni) begin
-                        queue_valid_q <= 1'b0;
-                    end
-                    else if ((~queue_valid_q) | op_ack) begin
-                        queue_valid_q <= queue_valid_d;
-                    end
+                else if (~sync_rst_n) begin
+                    queue_valid_q <= 1'b0;
+                end
+                else if ((~queue_valid_q) | op_ack) begin
+                    queue_valid_q <= queue_valid_d;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_queue_data
@@ -370,17 +346,18 @@ module vproc_core #(
     generate
         if (QUEUE_SZ > 0) begin
             vproc_queue #(
-                .WIDTH       ( $bits(decoder_data)     ),
-                .DEPTH       ( QUEUE_SZ                )
+                .WIDTH        ( $bits(decoder_data)     ),
+                .DEPTH        ( QUEUE_SZ                )
             ) instr_queue (
-                .clk_i       ( clk_i                   ),
-                .rst_ni      ( rst_ni                  ),
-                .enq_ready_o ( queue_ready             ),
-                .enq_valid_i ( dec_buf_valid_q         ),
-                .enq_data_i  ( dec_data_q              ),
-                .deq_ready_i ( ~queue_valid_q | op_ack ),
-                .deq_valid_o ( queue_valid_d           ),
-                .deq_data_o  ( queue_data_d            )
+                .clk_i        ( clk_i                   ),
+                .async_rst_ni ( async_rst_n             ),
+                .sync_rst_ni  ( sync_rst_n              ),
+                .enq_ready_o  ( queue_ready             ),
+                .enq_valid_i  ( dec_buf_valid_q         ),
+                .enq_data_i   ( dec_data_q              ),
+                .deq_ready_i  ( ~queue_valid_q | op_ack ),
+                .deq_valid_o  ( queue_valid_d           ),
+                .deq_data_o   ( queue_data_d            )
             );
         end else begin
             assign queue_valid_d = dec_buf_valid_q;
@@ -425,29 +402,19 @@ module vproc_core #(
     logic [31:0] vreg_wr_hazard_map_set;   // add active regs (via decode)
     logic [31:0] vreg_rd_hazard_map_clr;   // remove active regs (via ex units)
     logic [31:0] vreg_wr_hazard_map_clr;   // remove active regs (via ex units)
-    if (ASYNC_RESET) begin
-        always_ff @(posedge clk_i or negedge rst_ni) begin : vproc_hazard_reg
-            if (!rst_ni) begin
-                vreg_rd_hazard_map_q <= 32'b0;
-                vreg_wr_hazard_map_q <= 32'b0;
-            end else begin
-                vreg_rd_hazard_map_q <= (vreg_rd_hazard_map_q & (~vreg_rd_hazard_map_clr)) |
-                                         vreg_rd_hazard_map_set;
-                vreg_wr_hazard_map_q <= (vreg_wr_hazard_map_q & (~vreg_wr_hazard_map_clr)) |
-                                         vreg_wr_hazard_map_set;
-            end
+    always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_hazard_reg
+        if (~async_rst_n) begin
+            vreg_rd_hazard_map_q <= 32'b0;
+            vreg_wr_hazard_map_q <= 32'b0;
         end
-    end else begin
-        always_ff @(posedge clk_i) begin : vproc_hazard_reg
-            if (!rst_ni) begin
-                vreg_rd_hazard_map_q <= 32'b0;
-                vreg_wr_hazard_map_q <= 32'b0;
-            end else begin
-                vreg_rd_hazard_map_q <= (vreg_rd_hazard_map_q & (~vreg_rd_hazard_map_clr)) |
-                                         vreg_rd_hazard_map_set;
-                vreg_wr_hazard_map_q <= (vreg_wr_hazard_map_q & (~vreg_wr_hazard_map_clr)) |
-                                         vreg_wr_hazard_map_set;
-            end
+        else if (~sync_rst_n) begin
+            vreg_rd_hazard_map_q <= 32'b0;
+            vreg_wr_hazard_map_q <= 32'b0;
+        end else begin
+            vreg_rd_hazard_map_q <= (vreg_rd_hazard_map_q & (~vreg_rd_hazard_map_clr)) |
+                                     vreg_rd_hazard_map_set;
+            vreg_wr_hazard_map_q <= (vreg_wr_hazard_map_q & (~vreg_wr_hazard_map_clr)) |
+                                     vreg_wr_hazard_map_set;
         end
     end
 
@@ -527,20 +494,21 @@ module vproc_core #(
     logic [4:0]        vregfile_rd_addr[7];
     logic [VREG_W-1:0] vregfile_rd_data[7];
     vproc_vregfile #(
-        .VREG_W    ( VREG_W             ),
-        .PORT_W    ( VREG_W             ),
-        .PORTS_RD  ( 7                  ),
-        .PORTS_WR  ( 2                  ),
-        .RAM_TYPE  ( RAM_TYPE           )
+        .VREG_W       ( VREG_W             ),
+        .PORT_W       ( VREG_W             ),
+        .PORTS_RD     ( 7                  ),
+        .PORTS_WR     ( 2                  ),
+        .RAM_TYPE     ( RAM_TYPE           )
     ) vregfile (
-        .clk_i     ( clk_i              ),
-        .rst_ni    ( rst_ni             ),
-        .wr_addr_i ( vregfile_wr_addr_q ),
-        .wr_data_i ( vregfile_wr_data_q ),
-        .wr_be_i   ( vregfile_wr_mask_q ),
-        .wr_we_i   ( vregfile_wr_en_q   ),
-        .rd_addr_i ( vregfile_rd_addr   ),
-        .rd_data_o ( vregfile_rd_data   )
+        .clk_i        ( clk_i              ),
+        .async_rst_ni ( async_rst_n        ),
+        .sync_rst_ni  ( sync_rst_n         ),
+        .wr_addr_i    ( vregfile_wr_addr_q ),
+        .wr_data_i    ( vregfile_wr_data_q ),
+        .wr_be_i      ( vregfile_wr_mask_q ),
+        .wr_we_i      ( vregfile_wr_en_q   ),
+        .rd_addr_i    ( vregfile_rd_addr   ),
+        .rd_data_o    ( vregfile_rd_data   )
     );
 
     logic [VREG_W-1:0] vreg_mask;
@@ -582,11 +550,11 @@ module vproc_core #(
         .VMEM_W             ( VMEM_W                        ),
         .CFG_VL_W           ( CFG_VL_W                      ),
         .MAX_WR_ATTEMPTS    ( 1                             ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                ),
-        .ASYNC_RESET        ( ASYNC_RESET                   )
+        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                )
     ) lsu (
         .clk_i              ( clk_i                         ),
-        .rst_ni             ( rst_ni                        ),
+        .async_rst_ni       ( async_rst_n                   ),
+        .sync_rst_ni        ( sync_rst_n                    ),
         .vsew_i             ( queue_data_q.vsew             ),
         .lmul_i             ( queue_data_q.lmul             ),
         .vl_i               ( queue_data_q.vl               ),
@@ -633,11 +601,11 @@ module vproc_core #(
         .CFG_VL_W           ( CFG_VL_W                      ),
         .ALU_OP_W           ( ALU_OP_W                      ),
         .MAX_WR_ATTEMPTS    ( 2                             ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                ),
-        .ASYNC_RESET        ( ASYNC_RESET                   )
+        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                )
     ) alu (
         .clk_i              ( clk_i                         ),
-        .rst_ni             ( rst_ni                        ),
+        .async_rst_ni       ( async_rst_n                   ),
+        .sync_rst_ni        ( sync_rst_n                    ),
         .vsew_i             ( queue_data_q.vsew             ),
         .lmul_i             ( queue_data_q.lmul             ),
         .vl_i               ( queue_data_q.vl               ),
@@ -674,11 +642,11 @@ module vproc_core #(
         .MUL_OP_W           ( MUL_OP_W                               ),
         .MAX_WR_ATTEMPTS    ( 1                                      ),
         .MUL_TYPE           ( MUL_TYPE                               ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                         ),
-        .ASYNC_RESET        ( ASYNC_RESET                            )
+        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                         )
     ) mul (
         .clk_i              ( clk_i                                  ),
-        .rst_ni             ( rst_ni                                 ),
+        .async_rst_ni       ( async_rst_n                            ),
+        .sync_rst_ni        ( sync_rst_n                             ),
         .vsew_i             ( queue_data_q.vsew                      ),
         .lmul_i             ( queue_data_q.lmul                      ),
         .vl_i               ( queue_data_q.vl                        ),
@@ -715,11 +683,11 @@ module vproc_core #(
         .CFG_VL_W           ( CFG_VL_W                 ),
         .SLD_OP_W           ( SLD_OP_W                 ),
         .MAX_WR_ATTEMPTS    ( 2                        ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO           ),
-        .ASYNC_RESET        ( ASYNC_RESET              )
+        .COMB_INIT_ZERO     ( COMB_INIT_ZERO           )
     ) sld (
         .clk_i              ( clk_i                    ),
-        .rst_ni             ( rst_ni                   ),
+        .async_rst_ni       ( async_rst_n              ),
+        .sync_rst_ni        ( sync_rst_n               ),
         .vsew_i             ( queue_data_q.vsew        ),
         .lmul_i             ( queue_data_q.lmul        ),
         .vl_i               ( queue_data_q.vl          ),
@@ -755,11 +723,11 @@ module vproc_core #(
         .CFG_VL_W           ( CFG_VL_W                 ),
         .GATHER_OP_W        ( GATHER_OP_W              ),
         .MAX_WR_ATTEMPTS    ( 3                        ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO           ),
-        .ASYNC_RESET        ( ASYNC_RESET              )
+        .COMB_INIT_ZERO     ( COMB_INIT_ZERO           )
     ) elem (
         .clk_i              ( clk_i                    ),
-        .rst_ni             ( rst_ni                   ),
+        .async_rst_ni       ( async_rst_n              ),
+        .sync_rst_ni        ( sync_rst_n               ),
         .vsew_i             ( queue_data_q.vsew        ),
         .lmul_i             ( queue_data_q.lmul        ),
         .vl_i               ( queue_data_q.vl          ),

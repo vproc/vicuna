@@ -4,14 +4,15 @@
 
 
 module vproc_vregfile #(
-        parameter int unsigned                    VREG_W,
-        parameter int unsigned                    PORT_W,
-        parameter int unsigned                    PORTS_RD,
-        parameter int unsigned                    PORTS_WR,
-        parameter vproc_pkg::ram_type             RAM_TYPE = vproc_pkg::RAM_GENERIC
+        parameter int unsigned                   VREG_W,
+        parameter int unsigned                   PORT_W,
+        parameter int unsigned                   PORTS_RD,
+        parameter int unsigned                   PORTS_WR,
+        parameter vproc_pkg::ram_type            RAM_TYPE = vproc_pkg::RAM_GENERIC
     )(
-        input  logic                              clk_i,
-        input  logic                              rst_ni,
+        input  logic                             clk_i,
+        input  logic                             async_rst_ni,
+        input  logic                             sync_rst_ni,
 
         input  logic [4+$clog2(VREG_W/PORT_W):0] wr_addr_i[PORTS_WR],
         input  logic [PORT_W  -1:0]              wr_data_i[PORTS_WR],

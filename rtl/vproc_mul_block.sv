@@ -10,7 +10,8 @@ module vproc_mul_block #(
         parameter bit                 BUF_RES  // buffer final result (res_o)
     )(
         input  logic                  clk_i,
-        input  logic                  rst_ni,
+        input  logic                  async_rst_ni,
+        input  logic                  sync_rst_ni,
 
         input  logic [16:0]           op1_i,
         input  logic [16:0]           op2_i,

@@ -15,11 +15,11 @@ module vproc_alu #(
         parameter bit                   BUF_OPERANDS     = 1'b1, // buffer operands in registers
         parameter bit                   BUF_INTERMEDIATE = 1'b1,
         parameter bit                   BUF_RESULTS      = 1'b1, // buffer results in registers
-        parameter bit                   COMB_INIT_ZERO   = 1'b0,
-        parameter bit                   ASYNC_RESET      = 1'b0
+        parameter bit                   COMB_INIT_ZERO   = 1'b0
     )(
         input  logic                    clk_i,
-        input  logic                    rst_ni,
+        input  logic                    async_rst_ni,
+        input  logic                    sync_rst_ni,
 
         input  vproc_pkg::cfg_vsew      vsew_i,
         input  vproc_pkg::cfg_lmul      lmul_i,
@@ -102,25 +102,16 @@ module vproc_alu #(
     } alu_state;
 
     alu_state state_q, state_d;
-
-    generate
-        if (ASYNC_RESET) begin
-            always_ff @(posedge clk_i or negedge rst_ni) begin : vproc_alu_state
-                if (!rst_ni) begin
-                    state_q <= '{busy: 1'b0, default: 'x};
-                end else begin
-                    state_q <= state_d;
-                end
-            end
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_state
+        if (~async_rst_ni) begin
+            state_q <= '{busy: 1'b0, default: 'x};
         end else begin
-            always_ff @(posedge clk_i) begin : vproc_alu_state
-                state_q          <= state_d;
-                if (!rst_ni) begin
-                    state_q.busy <= 1'b0;
-                end
+            state_q <= state_d;
+            if (~sync_rst_ni) begin
+                state_q.busy <= 1'b0;
             end
         end
-    endgenerate
+    end
 
     logic last_cycle;
     always_comb begin

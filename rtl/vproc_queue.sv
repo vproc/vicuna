@@ -8,7 +8,8 @@ module vproc_queue #(
         parameter int unsigned   DEPTH = 8
     )(
         input  logic             clk_i,
-        input  logic             rst_ni,
+        input  logic             async_rst_ni,
+        input  logic             sync_rst_ni,
 
         output logic             enq_ready_o,
         input  logic             enq_valid_i,
@@ -23,8 +24,13 @@ module vproc_queue #(
     logic [$clog2(DEPTH)-1:0] rd_pos, wr_pos; // read and write positions
     logic                     last_wr;        // true if last access was write
 
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (~rst_ni) begin
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin
+        if (~async_rst_ni) begin
+            rd_pos  <= '0;
+            wr_pos  <= '0;
+            last_wr <= '0;
+        end
+        else if (~sync_rst_ni) begin
             rd_pos  <= '0;
             wr_pos  <= '0;
             last_wr <= '0;

@@ -17,11 +17,11 @@ module vproc_mul #(
         parameter bit                 BUF_RESULTS     = 1'b1, // buffer result in registers
         parameter bit                 BUF_MUL_IN      = 1'b1, // buffer multiplier input in registers
         parameter bit                 BUF_MUL_OUT     = 1'b1, // buffer multiplier output in registers
-        parameter bit                 COMB_INIT_ZERO  = 1'b0,
-        parameter bit                 ASYNC_RESET     = 1'b0
+        parameter bit                 COMB_INIT_ZERO  = 1'b0
     )(
         input  logic                  clk_i,
-        input  logic                  rst_ni,
+        input  logic                  async_rst_ni,
+        input  logic                  sync_rst_ni,
 
         input  vproc_pkg::cfg_vsew    vsew_i,
         input  vproc_pkg::cfg_lmul    lmul_i,
@@ -104,25 +104,16 @@ module vproc_mul #(
     } mul_state;
 
     mul_state state_q, state_d;
-
-    generate
-        if (ASYNC_RESET) begin
-            always_ff @(posedge clk_i or negedge rst_ni) begin : vproc_mul_state
-                if (!rst_ni) begin
-                    state_q <= '{busy: 1'b0, default: 'x};
-                end else begin
-                    state_q <= state_d;
-                end
-            end
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_state
+        if (~async_rst_ni) begin
+            state_q <= '{busy: 1'b0, default: 'x};
         end else begin
-            always_ff @(posedge clk_i) begin : vproc_mul_state
-                state_q          <= state_d;
-                if (!rst_ni) begin
-                    state_q.busy <= 1'b0;
-                end
+            state_q <= state_d;
+            if (~sync_rst_ni) begin
+                state_q.busy <= 1'b0;
             end
         end
-    endgenerate
+    end
 
     logic last_cycle;
     always_comb begin
@@ -626,19 +617,20 @@ module vproc_mul #(
     generate
         for (g = 0; g < MUL_OP_W / 8; g++) begin
             vproc_mul_block #(
-                .MUL_TYPE    ( MUL_TYPE                ),
-                .BUF_OPS     ( BUF_MUL_IN              ),
-                .BUF_MUL     ( BUF_MUL_OUT             ),
-                .BUF_RES     ( 1'b0                    )
+                .MUL_TYPE     ( MUL_TYPE                ),
+                .BUF_OPS      ( BUF_MUL_IN              ),
+                .BUF_MUL      ( BUF_MUL_OUT             ),
+                .BUF_RES      ( 1'b0                    )
             ) mul_block (
-                .clk_i       ( clk_i                   ),
-                .rst_ni      ( rst_ni                  ),
-                .op1_i       ( mul_op1    [17*g +: 17] ),
-                .op2_i       ( mul_op2    [17*g +: 17] ),
-                .acc_i       ( mul_acc    [16*g +: 16] ),
-                .acc_flag_i  ( mul_accflag             ),
-                .acc_sub_i   ( mul_accsub              ),
-                .res_o       ( mul_res    [33*g +: 33] )
+                .clk_i        ( clk_i                   ),
+                .async_rst_ni ( async_rst_ni            ),
+                .sync_rst_ni  ( sync_rst_ni             ),
+                .op1_i        ( mul_op1    [17*g +: 17] ),
+                .op2_i        ( mul_op2    [17*g +: 17] ),
+                .acc_i        ( mul_acc    [16*g +: 16] ),
+                .acc_flag_i   ( mul_accflag             ),
+                .acc_sub_i    ( mul_accsub              ),
+                .res_o        ( mul_res    [33*g +: 33] )
             );
         end
     endgenerate
