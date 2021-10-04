@@ -605,7 +605,7 @@ module vproc_elem #(
     assign vreg_wr_addr_d = state_vd_q.vd | {2'b0, state_vd_q.count_store.part.mul[2:0]};
     assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d      = vd_shift_q;
-    assign vreg_wr_last_d = state_vd_q.busy & state_vd_q.last_cycle & ~state_vd_q.requires_flush;
+    assign vreg_wr_last_d = state_vd_q.busy & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg;
     assign vreg_wr_base_d = state_vd_q.vd;
     assign vreg_wr_emul_d = state_vd_q.emul;
 

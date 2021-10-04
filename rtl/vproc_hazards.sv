@@ -231,6 +231,9 @@ module vproc_hazards #(
                 if (mode_i.elem.op != ELEM_VRGATHER) begin
                     rd_hazards_o = vs1_hazards | (rs2_i.vreg ? (32'h1 << rs2_i.r.vaddr) : 32'b0) | {31'b0, masked};
                 end
+                if (mode_i.elem.xreg) begin
+                    wr_hazards_o = '0;
+                end
             end
             default: ;
         endcase
