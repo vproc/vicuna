@@ -350,15 +350,15 @@ module vproc_mul #(
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_mul_wr_delay
-                vreg_wr_en_q  [0] = vreg_wr_en_d;
-                vreg_wr_addr_q[0] = vreg_wr_addr_d;
-                vreg_wr_mask_q[0] = vreg_wr_mask_d;
-                vreg_wr_q     [0] = vreg_wr_d;
+                vreg_wr_en_q  [0] <= vreg_wr_en_d;
+                vreg_wr_addr_q[0] <= vreg_wr_addr_d;
+                vreg_wr_mask_q[0] <= vreg_wr_mask_d;
+                vreg_wr_q     [0] <= vreg_wr_d;
                 for (int i = 1; i < MAX_WR_DELAY; i++) begin
-                    vreg_wr_en_q  [i] = vreg_wr_en_q  [i-1];
-                    vreg_wr_addr_q[i] = vreg_wr_addr_q[i-1];
-                    vreg_wr_mask_q[i] = vreg_wr_mask_q[i-1];
-                    vreg_wr_q     [i] = vreg_wr_q     [i-1];
+                    vreg_wr_en_q  [i] <= vreg_wr_en_q  [i-1];
+                    vreg_wr_addr_q[i] <= vreg_wr_addr_q[i-1];
+                    vreg_wr_mask_q[i] <= vreg_wr_mask_q[i-1];
+                    vreg_wr_q     [i] <= vreg_wr_q     [i-1];
                 end
             end
         end

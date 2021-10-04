@@ -373,21 +373,21 @@ module vproc_elem #(
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_elem_wr_delay
-                vreg_wr_en_q   [0] = vreg_wr_en_d;
-                vreg_wr_addr_q [0] = vreg_wr_addr_d;
-                vreg_wr_mask_q [0] = vreg_wr_mask_d;
-                vreg_wr_q      [0] = vreg_wr_d;
-                vreg_wr_clear_q[0] = vreg_wr_clear_d;
-                vreg_wr_base_q [0] = vreg_wr_base_d;
-                vreg_wr_emul_q [0] = vreg_wr_emul_d;
+                vreg_wr_en_q   [0] <= vreg_wr_en_d;
+                vreg_wr_addr_q [0] <= vreg_wr_addr_d;
+                vreg_wr_mask_q [0] <= vreg_wr_mask_d;
+                vreg_wr_q      [0] <= vreg_wr_d;
+                vreg_wr_clear_q[0] <= vreg_wr_clear_d;
+                vreg_wr_base_q [0] <= vreg_wr_base_d;
+                vreg_wr_emul_q [0] <= vreg_wr_emul_d;
                 for (int i = 1; i < MAX_WR_DELAY; i++) begin
-                    vreg_wr_en_q   [i] = vreg_wr_en_q   [i-1];
-                    vreg_wr_addr_q [i] = vreg_wr_addr_q [i-1];
-                    vreg_wr_mask_q [i] = vreg_wr_mask_q [i-1];
-                    vreg_wr_q      [i] = vreg_wr_q      [i-1];
-                    vreg_wr_clear_q[i] = vreg_wr_clear_q[i-1];
-                    vreg_wr_base_q [i] = vreg_wr_base_q [i-1];
-                    vreg_wr_emul_q [i] = vreg_wr_emul_q [i-1];
+                    vreg_wr_en_q   [i] <= vreg_wr_en_q   [i-1];
+                    vreg_wr_addr_q [i] <= vreg_wr_addr_q [i-1];
+                    vreg_wr_mask_q [i] <= vreg_wr_mask_q [i-1];
+                    vreg_wr_q      [i] <= vreg_wr_q      [i-1];
+                    vreg_wr_clear_q[i] <= vreg_wr_clear_q[i-1];
+                    vreg_wr_base_q [i] <= vreg_wr_base_q [i-1];
+                    vreg_wr_emul_q [i] <= vreg_wr_emul_q [i-1];
                 end
             end
         end
