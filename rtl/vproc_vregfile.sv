@@ -101,7 +101,7 @@ module vproc_vregfile #(
                         always_ff @(posedge clk_i) begin
                             for (int i = 0; i < PORT_W / 8; i++) begin
                                 if (wr_we_i[gw] & wr_be_i[gw][i]) begin
-                                    ram[wr_addr_i[gw]][i*8 +: 8] = wr_data[i*8 +: 8];
+                                    ram[wr_addr_i[gw]][i*8 +: 8] <= wr_data[i*8 +: 8];
                                 end
                             end
                         end
