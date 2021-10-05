@@ -6,17 +6,17 @@
 `include "vproc_vregshift.svh"
 
 module vproc_mul #(
-        parameter int unsigned        VREG_W,               // width in bits of vector registers
-        parameter int unsigned        VMSK_W,               // width of vector register masks (= VREG_W / 8)
-        parameter int unsigned        CFG_VL_W,
-        parameter int unsigned        MUL_OP_W,             // MUL unit operand size
-        parameter int unsigned        MAX_WR_ATTEMPTS = 1,
+        parameter int unsigned        VREG_W          = 128,  // width in bits of vector registers
+        parameter int unsigned        VMSK_W          = 16,   // width of vector register masks (= VREG_W / 8)
+        parameter int unsigned        CFG_VL_W        = 7,    // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned        MUL_OP_W        = 64,   // MUL unit operand width in bits
+        parameter int unsigned        MAX_WR_ATTEMPTS = 1,    // max required vregfile write attempts
         parameter vproc_pkg::mul_type MUL_TYPE        = vproc_pkg::MUL_GENERIC,
-        parameter bit                 BUF_VREG        = 1'b1,
-        parameter bit                 BUF_OPERANDS    = 1'b1, // buffer operands in registers
-        parameter bit                 BUF_RESULTS     = 1'b1, // buffer result in registers
-        parameter bit                 BUF_MUL_IN      = 1'b1, // buffer multiplier input in registers
-        parameter bit                 BUF_MUL_OUT     = 1'b1, // buffer multiplier output in registers
+        parameter bit                 BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
+        parameter bit                 BUF_OPERANDS    = 1'b1, // insert pipeline stage after operand extraction
+        parameter bit                 BUF_MUL_IN      = 1'b1, // insert pipeline stage before HW multiplication
+        parameter bit                 BUF_MUL_OUT     = 1'b1, // insert pipeline stage after HW multiplication
+        parameter bit                 BUF_RESULTS     = 1'b1, // insert pipeline stage after computing result
         parameter bit                 COMB_INIT_ZERO  = 1'b0
     )(
         input  logic                  clk_i,

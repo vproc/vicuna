@@ -4,10 +4,10 @@
 
 
 module vproc_vregfile #(
-        parameter int unsigned                   VREG_W,
-        parameter int unsigned                   PORT_W,
-        parameter int unsigned                   PORTS_RD,
-        parameter int unsigned                   PORTS_WR,
+        parameter int unsigned                   VREG_W   = 128,  // vector register width in bits
+        parameter int unsigned                   PORT_W   = 128,  // port width in bits
+        parameter int unsigned                   PORTS_RD = 0,    // number of read ports
+        parameter int unsigned                   PORTS_WR = 0,    // number of write ports
         parameter vproc_pkg::ram_type            RAM_TYPE = vproc_pkg::RAM_GENERIC
     )(
         input  logic                             clk_i,

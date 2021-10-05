@@ -5,7 +5,7 @@
 
 // unpacking vector registers to operands
 module vproc_vregunpack #(
-        parameter int unsigned     OP_W,   // operand size
+        parameter int unsigned     OP_W           = 64,  // operand size
         parameter bit              COMB_INIT_ZERO = 1'b0
     )(
         input  vproc_pkg::cfg_vsew vsew_i,

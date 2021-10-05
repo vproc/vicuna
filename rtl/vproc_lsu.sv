@@ -6,14 +6,14 @@
 `include "vproc_vregshift.svh"
 
 module vproc_lsu #(
-        parameter int unsigned        VREG_W,               // width in bits of vector registers
-        parameter int unsigned        VMSK_W,               // width of vector register masks (= VREG_W / 8)
-        parameter int unsigned        VMEM_W,               // width in bits of the vector memory interface
-        parameter int unsigned        CFG_VL_W,
-        parameter int unsigned        MAX_WR_ATTEMPTS = 1,
-        parameter bit                 BUF_VREG        = 1'b1,
-        parameter bit                 BUF_REQUEST     = 1'b1,
-        parameter bit                 BUF_RDATA       = 1'b1,
+        parameter int unsigned        VREG_W          = 128,  // width in bits of vector registers
+        parameter int unsigned        VMSK_W          = 16,   // width of vector register masks (= VREG_W / 8)
+        parameter int unsigned        VMEM_W          = 32,   // width in bits of the vector memory interface
+        parameter int unsigned        CFG_VL_W        = 7,    // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned        MAX_WR_ATTEMPTS = 1,    // max required vregfile write attempts
+        parameter bit                 BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
+        parameter bit                 BUF_REQUEST     = 1'b1, // insert pipeline stage before issuing request
+        parameter bit                 BUF_RDATA       = 1'b1, // insert pipeline stage after memory read
         parameter bit                 COMB_INIT_ZERO  = 1'b0
     )
     (

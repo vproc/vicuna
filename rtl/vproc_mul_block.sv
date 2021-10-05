@@ -5,9 +5,9 @@
 
 module vproc_mul_block #(
         parameter vproc_pkg::mul_type MUL_TYPE = vproc_pkg::MUL_GENERIC,
-        parameter bit                 BUF_OPS, // buffer operands (op1_i and op2_i)
-        parameter bit                 BUF_MUL, // buffer multiplication result (and acc_i)
-        parameter bit                 BUF_RES  // buffer final result (res_o)
+        parameter bit                 BUF_OPS  = 1'b0, // buffer operands (op1_i and op2_i)
+        parameter bit                 BUF_MUL  = 1'b0, // buffer multiplication result (and acc_i)
+        parameter bit                 BUF_RES  = 1'b0  // buffer final result (res_o)
     )(
         input  logic                  clk_i,
         input  logic                  async_rst_ni,
