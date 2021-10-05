@@ -30,6 +30,19 @@ TESTS_ALL := $(TESTS_ALL) $(basename $(shell find $(TEST_DIRS) -name '*.S'))
 all: $(TESTS_ALL)
 
 
+lint:
+	@rule_param_style="parameter-name-style=localparam_style:ALL_CAPS";       \
+	rule_line_len="line-length=length:200";                                   \
+	rule_typedef="typedef-structs-unions=allow_anonymous_nested:true";        \
+	rules_arg="$$rule_param_style,$$rule_line_len,$$rule_typedef";            \
+	rules_add="port-name-suffix,proper-parameter-declaration";                \
+	rules_add="$$rules_add,signal-name-style";                                \
+	rules_ign="-explicit-parameter-storage-type,-struct-union-name-style";    \
+	rules_ign="$$rules_ign,-generate-label,-undersized-binary-literal";       \
+	files=`ls $(TEST_DIR)/../rtl/*.sv | grep -v vproc_pkg.sv`;                \
+	verible-verilog-lint --rules="$$rules_arg,$$rules_add,$$rules_ign" $$files
+
+
 .SECONDEXPANSION:
 $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S || ls %.S)))
 	@if [[ -d $@ ]]; then                                                     \

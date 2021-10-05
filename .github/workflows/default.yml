@@ -7,6 +7,24 @@ on:
 
 
 jobs:
+  lint:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: false
+
+      - name: Install verible and lint
+        run: |
+          sudo apt-get update
+          curl -s https://api.github.com/repos/chipsalliance/verible/releases/latest \
+            | grep browser_download_url | grep Ubuntu-20.04 | cut -d '"' -f 4 | wget -qi -
+          mkdir verible
+          tar -xf verible*.tar.gz -C verible --strip-components=1
+          export PATH=$PATH:$PWD/verible/bin
+          cd test && make lint
+
+
   toolchain:
     runs-on: ubuntu-20.04
     steps:
