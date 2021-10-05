@@ -104,7 +104,7 @@ module vproc_alu #(
     alu_state state_q, state_d;
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_state
         if (~async_rst_ni) begin
-            state_q <= '{busy: 1'b0, default: 'x};
+            state_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
         end else begin
             state_q <= state_d;
             if (~sync_rst_ni) begin

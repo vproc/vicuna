@@ -131,8 +131,8 @@ module vproc_lsu #(
     lsu_state state_load_q, state_load_d;   // data state
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_state
         if (~async_rst_ni) begin
-            state_init_q <= '{busy: 1'b0, default: 'x};
-            state_load_q <= '{busy: 1'b0, default: 'x};
+            state_init_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+            state_load_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
         end else begin
             state_init_q <= state_init_d;
             state_load_q <= state_load_d;
@@ -409,10 +409,10 @@ module vproc_lsu #(
         if (BUF_VREG) begin
             always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vreg
                 if (~async_rst_ni) begin
-                    state_vreg_q <= '{busy: 1'b0, default: 'x};
+                    state_vreg_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
                 end
                 else if (~sync_rst_ni) begin
-                    state_vreg_q <= '{busy: 1'b0, default: 'x};
+                    state_vreg_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
                 end
                 else if (next_init) begin
                     state_vreg_q <= state_init;
@@ -428,10 +428,10 @@ module vproc_lsu #(
 
         always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs2
             if (~async_rst_ni) begin
-                state_vs2_q <= '{busy: 1'b0, default: 'x};
+                state_vs2_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
             end
             else if (~sync_rst_ni) begin
-                state_vs2_q <= '{busy: 1'b0, default: 'x};
+                state_vs2_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
             end
             else if (next_init) begin
                 state_vs2_q <= state_vreg_q;
@@ -441,10 +441,10 @@ module vproc_lsu #(
 
         always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs3
             if (~async_rst_ni) begin
-                state_vs3_q   <= '{busy: 1'b0, default: 'x};
+                state_vs3_q   <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
             end
             else if (~sync_rst_ni) begin
-                state_vs3_q   <= '{busy: 1'b0, default: 'x};
+                state_vs3_q   <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
             end
             else if (next_init) begin
                 state_vs3_q   <= state_vs2_q;
@@ -457,10 +457,10 @@ module vproc_lsu #(
         if (BUF_REQUEST) begin
              always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_req
                 if (~async_rst_ni) begin
-                    state_req_q <= '{busy: 1'b0, default: 'x};
+                    state_req_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
                 end
                 else if (~sync_rst_ni) begin
-                    state_req_q <= '{busy: 1'b0, default: 'x};
+                    state_req_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
                 end
                 else if (next_init) begin
                     state_req_q <= state_vs3_q;
