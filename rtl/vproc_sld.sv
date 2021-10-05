@@ -116,6 +116,7 @@ module vproc_sld #(
             EMUL_2: last_cycle = state_q.count.part.mul[1];
             EMUL_4: last_cycle = state_q.count.part.mul[2];
             EMUL_8: last_cycle = state_q.count.part.mul[3];
+            default: ;
         endcase
     end
 

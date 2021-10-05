@@ -1253,6 +1253,7 @@ module vproc_decoder #(
                 vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask_w}) != 5'b0;
                 vd_invalid  = (instr_vd  & {2'b00, regaddr_mask  }) != 5'b0;
             end
+            default: ;
         endcase
 
         // special cases (e.g. mask operations):

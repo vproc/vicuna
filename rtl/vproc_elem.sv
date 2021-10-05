@@ -149,6 +149,7 @@ module vproc_elem #(
             EMUL_2: last_cycle = (state_q.count.part.mul[  0] == '1) & (state_q.count.part.low == '1) & (state_q.count_gather == '1);
             EMUL_4: last_cycle = (state_q.count.part.mul[1:0] == '1) & (state_q.count.part.low == '1) & (state_q.count_gather == '1);
             EMUL_8: last_cycle = (state_q.count.part.mul[2:0] == '1) & (state_q.count.part.low == '1) & (state_q.count_gather == '1);
+            default: ;
         endcase
     end
 
@@ -422,6 +423,7 @@ module vproc_elem #(
                 EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_d                [4:1], 1'b0};
                 EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_d                [4:2], 2'b0};
                 EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_d                [4:3], 3'b0};
+                default: ;
             endcase
             if (~vreg_wr_clear_d) begin
                 clear_wr_hazards_d = '0;
@@ -432,6 +434,7 @@ module vproc_elem #(
                 EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_q[MAX_WR_DELAY-1][4:1], 1'b0};
                 EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_q[MAX_WR_DELAY-1][4:2], 2'b0};
                 EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_q[MAX_WR_DELAY-1][4:3], 3'b0};
+                default: ;
             endcase
             if (~vreg_wr_clear_q[MAX_WR_DELAY-1]) begin
                 clear_wr_hazards_d = '0;
@@ -449,6 +452,7 @@ module vproc_elem #(
             EMUL_2: gather_hazard = (32'h00000003 << {state_gather_q.vs2[4:1], 1'b0  });
             EMUL_4: gather_hazard = (32'h0000000F << {state_gather_q.vs2[4:2], 2'b00 });
             EMUL_8: gather_hazard = (32'h000000FF << {state_gather_q.vs2[4:3], 3'b000});
+            default: ;
         endcase
     end
     // vs2 is either a mask vreg or it is the gather register group, which has to be cleared as a whole in the last cycle
@@ -537,6 +541,7 @@ module vproc_elem #(
             EMUL_2: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)+1] == '0;
             EMUL_4: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)+2] == '0;
             EMUL_8: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)+3] == '0;
+            default: ;
         endcase
     end
 

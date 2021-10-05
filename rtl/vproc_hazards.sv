@@ -124,6 +124,7 @@ module vproc_hazards #(
                 vs2_wide = 1'b1;
                 vd_wide  = 1'b0;
             end
+            default: ;
         endcase
         // no wide vregs for fractional LMUL
         if (lmul_i[2]) begin

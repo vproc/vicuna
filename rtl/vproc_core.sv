@@ -148,6 +148,7 @@ module vproc_core #(
                 2'b01: vxrm_d = VXRM_RNE;
                 2'b10: vxrm_d = VXRM_RDN;
                 2'b11: vxrm_d = VXRM_ROD;
+                default: ;
             endcase
         end
     end

@@ -151,6 +151,7 @@ module vproc_lsu #(
             EMUL_2: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-3:0] == '1;
             EMUL_4: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-2:0] == '1;
             EMUL_8: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-1:0] == '1;
+            default: ;
         endcase
         load_last_cycle = COMB_INIT_ZERO ? 1'b0 : 1'bx;
         unique case (state_load_q.emul)
@@ -158,6 +159,7 @@ module vproc_lsu #(
             EMUL_2: load_last_cycle = state_load_q.count.val[LSU_COUNTER_W-3:0] == '1;
             EMUL_4: load_last_cycle = state_load_q.count.val[LSU_COUNTER_W-2:0] == '1;
             EMUL_8: load_last_cycle = state_load_q.count.val[LSU_COUNTER_W-1:0] == '1;
+            default: ;
         endcase
     end
 

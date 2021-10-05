@@ -79,11 +79,11 @@ module vproc_top #(
     logic        vect_pending_store;
 
     // CSR register interface for Vector Unit
-    localparam int unsigned VectCSRs = 7;
-    logic [11:0] vect_csr_addr [VectCSRs];
-    logic [31:0] vect_csr_rdata[VectCSRs];
-    logic        vect_csr_we   [VectCSRs];
-    logic [31:0] vect_csr_wdata[VectCSRs];
+    localparam int unsigned VECT_CSR_CNT = 7;
+    logic [11:0] vect_csr_addr [VECT_CSR_CNT];
+    logic [31:0] vect_csr_rdata[VECT_CSR_CNT];
+    logic        vect_csr_we   [VECT_CSR_CNT];
+    logic [31:0] vect_csr_wdata[VECT_CSR_CNT];
     assign vect_csr_addr = '{
         12'h008, // vstart
         12'h009, // vxsat
@@ -98,7 +98,7 @@ module vproc_top #(
         .DmHaltAddr             ( 32'h00000000                       ),
         .DmExceptionAddr        ( 32'h00000000                       ),
         .RV32M                  ( ibex_pkg::RV32MNone                ),
-        .ExternalCSRs           ( VectCSRs                           ),
+        .ExternalCSRs           ( VECT_CSR_CNT                       ),
         // LOAD-FP, STORE-FP and VECTOR opcodes
         .CoprocOpcodes          ( 32'h00200202                       )
     ) u_core (
@@ -322,7 +322,7 @@ module vproc_top #(
     logic             imem_err;
     generate
         if (ICACHE_SZ != 0) begin
-            localparam ICACHE_WAY_LEN = ICACHE_SZ / (ICACHE_LINE_W / 8) / 2;
+            localparam int unsigned ICACHE_WAY_LEN = ICACHE_SZ / (ICACHE_LINE_W / 8) / 2;
             vproc_cache #(
                 .ADDR_BIT_W   ( 32                ),
                 .CPU_BYTE_W   ( 4                 ),
@@ -373,7 +373,7 @@ module vproc_top #(
     logic               dmem_err;
     generate
         if (DCACHE_SZ != 0) begin
-            localparam DCACHE_WAY_LEN = DCACHE_SZ / (DCACHE_LINE_W / 8) / 2;
+            localparam int unsigned DCACHE_WAY_LEN = DCACHE_SZ / (DCACHE_LINE_W / 8) / 2;
             // hold memory access (allows lookup only) for main core requests
             // in case of pending vector loads / stores
             logic hold_mem;
