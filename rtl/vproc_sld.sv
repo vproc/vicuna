@@ -12,7 +12,7 @@ module vproc_sld #(
         parameter bit                 BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
         parameter bit                 BUF_OPERANDS    = 1'b1, // insert pipeline stage after operand extraction
         parameter bit                 BUF_RESULTS     = 1'b1, // insert pipeline stage after computing result
-        parameter bit                 COMB_INIT_ZERO  = 1'b0
+        parameter bit                 DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )(
         input  logic                  clk_i,
         input  logic                  async_rst_ni,
@@ -110,7 +110,7 @@ module vproc_sld #(
     // in contrast to other units the last cycle is delayed by one cycle
     logic last_cycle;
     always_comb begin
-        last_cycle = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (state_q.emul)
             EMUL_1: last_cycle = state_q.count.part.mul[0];
             EMUL_2: last_cycle = state_q.count.part.mul[1];
@@ -123,8 +123,8 @@ module vproc_sld #(
     logic [$clog2(VREG_W)-1:0] byte_slide; // slide amount in bytes
     logic                      sld_valid;  // slide amount is valid for LMUL == 8 (i.e. no overflow)
     always_comb begin
-        byte_slide = COMB_INIT_ZERO ?  'b0 :  'bx;
-        sld_valid  = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        byte_slide = DONT_CARE_ZERO ?  'b0 :  'bx;
+        sld_valid  = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (mode_i.op)
             SLD_UP, SLD_DOWN: begin
                 unique case (vsew_i)
@@ -167,7 +167,7 @@ module vproc_sld #(
             state_d.first_cycle = 1'b1;
             state_d.mode        = mode_i;
             state_d.eew         = vsew_i;
-            state_d.emul = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+            state_d.emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
             unique case (lmul_i)
                 LMUL_F8,
                 LMUL_F4,
@@ -367,7 +367,7 @@ module vproc_sld #(
     // write hazard clearing
     always_comb begin
         if (MAX_WR_DELAY == 0) begin
-            clear_wr_hazards_d = COMB_INIT_ZERO ? '0 : 'x;
+            clear_wr_hazards_d = DONT_CARE_ZERO ? '0 : 'x;
             unique case (vreg_wr_emul_d)
                 EMUL_1: clear_wr_hazards_d = 32'h00000001 << {vreg_wr_base_d                           };
                 EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_d                [4:1], 1'b0};
@@ -453,7 +453,7 @@ module vproc_sld #(
 
     // convert element mask to byte mask
     always_comb begin
-        write_mask_d = COMB_INIT_ZERO ? '0 : 'x;
+        write_mask_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex_q.eew)
             VSEW_8: begin
                 write_mask_d = v0msk_part_q;
@@ -509,8 +509,8 @@ module vproc_sld #(
     assign op_high_valid = ~state_ex_q.last_cycle;
 
     always_comb begin
-        result_d      = COMB_INIT_ZERO ? '0 : 'x;
-        result_mask_d = COMB_INIT_ZERO ? '0 : 'x;
+        result_d      = DONT_CARE_ZERO ? '0 : 'x;
+        result_mask_d = DONT_CARE_ZERO ? '0 : 'x;
 
         for (int i = 0; i < SLD_OP_W/8; i++) begin
             if (state_ex_q.op_shift + i < SLD_OP_W/8) begin

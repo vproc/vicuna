@@ -14,7 +14,7 @@ module vproc_lsu #(
         parameter bit                 BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
         parameter bit                 BUF_REQUEST     = 1'b1, // insert pipeline stage before issuing request
         parameter bit                 BUF_RDATA       = 1'b1, // insert pipeline stage after memory read
-        parameter bit                 COMB_INIT_ZERO  = 1'b0
+        parameter bit                 DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )
     (
         input  logic                  clk_i,
@@ -145,7 +145,7 @@ module vproc_lsu #(
 
     logic init_last_cycle, load_last_cycle;
     always_comb begin
-        init_last_cycle = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        init_last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (state_init_q.emul)
             EMUL_1: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-4:0] == '1;
             EMUL_2: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-3:0] == '1;
@@ -153,7 +153,7 @@ module vproc_lsu #(
             EMUL_8: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-1:0] == '1;
             default: ;
         endcase
-        load_last_cycle = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        load_last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (state_load_q.emul)
             EMUL_1: load_last_cycle = state_load_q.count.val[LSU_COUNTER_W-4:0] == '1;
             EMUL_2: load_last_cycle = state_load_q.count.val[LSU_COUNTER_W-3:0] == '1;
@@ -166,8 +166,8 @@ module vproc_lsu #(
     cfg_emul            emul;
     logic[CFG_VL_W-1:0] vl;
     always_comb begin
-        emul = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
-        vl   = COMB_INIT_ZERO ? '0 : 'x;
+        emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+        vl   = DONT_CARE_ZERO ? '0 : 'x;
         unique case ({mode_i.eew, vsew_i})
             {VSEW_8 , VSEW_32}: begin   // EEW / SEW = 1 / 4
                 emul = (lmul_i == LMUL_8) ? EMUL_2 : EMUL_1; // use EMUL == 1 for fractional EMUL (LMUL < 4), vl is updated anyways
@@ -580,7 +580,7 @@ module vproc_lsu #(
     always_comb begin
         vs2_shift_d = vreg_rd_q;
         if (~state_vreg_q.vs2_fetch) begin
-            //vs2_shift_d = COMB_INIT_ZERO ? '0 : 'x;
+            //vs2_shift_d = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_vreg_q.mode.eew)
                 VSEW_8:  vs2_shift_d[VREG_W-9 :0] = vs2_shift_q[VREG_W-1:8 ];
                 VSEW_16: vs2_shift_d[VREG_W-17:0] = vs2_shift_q[VREG_W-1:16];
@@ -596,7 +596,7 @@ module vproc_lsu #(
         //    if (state_vs2_q.mode.stride == LSU_UNITSTRIDE) begin
         //        vs3_shift_d[VREG_W-VMEM_W-1:0] = vs3_shift_q[VREG_W-1:VMEM_W];
         //    end else begin
-        //        //vs3_shift_d = COMB_INIT_ZERO ? '0 : 'x;
+        //        //vs3_shift_d = DONT_CARE_ZERO ? '0 : 'x;
         //        unique case (state_vs2_q.mode.eew)
         //            VSEW_8:  vs3_shift_d[VREG_W-9 :0] = vs3_shift_q[VREG_W-1:8 ];
         //            VSEW_16: vs3_shift_d[VREG_W-17:0] = vs3_shift_q[VREG_W-1:16];
@@ -606,7 +606,7 @@ module vproc_lsu #(
         //end
         if (~state_vs2_q.first_cycle) begin
             if (state_vs2_q.mode.stride == LSU_UNITSTRIDE) begin
-                v0msk_shift_d = COMB_INIT_ZERO ? '0 : 'x;
+                v0msk_shift_d = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (state_vs2_q.mode.eew)
                     VSEW_8:  v0msk_shift_d[VREG_W-(VMEM_W/8 )-1:0] = v0msk_shift_q[VREG_W-1:VMEM_W/8 ];
                     VSEW_16: v0msk_shift_d[VREG_W-(VMEM_W/16)-1:0] = v0msk_shift_q[VREG_W-1:VMEM_W/16];
@@ -619,7 +619,7 @@ module vproc_lsu #(
         end
     end
     always_comb begin
-        vs2_tmp_d = COMB_INIT_ZERO ? '0 : 'x;
+        vs2_tmp_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_vs2_q.mode.eew)
             VSEW_8:  vs2_tmp_d = {24'b0, vs2_shift_q[7 :0]};
             VSEW_16: vs2_tmp_d = {16'b0, vs2_shift_q[15:0]};
@@ -634,7 +634,7 @@ module vproc_lsu #(
     // convert element mask to byte mask
     logic [VMEM_W/8-1:0] byte_mask;
     always_comb begin
-        byte_mask = COMB_INIT_ZERO ? '0 : 'x;
+        byte_mask = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_vs3_q.mode.eew)
             VSEW_8: begin
                 byte_mask = v0msk_shift_q[VMEM_W/8-1:0];
@@ -664,8 +664,8 @@ module vproc_lsu #(
     assign wdata_unit_vl_mask =   state_vs3_q.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_vs3_q.vl));
     assign wdata_stri_mask    = (~state_vs3_q.vl_0 & (state_vs3_q.count.val <= state_vs3_q.vl)) & (state_vs3_q.mode.masked ? v0msk_shift_q[0] : 1'b1);
     always_comb begin
-        wdata_buf_d = COMB_INIT_ZERO ? '0 : 'x;
-        wmask_buf_d = COMB_INIT_ZERO ? '0 : 'x;
+        wdata_buf_d = DONT_CARE_ZERO ? '0 : 'x;
+        wmask_buf_d = DONT_CARE_ZERO ? '0 : 'x;
         if (state_vs3_q.mode.stride == LSU_UNITSTRIDE) begin
             wdata_buf_d = vs3_shift_q[VMEM_W-1:0];
             wmask_buf_d = (state_vs3_q.mode.masked ? byte_mask : '1) & wdata_unit_vl_mask[state_vs3_q.count.val[LSU_COUNTER_W-1:LSU_STRI_COUNTER_EXT_W]*VMEM_W/8 +: VMEM_W/8];
@@ -726,8 +726,8 @@ module vproc_lsu #(
     logic rdata_stri_vdmsk;
     assign rdata_stri_vdmsk = (~state_rdata_q.vl_0 & (state_rdata_q.count.val <= state_rdata_q.vl)) & (state_rdata_q.mode.masked ? rmask_buf_q[0] : 1'b1);
     always_comb begin
-        vd_shift_d    = COMB_INIT_ZERO ? '0 : 'x;
-        vdmsk_shift_d = COMB_INIT_ZERO ? '0 : 'x;
+        vd_shift_d    = DONT_CARE_ZERO ? '0 : 'x;
+        vdmsk_shift_d = DONT_CARE_ZERO ? '0 : 'x;
         if (state_rdata_q.mode.stride == LSU_UNITSTRIDE) begin
             vd_shift_d    = {rdata_buf_q     , vd_shift_q   [VREG_W-1:VMEM_W  ]};
             vdmsk_shift_d = {rdata_unit_vdmsk, vdmsk_shift_q[VMSK_W-1:VMEM_W/8]};

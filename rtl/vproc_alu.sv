@@ -15,7 +15,7 @@ module vproc_alu #(
         parameter bit                   BUF_OPERANDS     = 1'b1, // insert pipeline stage after operand extraction
         parameter bit                   BUF_INTERMEDIATE = 1'b1, // insert pipeline stage for intermediate results
         parameter bit                   BUF_RESULTS      = 1'b1, // insert pipeline stage after computing result
-        parameter bit                   COMB_INIT_ZERO   = 1'b0
+        parameter bit                   DONT_CARE_ZERO   = 1'b0  // initialize don't care values to zero
     )(
         input  logic                    clk_i,
         input  logic                    async_rst_ni,
@@ -115,7 +115,7 @@ module vproc_alu #(
 
     logic last_cycle;
     always_comb begin
-        last_cycle = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (state_q.emul)
             EMUL_1: last_cycle =                                        state_q.count.part.low == '1;
             EMUL_2: last_cycle = (state_q.count.part.mul[  0] == '1) & (state_q.count.part.low == '1);
@@ -139,7 +139,7 @@ module vproc_alu #(
             // for widening or narrowing ops, eew and emul are increased to the next higher value,
             // since those are the eew and emul that are used for the op itself; vl is doubled to
             // capture the wider byte width of the intermediate result
-            state_d.emul = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+            state_d.emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
             if (widenarrow_i == OP_SINGLEWIDTH) begin
                 state_d.eew = vsew_i;
                 unique case (lmul_i)
@@ -448,7 +448,7 @@ module vproc_alu #(
     logic [ALU_OP_W-1:0] operand1, operand2;
     vproc_vregunpack #(
         .OP_W           ( ALU_OP_W                      ),
-        .COMB_INIT_ZERO ( COMB_INIT_ZERO                )
+        .DONT_CARE_ZERO ( DONT_CARE_ZERO                )
     ) alu_vregunpack (
         .vsew_i         ( state_vs2_q.eew               ),
         .rs1_i          ( state_vs2_q.rs1               ),
@@ -466,7 +466,7 @@ module vproc_alu #(
     always_comb begin
         operand2 = vs2_shift_q[ALU_OP_W-1:0];
         if (state_vs2_q.vs2_narrow) begin
-            operand2 = COMB_INIT_ZERO ? '0 : 'x;
+            operand2 = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_vs2_q.eew)
                 VSEW_16: begin
                     for (int i = 0; i < ALU_OP_W / 16; i++) begin
@@ -483,8 +483,8 @@ module vproc_alu #(
         end
     end
     always_comb begin
-        operand1_d = COMB_INIT_ZERO ? '0 : 'x;
-        operand2_d = COMB_INIT_ZERO ? '0 : 'x;
+        operand1_d = DONT_CARE_ZERO ? '0 : 'x;
+        operand2_d = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 32; i++) begin
             // operand 1 extraction
             operand1_d[36*i+1  +: 8] = state_vs2_q.mode.inv_op1 ? ~operand1[32*i    +: 8] : operand1[32*i    +: 8];
@@ -530,7 +530,7 @@ module vproc_alu #(
     logic [ALU_OP_W/8-1:0] vdmsk_alu;
     vproc_vregpack #(
         .OP_W            ( ALU_OP_W             ),
-        .COMB_INIT_ZERO  ( COMB_INIT_ZERO        )
+        .DONT_CARE_ZERO  ( DONT_CARE_ZERO        )
     ) alu_vregpack (
         .vsew_i          ( state_res_q.eew       ),
         .result_i        ( result_alu_q          ),
@@ -559,8 +559,8 @@ module vproc_alu #(
     // register was processed and all inactive values (according to the mask
     // `result_mask_q') are overwritten with 1s.
     always_comb begin
-        vd_cmp_shift_d = COMB_INIT_ZERO ? '0 : 'x;
-        vdmsk_cmp_d    = COMB_INIT_ZERO ? '0 : 'x;
+        vd_cmp_shift_d = DONT_CARE_ZERO ? '0 : 'x;
+        vdmsk_cmp_d    = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_res_q.eew)
             VSEW_8: begin
                 vd_cmp_shift_d[VMSK_W  -ALU_OP_W/8 -1:0] = vd_cmp_shift_q[VMSK_W  -1:ALU_OP_W/8 ];
@@ -608,18 +608,18 @@ module vproc_alu #(
     // 37-bit adder (fracturable 32-bit adder with carry-in and carry-out)
     logic [ALU_OP_W*37/32-1:0] sum37;
     always_comb begin
-        sum37 = COMB_INIT_ZERO ? '0 : 'x;
+        sum37 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 32; i++) begin
             sum37[37*i +: 37] = {1'b0, operand2_q[36*i +: 36]} + {1'b0, operand1_q[36*i +: 36]};
         end
     end
     logic [ALU_OP_W/8-1:0] carry, sig_op1, sig_op2, sig_res;
     always_comb begin
-        sum_d   = COMB_INIT_ZERO ? '0 : 'x;
-        carry   = COMB_INIT_ZERO ? '0 : 'x;
-        sig_op1 = COMB_INIT_ZERO ? '0 : 'x;
-        sig_op2 = COMB_INIT_ZERO ? '0 : 'x;
-        sig_res = COMB_INIT_ZERO ? '0 : 'x;
+        sum_d   = DONT_CARE_ZERO ? '0 : 'x;
+        carry   = DONT_CARE_ZERO ? '0 : 'x;
+        sig_op1 = DONT_CARE_ZERO ? '0 : 'x;
+        sig_op2 = DONT_CARE_ZERO ? '0 : 'x;
+        sig_res = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 32; i++) begin
             // discard lowest bit of the 37-bit result and fill in carry chain bits
             sum_d[36*i    +: 8] = sum37[37*i+1  +: 8];
@@ -669,7 +669,7 @@ module vproc_alu #(
     logic [ALU_OP_W/8-1:0] ovflw;
     assign ovflw = ~(sig_op1 ^ sig_op2) & (sig_op1 ^ sig_res);
     always_comb begin
-        cmp_d = COMB_INIT_ZERO ? '0 : 'x;
+        cmp_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex1_q.mode.opx1.sel)
             ALU_SEL_CARRY: cmp_d = state_ex1_q.subtract ? ~carry : carry;
             ALU_SEL_OVFLW: cmp_d = ovflw;
@@ -693,7 +693,7 @@ module vproc_alu #(
     // carry bit fills the entire final result (sign bit and fill bit equal)
     logic mode_signed;
     always_comb begin
-        mode_signed = COMB_INIT_ZERO ? '0 : 'x;
+        mode_signed = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex1_q.mode.opx1.sel)
             ALU_SEL_CARRY: mode_signed = 1'b0;
             ALU_SEL_OVFLW: mode_signed = 1'b1;
@@ -701,7 +701,7 @@ module vproc_alu #(
         endcase
     end
     always_comb begin
-        satval_d = COMB_INIT_ZERO ? '0 : 'x;
+        satval_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex1_q.eew)
             VSEW_8: begin
                 for (int i = 0; i < ALU_OP_W / 8 ; i++) begin
@@ -724,7 +724,7 @@ module vproc_alu #(
 
     // barrel shifter
     always_comb begin
-        shift_res_d = COMB_INIT_ZERO ? '0 : 'x;
+        shift_res_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case ({state_ex1_q.mode.opx1.shift, state_ex1_q.eew})
             // vsll.*
             {ALU_SHIFT_VSLL, VSEW_8}: begin
@@ -773,7 +773,7 @@ module vproc_alu #(
 
     // arithmetic result
     always_comb begin
-        result_alu_d = COMB_INIT_ZERO ? '0 : 'x;
+        result_alu_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex2_q.mode.opx2.res)
             // add and saturating add: the result is replaced by the saturation
             // value if the corresponding bit in the compare register is set;
@@ -820,7 +820,7 @@ module vproc_alu #(
     // equality (or inequality) is determined by testing whether the sum is 0
     logic [ALU_OP_W/8-1:0] neq;
     always_comb begin
-        neq = COMB_INIT_ZERO ? '0 : 'x;
+        neq = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex2_q.eew)
             VSEW_8: begin
                 for (int i = 0; i < ALU_OP_W / 8 ; i++) begin
@@ -841,7 +841,7 @@ module vproc_alu #(
         endcase
     end
     always_comb begin
-        result_cmp_d = COMB_INIT_ZERO ? '0 : 'x;
+        result_cmp_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex2_q.mode.opx2.cmp)
             ALU_CMP_CMP:  result_cmp_d =  cmp_q;
             ALU_CMP_CMPN: result_cmp_d = ~cmp_q;

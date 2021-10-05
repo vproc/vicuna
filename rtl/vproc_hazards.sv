@@ -4,7 +4,7 @@
 
 
 module vproc_hazards #(
-        parameter bit                   COMB_INIT_ZERO = 1'b0
+        parameter bit                   DONT_CARE_ZERO = 1'b0 // initialize don't care values to zero
     )(
         input  vproc_pkg::cfg_vsew      vsew_i,
         input  vproc_pkg::cfg_lmul      lmul_i,
@@ -25,7 +25,7 @@ module vproc_hazards #(
 
     cfg_emul lsu_emul;
     always_comb begin
-        lsu_emul = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+        lsu_emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
         unique case ({mode_i.lsu.eew, vsew_i})
             {VSEW_8 , VSEW_32}: begin   // EEW / SEW = 1 / 4
                 lsu_emul = (lmul_i == LMUL_8) ? EMUL_2 : EMUL_1;
@@ -76,7 +76,7 @@ module vproc_hazards #(
 
     cfg_emul emul;
     always_comb begin
-        emul = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+        emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
         unique case (lmul_i)
             LMUL_F8,
             LMUL_F4,
@@ -100,9 +100,9 @@ module vproc_hazards #(
 
     logic vs1_wide, vs2_wide, vd_wide;
     always_comb begin
-        vs1_wide = COMB_INIT_ZERO ? '0 : 'x;
-        vs2_wide = COMB_INIT_ZERO ? '0 : 'x;
-        vd_wide  = COMB_INIT_ZERO ? '0 : 'x;
+        vs1_wide = DONT_CARE_ZERO ? '0 : 'x;
+        vs2_wide = DONT_CARE_ZERO ? '0 : 'x;
+        vd_wide  = DONT_CARE_ZERO ? '0 : 'x;
         unique case (widenarrow_i)
             OP_SINGLEWIDTH: begin
                 vs1_wide = 1'b0;
@@ -136,7 +136,7 @@ module vproc_hazards #(
 
     logic [31:0] vs1_hazards, vs2_hazards, vd_hazards;
     always_comb begin
-        vs1_hazards = COMB_INIT_ZERO ? '0 : 'x;
+        vs1_hazards = DONT_CARE_ZERO ? '0 : 'x;
         unique case ({emul, vs1_wide})
             {EMUL_1, 1'b0}: begin
                 vs1_hazards = rs1_i.vreg ? (32'h00000001 <<  rs1_i.r.vaddr              ) : 32'b0;
@@ -155,7 +155,7 @@ module vproc_hazards #(
             end
             default: ;
         endcase
-        vs2_hazards = COMB_INIT_ZERO ? '0 : 'x;
+        vs2_hazards = DONT_CARE_ZERO ? '0 : 'x;
         unique case ({emul, vs2_wide})
             {EMUL_1, 1'b0}: begin
                 vs2_hazards = rs2_i.vreg ? (32'h00000001 <<  rs2_i.r.vaddr              ) : 32'b0;
@@ -174,7 +174,7 @@ module vproc_hazards #(
             end
             default: ;
         endcase
-        vd_hazards = COMB_INIT_ZERO ? '0 : 'x;
+        vd_hazards = DONT_CARE_ZERO ? '0 : 'x;
         unique case ({emul, vd_wide})
             {EMUL_1, 1'b0}: begin
                 vd_hazards = rd_i.vreg ? (32'h00000001 <<  rd_i.addr              ) : 32'b0;

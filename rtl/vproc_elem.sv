@@ -13,7 +13,7 @@ module vproc_elem #(
         parameter int unsigned         MAX_WR_ATTEMPTS = 1,    // max required vregfile write attempts
         parameter bit                  BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
         parameter bit                  BUF_RESULTS     = 1'b1, // insert pipeline stage after computing result
-        parameter bit                  COMB_INIT_ZERO  = 1'b0
+        parameter bit                  DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )(
         input  logic                   clk_i,
         input  logic                   async_rst_ni,
@@ -119,7 +119,7 @@ module vproc_elem #(
 
     logic op_reduction;
     always_comb begin
-        op_reduction = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        op_reduction = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (mode_i.op)
             ELEM_XMV:       op_reduction = 1'b0;
             ELEM_VPOPC:     op_reduction = 1'b0;
@@ -143,7 +143,7 @@ module vproc_elem #(
 
     logic last_cycle;
     always_comb begin
-        last_cycle = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (state_q.emul)
             EMUL_1: last_cycle =                                       (state_q.count.part.low == '1) & (state_q.count_gather == '1);
             EMUL_2: last_cycle = (state_q.count.part.mul[  0] == '1) & (state_q.count.part.low == '1) & (state_q.count_gather == '1);
@@ -160,7 +160,7 @@ module vproc_elem #(
         if (((~state_q.busy) | (last_cycle & ~state_q.requires_flush)) & op_rdy_i) begin
             op_ack_o               = 1'b1;
             state_d.count.val      = '0;
-            state_d.count.val[1:0] = COMB_INIT_ZERO ? '0 : 'x;
+            state_d.count.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
             unique case (vsew_i)
                 VSEW_8:  state_d.count.val[1:0] = 2'b00;
                 VSEW_16: state_d.count.val[1:0] = 2'b01;
@@ -173,7 +173,7 @@ module vproc_elem #(
             state_d.requires_flush = (mode_i.op == ELEM_VCOMPRESS) | op_reduction;
             state_d.mode           = mode_i;
             state_d.eew            = vsew_i;
-            state_d.emul = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+            state_d.emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
             unique case (lmul_i)
                 LMUL_F8,
                 LMUL_F4,
@@ -210,7 +210,7 @@ module vproc_elem #(
             end
             if (last_cycle & state_q.requires_flush) begin
                 state_d.count.val      = '0;
-                state_d.count.val[1:0] = COMB_INIT_ZERO ? '0 : 'x;
+                state_d.count.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (vsew_i)
                     VSEW_8:  state_d.count.val[1:0] = 2'b00;
                     VSEW_16: state_d.count.val[1:0] = 2'b01;
@@ -417,7 +417,7 @@ module vproc_elem #(
     // write hazard clearing
     always_comb begin
         if (MAX_WR_DELAY == 0) begin
-            clear_wr_hazards_d = COMB_INIT_ZERO ? '0 : 'x;
+            clear_wr_hazards_d = DONT_CARE_ZERO ? '0 : 'x;
             unique case (vreg_wr_emul_d)
                 EMUL_1: clear_wr_hazards_d = 32'h00000001 << {vreg_wr_base_d                           };
                 EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_d                [4:1], 1'b0};
@@ -446,7 +446,7 @@ module vproc_elem #(
     // read hazard clearing
     logic [31:0] gather_hazard;
     always_comb begin
-        gather_hazard = COMB_INIT_ZERO ? '0 : 'x;
+        gather_hazard = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_gather_q.emul)
             EMUL_1: gather_hazard = (32'h00000001 <<  state_gather_q.vs2              );
             EMUL_2: gather_hazard = (32'h00000003 << {state_gather_q.vs2[4:1], 1'b0  });
@@ -471,7 +471,7 @@ module vproc_elem #(
     // source register addressing and read:
     //assign vreg_rd_addr_o = state_init.vs1_fetch ? state_init.vs1 : state_init.vs2;
     always_comb begin
-        vreg_rd_addr_o = COMB_INIT_ZERO ? '0 : 'x;
+        vreg_rd_addr_o = DONT_CARE_ZERO ? '0 : 'x;
         // fetch vs1 when the corresponding flag is set
         if (state_init.vs1_fetch) begin
             vreg_rd_addr_o = state_init.vs1;
@@ -535,7 +535,7 @@ module vproc_elem #(
     assign mask_d    = mask_tmp_q;
     assign redinit_d = redinit_tmp_q;
     always_comb begin
-        elem_idx_valid_d = COMB_INIT_ZERO ? '0 : 'x;
+        elem_idx_valid_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_gather_q.emul)
             EMUL_1: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)  ] == '0;
             EMUL_2: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)+1] == '0;
@@ -550,8 +550,8 @@ module vproc_elem #(
         vd_shift_d    = vd_shift_q;
         vdmsk_shift_d = vdmsk_shift_q;
         if (result_valid_q) begin
-            //vd_shift_d    = COMB_INIT_ZERO ? '0 : 'x;
-            //vdmsk_shift_d = COMB_INIT_ZERO ? '0 : 'x;
+            //vd_shift_d    = DONT_CARE_ZERO ? '0 : 'x;
+            //vdmsk_shift_d = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_res_q.eew)
                 VSEW_8: begin
                     vd_shift_d    = {   result_q[7 :0] , vd_shift_q   [VREG_W-1:8 ]};
@@ -585,7 +585,7 @@ module vproc_elem #(
         end
     end
     always_comb begin
-        count_store_d.val = COMB_INIT_ZERO ? '0 : 'x;
+        count_store_d.val = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_res_q.eew)
             VSEW_8:  count_store_d.val = state_vd_q.count_store.val + {{(ELEM_COUNTER_W-1){1'b0}}, result_valid_q      };
             VSEW_16: count_store_d.val = state_vd_q.count_store.val + {{(ELEM_COUNTER_W-2){1'b0}}, result_valid_q, 1'b0};
@@ -594,7 +594,7 @@ module vproc_elem #(
         endcase
         if (state_res_q.first_cycle | first_valid_result_q) begin
             count_store_d.val      = '0;
-            count_store_d.val[1:0] = COMB_INIT_ZERO ? '0 : 'x;
+            count_store_d.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_res_q.eew)
                 VSEW_8:  count_store_d.val[1:0] = 2'b00;
                 VSEW_16: count_store_d.val[1:0] = 2'b01;
@@ -630,10 +630,10 @@ module vproc_elem #(
     assign v0msk      = v0msk_shift_q[0] | ~state_ex_q.mode.masked;
     assign reduct_val = state_ex_q.first_cycle ? redinit_q : result_q;
     always_comb begin
-        counter_inc    = COMB_INIT_ZERO ? '0 : 'x;
-        result_d       = COMB_INIT_ZERO ? '0 : 'x;
-        result_mask_d  = COMB_INIT_ZERO ? '0 : 'x;
-        result_valid_d = COMB_INIT_ZERO ? '0 : 'x;
+        counter_inc    = DONT_CARE_ZERO ? '0 : 'x;
+        result_d       = DONT_CARE_ZERO ? '0 : 'x;
+        result_mask_d  = DONT_CARE_ZERO ? '0 : 'x;
+        result_valid_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex_q.mode.op)
             // move from vreg index 0 to xreg with sign extension
             ELEM_XMV: begin

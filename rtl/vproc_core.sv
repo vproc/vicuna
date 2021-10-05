@@ -16,8 +16,8 @@ module vproc_core #(
         parameter bit                 BUF_DEC        = 1'b1, // buffer decoder outputs
         parameter bit                 BUF_DEQUEUE    = 1'b1, // buffer instruction queue outputs
         parameter bit                 BUF_VREG_WR    = 1'b0,
-        parameter bit                 COMB_INIT_ZERO = 1'b0,
-        parameter bit                 ASYNC_RESET    = 1'b0
+        parameter bit                 DONT_CARE_ZERO = 1'b0, // initialize don't care values to zero
+        parameter bit                 ASYNC_RESET    = 1'b0  // set if rst_ni is an asynchronous reset
     )(
         input  logic                  clk_i,
         input  logic                  rst_ni,
@@ -207,7 +207,7 @@ module vproc_core #(
     assign dec_buf_ready = ~dec_buf_valid_q | queue_ready;
 
     vproc_decoder #(
-        .COMB_INIT_ZERO ( COMB_INIT_ZERO        )
+        .DONT_CARE_ZERO ( DONT_CARE_ZERO        )
     ) dec (
         .instr_i        ( instr_i               ),
         .instr_valid_i  ( instr_valid_i         ),
@@ -236,7 +236,7 @@ module vproc_core #(
     // temporary variables for calculating new vector length for vset[i]vl[i]
     logic [33:0] cfg_avl;   // AVL * (VSEW / 8) - 1
     always_comb begin
-        cfg_avl = COMB_INIT_ZERO ? '0 : 'x;
+        cfg_avl = DONT_CARE_ZERO ? '0 : 'x;
         unique case (dec_data_d.mode.cfg.vsew)
             VSEW_8:  cfg_avl = {2'b00, dec_data_d.rs1.r.xval - 1       };
             VSEW_16: cfg_avl = {1'b0 , dec_data_d.rs1.r.xval - 1, 1'b1 };
@@ -263,7 +263,7 @@ module vproc_core #(
                 vl_csr_d = '0;
             end else begin
                 vl_0_d = 1'b0;
-                vl_d   = COMB_INIT_ZERO ? '0 : 'x;
+                vl_d   = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (dec_data_d.mode.cfg.lmul)
                     // TODO support fractional LMUL
                     LMUL_1: vl_d = (cfg_avl[33:CFG_VL_W-3] == '0) ? cfg_avl[CFG_VL_W-1:0] : {3'b000, {(CFG_VL_W-3){1'b1}}};
@@ -272,7 +272,7 @@ module vproc_core #(
                     LMUL_8: vl_d = (cfg_avl[33:CFG_VL_W  ] == '0) ? cfg_avl[CFG_VL_W-1:0] :          { CFG_VL_W   {1'b1}} ;
                     default: ;
                 endcase
-                vl_csr_d = COMB_INIT_ZERO ? '0 : 'x;
+                vl_csr_d = DONT_CARE_ZERO ? '0 : 'x;
                 unique case ({dec_data_d.mode.cfg.lmul, dec_data_d.mode.cfg.vsew})
                     // TODO support fractional LMUL
                     {LMUL_1, VSEW_32}: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W-5] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {6'b1, {(CFG_VL_W-5){1'b0}}};
@@ -369,7 +369,7 @@ module vproc_core #(
 
     // potential vector register hazards of the currently dequeued instruction
     vproc_hazards #(
-        .COMB_INIT_ZERO ( COMB_INIT_ZERO          )
+        .DONT_CARE_ZERO ( DONT_CARE_ZERO          )
     ) queue_hazards (
         .vsew_i         ( queue_data_d.vsew       ),
         .lmul_i         ( queue_data_d.lmul       ),
@@ -551,7 +551,7 @@ module vproc_core #(
         .VMEM_W             ( VMEM_W                        ),
         .CFG_VL_W           ( CFG_VL_W                      ),
         .MAX_WR_ATTEMPTS    ( 1                             ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                )
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO                )
     ) lsu (
         .clk_i              ( clk_i                         ),
         .async_rst_ni       ( async_rst_n                   ),
@@ -602,7 +602,7 @@ module vproc_core #(
         .CFG_VL_W           ( CFG_VL_W                      ),
         .ALU_OP_W           ( ALU_OP_W                      ),
         .MAX_WR_ATTEMPTS    ( 2                             ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                )
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO                )
     ) alu (
         .clk_i              ( clk_i                         ),
         .async_rst_ni       ( async_rst_n                   ),
@@ -643,7 +643,7 @@ module vproc_core #(
         .MUL_OP_W           ( MUL_OP_W                               ),
         .MAX_WR_ATTEMPTS    ( 1                                      ),
         .MUL_TYPE           ( MUL_TYPE                               ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO                         )
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO                         )
     ) mul (
         .clk_i              ( clk_i                                  ),
         .async_rst_ni       ( async_rst_n                            ),
@@ -684,7 +684,7 @@ module vproc_core #(
         .CFG_VL_W           ( CFG_VL_W                 ),
         .SLD_OP_W           ( SLD_OP_W                 ),
         .MAX_WR_ATTEMPTS    ( 2                        ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO           )
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO           )
     ) sld (
         .clk_i              ( clk_i                    ),
         .async_rst_ni       ( async_rst_n              ),
@@ -724,7 +724,7 @@ module vproc_core #(
         .CFG_VL_W           ( CFG_VL_W                 ),
         .GATHER_OP_W        ( GATHER_OP_W              ),
         .MAX_WR_ATTEMPTS    ( 3                        ),
-        .COMB_INIT_ZERO     ( COMB_INIT_ZERO           )
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO           )
     ) elem (
         .clk_i              ( clk_i                    ),
         .async_rst_ni       ( async_rst_n              ),

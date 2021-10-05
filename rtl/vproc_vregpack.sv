@@ -6,7 +6,7 @@
 // packing results into vector registers
 module vproc_vregpack #(
         parameter int unsigned     OP_W           = 64,  // operand size
-        parameter bit              COMB_INIT_ZERO = 1'b0
+        parameter bit              DONT_CARE_ZERO = 1'b0 // initialize don't care values to zero
     )(
         input  vproc_pkg::cfg_vsew vsew_i,
         input  logic [OP_W  -1:0]  result_i,
@@ -21,8 +21,8 @@ module vproc_vregpack #(
     always_comb begin
 
         // the register write value is taken from the result
-        vd_o    = COMB_INIT_ZERO ? '0 : 'x;
-        vdmsk_o = COMB_INIT_ZERO ? '0 : 'x;
+        vd_o    = DONT_CARE_ZERO ? '0 : 'x;
+        vdmsk_o = DONT_CARE_ZERO ? '0 : 'x;
         if (result_narrow_i) begin
             // retain least significant bits for narrowing ops
             unique case (vsew_i)

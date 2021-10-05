@@ -6,7 +6,7 @@
 // unpacking vector registers to operands
 module vproc_vregunpack #(
         parameter int unsigned     OP_W           = 64,  // operand size
-        parameter bit              COMB_INIT_ZERO = 1'b0
+        parameter bit              DONT_CARE_ZERO = 1'b0 // initialize don't care values to zero
     )(
         input  vproc_pkg::cfg_vsew vsew_i,
         input  vproc_pkg::op_regs  rs1_i,
@@ -27,7 +27,7 @@ module vproc_vregunpack #(
     always_comb begin
 
         // operand 1 is either filled with the value of xreg rs1 or vreg vs1
-        operand1_o = COMB_INIT_ZERO ? '0 : 'x;
+        operand1_o = DONT_CARE_ZERO ? '0 : 'x;
         if (~rs1_i.vreg) begin
             unique case (vsew_i)
                 VSEW_8: begin
@@ -69,7 +69,7 @@ module vproc_vregunpack #(
         end
 
         // operand 2 is filled with vreg vs2
-        operand2_o = COMB_INIT_ZERO ? '0 : 'x;
+        operand2_o = DONT_CARE_ZERO ? '0 : 'x;
         if (vs2_narrow_i) begin
             // zero-extend or sign-extend values for widening ops
             unique case (vsew_i)
@@ -90,7 +90,7 @@ module vproc_vregunpack #(
         end
 
         // convert element mask to byte mask
-        operand_mask_o = COMB_INIT_ZERO ? '0 : 'x;
+        operand_mask_o = DONT_CARE_ZERO ? '0 : 'x;
         unique case (vsew_i)
             VSEW_8: begin
                 operand_mask_o = vmsk_i;

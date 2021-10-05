@@ -4,7 +4,7 @@
 
 
 module vproc_decoder #(
-        parameter bit                   COMB_INIT_ZERO = 1'b0
+        parameter bit                   DONT_CARE_ZERO = 1'b0 // initialize don't care values to zero
     )(
         input  logic                    instr_valid_i,
         input  logic [31:0]             instr_i,
@@ -47,18 +47,18 @@ module vproc_decoder #(
     always_comb begin
         instr_illegal = 1'b0;
 
-        unit_o        = COMB_INIT_ZERO ? op_unit'('0) : op_unit'('x);
-        mode_o.unused = COMB_INIT_ZERO ? '0 : 'x;
+        unit_o        = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
+        mode_o.unused = DONT_CARE_ZERO ? '0 : 'x;
 
-        rs1_o.vreg    = COMB_INIT_ZERO ? 1'b0 : 1'bx;
-        rs1_o.r.xval  = COMB_INIT_ZERO ? '0 : 'x;
-        rs1_o.r.vaddr = COMB_INIT_ZERO ? '0 : 'x;
+        rs1_o.vreg    = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        rs1_o.r.xval  = DONT_CARE_ZERO ? '0 : 'x;
+        rs1_o.r.vaddr = DONT_CARE_ZERO ? '0 : 'x;
 
-        rs2_o.vreg    = COMB_INIT_ZERO ? 1'b0 : 1'bx;
-        rs2_o.r.xval  = COMB_INIT_ZERO ? '0 : 'x;
-        rs2_o.r.vaddr = COMB_INIT_ZERO ? '0 : 'x;
+        rs2_o.vreg    = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        rs2_o.r.xval  = DONT_CARE_ZERO ? '0 : 'x;
+        rs2_o.r.vaddr = DONT_CARE_ZERO ? '0 : 'x;
 
-        rd_o.vreg     = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        rd_o.vreg     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         rd_o.addr     = instr_vd;
 
         widenarrow_o  = OP_SINGLEWIDTH;
@@ -1199,8 +1199,8 @@ module vproc_decoder #(
     // address masks (lower bits that must be 0) for registers based on EMUL:
     logic [2:0] regaddr_mask, regaddr_mask_w;
     always_comb begin
-        regaddr_mask   = COMB_INIT_ZERO ? '0 : 'x;
-        regaddr_mask_w = COMB_INIT_ZERO ? '0 : 'x;
+        regaddr_mask   = DONT_CARE_ZERO ? '0 : 'x;
+        regaddr_mask_w = DONT_CARE_ZERO ? '0 : 'x;
         unique case (lmul_i)
             LMUL_F8,
             LMUL_F4,
@@ -1227,9 +1227,9 @@ module vproc_decoder #(
     // check validity of register addresses:
     logic vs1_invalid, vs2_invalid, vd_invalid;
     always_comb begin
-        vs1_invalid = COMB_INIT_ZERO ? 1'b0 : 1'bx;
-        vs2_invalid = COMB_INIT_ZERO ? 1'b0 : 1'bx;
-        vd_invalid  = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        vs1_invalid = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        vs2_invalid = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        vd_invalid  = DONT_CARE_ZERO ? 1'b0 : 1'bx;
 
         // regular operation:
         unique case (widenarrow_o)

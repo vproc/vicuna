@@ -206,6 +206,7 @@ module vproc_top #(
         .SLD_OP_W         ( (VMUL_W > 64) ? VMUL_W : 64 ),
         .RAM_TYPE         ( RAM_TYPE                    ),
         .MUL_TYPE         ( MUL_TYPE                    ),
+        .DONT_CARE_ZERO   ( 1'b0                        ),
         .ASYNC_RESET      ( 1'b0                        )
     ) v_core (
         .clk_i            ( clk_i              ),

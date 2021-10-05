@@ -17,7 +17,7 @@ module vproc_mul #(
         parameter bit                 BUF_MUL_IN      = 1'b1, // insert pipeline stage before HW multiplication
         parameter bit                 BUF_MUL_OUT     = 1'b1, // insert pipeline stage after HW multiplication
         parameter bit                 BUF_RESULTS     = 1'b1, // insert pipeline stage after computing result
-        parameter bit                 COMB_INIT_ZERO  = 1'b0
+        parameter bit                 DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )(
         input  logic                  clk_i,
         input  logic                  async_rst_ni,
@@ -117,7 +117,7 @@ module vproc_mul #(
 
     logic last_cycle;
     always_comb begin
-        last_cycle = COMB_INIT_ZERO ? 1'b0 : 1'bx;
+        last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (state_q.emul)
             EMUL_1: last_cycle =                                        state_q.count.part.low == '1;
             EMUL_2: last_cycle = (state_q.count.part.mul[  0] == '1) & (state_q.count.part.low == '1);
@@ -137,7 +137,7 @@ module vproc_mul #(
             state_d.busy        = 1'b1;
             state_d.first_cycle = 1'b1;
             state_d.mode        = mode_i;
-            state_d.emul        = COMB_INIT_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+            state_d.emul        = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
             if (~widening_i) begin
                 state_d.eew = vsew_i;
                 unique case (lmul_i)
@@ -441,7 +441,7 @@ module vproc_mul #(
     // conversion from source registers to operands:
     vproc_vregunpack #(
         .OP_W           ( MUL_OP_W                      ),
-        .COMB_INIT_ZERO ( COMB_INIT_ZERO                )
+        .DONT_CARE_ZERO ( DONT_CARE_ZERO                )
     ) mul_vregunpack (
         .vsew_i         ( state_vs2_q.eew               ),
         .rs1_i          ( state_vs2_q.rs1               ),
@@ -482,8 +482,8 @@ module vproc_mul #(
 
     logic [MUL_OP_W/8-1:0] op1_signs, op2_signs;
     always_comb begin
-        op1_signs = COMB_INIT_ZERO ? '0 : 'x;
-        op2_signs = COMB_INIT_ZERO ? '0 : 'x;
+        op1_signs = DONT_CARE_ZERO ? '0 : 'x;
+        op2_signs = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < MUL_OP_W/8; i++) begin
             op1_signs[i] = state_ex1_q.mode.op1_signed & operand1_q[8*i+7];
             op2_signs[i] = state_ex1_q.mode.op2_signed & operand2_q[8*i+7];
@@ -492,8 +492,8 @@ module vproc_mul #(
 
     logic ex1_vsew_8, ex1_vsew_32;
     always_comb begin
-        ex1_vsew_8  = COMB_INIT_ZERO ? '0 : 'x;
-        ex1_vsew_32 = COMB_INIT_ZERO ? '0 : 'x;
+        ex1_vsew_8  = DONT_CARE_ZERO ? '0 : 'x;
+        ex1_vsew_32 = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex1_q.eew)
             VSEW_8:  ex1_vsew_8 = 1'b1;
             VSEW_16: ex1_vsew_8 = 1'b0;
@@ -510,7 +510,7 @@ module vproc_mul #(
 
     logic [(MUL_OP_W/8)*17-1:0] mul_op1, mul_op2;
     always_comb begin
-        mul_op1 = COMB_INIT_ZERO ? '0 : 'x;
+        mul_op1 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < MUL_OP_W / 32; i++) begin
             mul_op1[68*i +: 68] = {
                 // VSEW_8: byte 3, VSEW_32: upper halfword
@@ -523,7 +523,7 @@ module vproc_mul #(
                 ~ex1_vsew_32 & op1_signs[4*i+1],  ex1_vsew_8  ?  {8{op1_signs[4*i  ]}} : operand1_q[32*i+8  +: 8],   operand1_q[32*i    +: 8 ]
             };
         end
-        mul_op2 = COMB_INIT_ZERO ? '0 : 'x;
+        mul_op2 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < MUL_OP_W / 32; i++) begin
             mul_op2[68*i +: 68] = {
                 // VSEW_8: byte 3, VSEW_32: lower halfword
@@ -539,7 +539,7 @@ module vproc_mul #(
     end
 
     always_comb begin
-        accumulator2_d = COMB_INIT_ZERO ? '0 : 'x;
+        accumulator2_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex1_q.mode.op)
             MUL_VSMUL: begin
                 unique case (state_ex1_q.eew)
@@ -556,9 +556,9 @@ module vproc_mul #(
 
     logic ex2_vsew_8, ex2_vsew_16, ex2_vsew_32;
     always_comb begin
-        ex2_vsew_8  = COMB_INIT_ZERO ? '0 : 'x;
-        ex2_vsew_16 = COMB_INIT_ZERO ? '0 : 'x;
-        ex2_vsew_32 = COMB_INIT_ZERO ? '0 : 'x;
+        ex2_vsew_8  = DONT_CARE_ZERO ? '0 : 'x;
+        ex2_vsew_16 = DONT_CARE_ZERO ? '0 : 'x;
+        ex2_vsew_32 = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex2_q.eew)
             VSEW_8:  ex2_vsew_8 = 1'b1;
             VSEW_16: ex2_vsew_8 = 1'b0;
@@ -582,7 +582,7 @@ module vproc_mul #(
     // rearrange accumulator
     logic [MUL_OP_W*2-1:0] mul_acc;
     always_comb begin
-        mul_acc = COMB_INIT_ZERO ? '0 : 'x;
+        mul_acc = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < MUL_OP_W / 32; i++) begin
             mul_acc[64*i +: 64] = {
                 // upper halfword for VSEW_32, byte 3 for VSEW_8
@@ -600,7 +600,7 @@ module vproc_mul #(
     // accumulator flags
     logic mul_accflag, mul_accsub, mul_round;
     always_comb begin
-        mul_accflag = COMB_INIT_ZERO ? '0 : 'x;
+        mul_accflag = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex2_q.mode.op)
             MUL_VMUL:  mul_accflag = 1'b0;
             MUL_VMULH: mul_accflag = 1'b0;
@@ -649,7 +649,7 @@ module vproc_mul #(
 
     // compose result
     always_comb begin
-        result_d = COMB_INIT_ZERO ? '0 : 'x;
+        result_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex3_q.mode.op)
 
             // multiplication retaining low part
