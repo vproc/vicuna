@@ -89,7 +89,11 @@ module vproc_vregfile #(
             always_comb begin
                 wr_data = wr_data_i[gw];
                 for (int i = 0; i < PORTS_WR - 1; i++) begin
-                    wr_data = wr_data ^ ((i < gw) ? rd_data[PORTS_RD+gw-1][i] : rd_data[PORTS_RD+gw][i+1]);
+                    if (gw == 0) begin
+                        wr_data = wr_data ^                                         rd_data[PORTS_RD   ][i+1] ;
+                    end else begin
+                        wr_data = wr_data ^ ((i < gw) ? rd_data[PORTS_RD+gw-1][i] : rd_data[PORTS_RD+gw][i+1]);
+                    end
                 end
             end
 
