@@ -61,6 +61,7 @@ verilator:
 	    trace="--trace -CFLAGS -DTRACE_VCD";                                  \
 	fi;                                                                       \
 	verilator --unroll-count 1024 -Wno-WIDTH -Wno-PINMISSING -Wno-UNOPTFLAT   \
+	    -Wno-UNSIGNED                                                         \
 	    -I$(SIM_DIR)/../rtl/ -I$(CORE_DIR)/rtl/                               \
 	    -I$(CORE_DIR)/dv/uvm/core_ibex/common/prim/                           \
 	    -I$(CORE_DIR)/vendor/lowrisc_ip/dv/sv/dv_utils/                       \

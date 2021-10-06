@@ -51,7 +51,8 @@ lint-verible:
 	    `ls $(TEST_DIR)/../rtl/*.sv | grep -v vproc_pkg.sv`
 
 lint-verilator:
-	verilator -Wall -Wno-PINCONNECTEMPTY -Wno-UNDRIVEN -Wno-DECLFILENAME      \
+	verilator -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSED -Wno-UNDRIVEN            \
+		-Wno-UNSIGNED -Wno-DECLFILENAME                                       \
 	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_core.sv                 \
 	    vproc_hazards.sv vproc_vregpack.sv vproc_vregunpack.sv                \
 	    --top-module vproc_core --clk clk_i --lint-only
