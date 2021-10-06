@@ -123,7 +123,7 @@ module vproc_sld #(
     logic [$clog2(VREG_W)-1:0] byte_slide; // slide amount in bytes
     logic                      sld_valid;  // slide amount is valid for LMUL == 8 (i.e. no overflow)
     always_comb begin
-        byte_slide = DONT_CARE_ZERO ?  'b0 :  'bx;
+        byte_slide = DONT_CARE_ZERO ?   '0 :   'x;
         sld_valid  = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (mode_i.op)
             SLD_UP, SLD_DOWN: begin
@@ -187,11 +187,11 @@ module vproc_sld #(
             state_d.vd          = vd_i;
             unique case (mode_i.op)
                 SLD_UP, SLD_1UP: begin
-                    state_d.count_store.val =  byte_slide[$clog2(VREG_W)-1:SLD_OP_SHFT_W];
+                    state_d.count_store.val = {1'b0,  byte_slide[$clog2(VREG_W)-1:SLD_OP_SHFT_W]};
                     state_d.op_shift        = -byte_slide[SLD_OP_SHFT_W-1:0];
                 end
                 SLD_DOWN, SLD_1DOWN: begin
-                    state_d.count_store.val = ~byte_slide[$clog2(VREG_W)-1:SLD_OP_SHFT_W];
+                    state_d.count_store.val = {1'b1, ~byte_slide[$clog2(VREG_W)-1:SLD_OP_SHFT_W]};
                     state_d.op_shift        =  byte_slide[SLD_OP_SHFT_W-1:0];
                 end
                 default: ;
@@ -513,11 +513,11 @@ module vproc_sld #(
         result_mask_d = DONT_CARE_ZERO ? '0 : 'x;
 
         for (int i = 0; i < SLD_OP_W/8; i++) begin
-            if (state_ex_q.op_shift + i < SLD_OP_W/8) begin
-                result_d     [i*8 +: 8] = operand_low_q [(state_ex_q.op_shift+i)*8          +: 8];
+            if ({3'b000, state_ex_q.op_shift} + $clog2(SLD_OP_W)'(i) < $clog2(SLD_OP_W)'(SLD_OP_W/8)) begin
+                result_d     [i*8 +: 8] = operand_low_q [{3'b000, state_ex_q.op_shift+SLD_OP_SHFT_W'(i)}*8          +: 8];
                 result_mask_d[i]        = op_low_valid;
             end else begin
-                result_d     [i*8 +: 8] = operand_high_q[(state_ex_q.op_shift+i)*8-SLD_OP_W +: 8];
+                result_d     [i*8 +: 8] = operand_high_q[{3'b000, state_ex_q.op_shift+SLD_OP_SHFT_W'(i)}*8-SLD_OP_W +: 8];
                 result_mask_d[i]        = op_high_valid;
             end
         end

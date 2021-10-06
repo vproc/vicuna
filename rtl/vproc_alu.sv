@@ -586,10 +586,10 @@ module vproc_alu #(
             default: ;
         endcase
         unique case (state_res_q.eew)
-            VSEW_8:  vdmsk_cmp_d = {{VMSK_W*7 /8 {1'b0}}, {VMSK_W/8 {1'b1}}} << ((VMSK_W/8 ) * state_res_q.count.part.mul);
-            VSEW_16: vdmsk_cmp_d = {{VMSK_W*15/16{1'b0}}, {VMSK_W/16{1'b1}}} << ((VMSK_W/16) * state_res_q.count.part.mul);
+            VSEW_8:  vdmsk_cmp_d = {{(VMSK_W*7 )/8 {1'b0}}, {(VMSK_W+7 )/8 {1'b1}}} << ((VMSK_W/8 ) * state_res_q.count.part.mul);
+            VSEW_16: vdmsk_cmp_d = {{(VMSK_W*15)/16{1'b0}}, {(VMSK_W+15)/16{1'b1}}} << ((VMSK_W/16) * state_res_q.count.part.mul);
             VSEW_32: vdmsk_cmp_d = (VMSK_W == 16) ? 16'h0001 << state_res_q.count.part.mul[2:1] :
-                                   {{VMSK_W*31/32{1'b0}}, {VMSK_W/32{1'b1}}} << ((VMSK_W/32) * state_res_q.count.part.mul);
+                                   {{(VMSK_W*31)/32{1'b0}}, {(VMSK_W+31)/32{1'b1}}} << ((VMSK_W/32) * state_res_q.count.part.mul);
             default: ;
         endcase
     end

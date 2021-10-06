@@ -37,11 +37,11 @@ module vproc_queue #(
         end else begin
             if (enq_ready_o & enq_valid_i) begin
                 data[wr_pos] <= enq_data_i;
-                wr_pos       <= (wr_pos == DEPTH-1) ? '0 : wr_pos + 1;
+                wr_pos       <= (wr_pos == $clog2(DEPTH)'(DEPTH-1)) ? '0 : wr_pos + 1;
                 last_wr      <= 1'b1;
             end
             if (deq_ready_i & deq_valid_o) begin
-                rd_pos       <= (rd_pos == DEPTH-1) ? '0 : rd_pos + 1;
+                rd_pos       <= (rd_pos == $clog2(DEPTH)'(DEPTH-1)) ? '0 : rd_pos + 1;
                 last_wr      <= 1'b0;
             end
         end

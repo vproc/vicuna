@@ -200,7 +200,7 @@ module vproc_hazards #(
         masked = '0;
         unique case (unit_i)
             UNIT_LSU:  masked = mode_i.lsu.masked;
-            UNIT_ALU:  masked = mode_i.alu.masked | mode_i.alu.op_mask;
+            UNIT_ALU:  masked = mode_i.alu.masked | (mode_i.alu.op_mask == ALU_MASK_NONE);
             UNIT_MUL:  masked = mode_i.mul.masked;
             UNIT_SLD:  masked = mode_i.sld.masked;
             UNIT_ELEM: masked = mode_i.elem.masked;

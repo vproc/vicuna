@@ -683,9 +683,9 @@ module vproc_elem #(
             ELEM_VRGATHER: begin
                 result_d = (state_ex_q.count_gather == '0) ? '0 : result_q;
                 if (state_ex_q.count_gather == elem_q[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
-                    result_d       = gather_shift_q[(elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 2)) * 8 +: 32];
-                    result_d[15:0] = gather_shift_q[(elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 1)) * 8 +: 16];
-                    result_d[7 :0] = gather_shift_q[(elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}}     )) * 8 +: 8 ];
+                    result_d       = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 2)} * 8 +: 32];
+                    result_d[15:0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 1)} * 8 +: 16];
+                    result_d[7 :0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}}     )} * 8 +: 8 ];
                     if (~elem_idx_valid_q) begin
                         result_d = '0;
                     end

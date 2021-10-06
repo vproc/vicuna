@@ -734,16 +734,16 @@ module vproc_lsu #(
         end else begin
             unique case (state_rdata_q.mode.eew)
                 VSEW_8: begin
-                    vd_shift_d    = {rdata_buf_q[ rdata_off_q                                    * 8 +: 8 ], vd_shift_q   [VREG_W-1:8 ]};
-                    vdmsk_shift_d = {   rdata_stri_vdmsk                                                   , vdmsk_shift_q[VMSK_W-1:1 ]};
+                    vd_shift_d    = {rdata_buf_q[{3'b000, rdata_off_q                                  } * 8 +: 8 ], vd_shift_q   [VREG_W-1:8 ]};
+                    vdmsk_shift_d = {   rdata_stri_vdmsk                                                           , vdmsk_shift_q[VMSK_W-1:1 ]};
                 end
                 VSEW_16: begin
-                    vd_shift_d    = {rdata_buf_q[(rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 1)) * 8 +: 16], vd_shift_q   [VREG_W-1:16]};
-                    vdmsk_shift_d = {{2{rdata_stri_vdmsk}}                                                 , vdmsk_shift_q[VMSK_W-1:2 ]};
+                    vd_shift_d    = {rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 1)} * 8 +: 16], vd_shift_q   [VREG_W-1:16]};
+                    vdmsk_shift_d = {{2{rdata_stri_vdmsk}}                                                         , vdmsk_shift_q[VMSK_W-1:2 ]};
                 end
                 VSEW_32: begin
-                    vd_shift_d    = {rdata_buf_q[(rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)) * 8 +: 32], vd_shift_q   [VREG_W-1:32]};
-                    vdmsk_shift_d = {{4{rdata_stri_vdmsk}}                                                 , vdmsk_shift_q[VMSK_W-1:4 ]};
+                    vd_shift_d    = {rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32], vd_shift_q   [VREG_W-1:32]};
+                    vdmsk_shift_d = {{4{rdata_stri_vdmsk}}                                                         , vdmsk_shift_q[VMSK_W-1:4 ]};
                 end
                 default: ;
             endcase
