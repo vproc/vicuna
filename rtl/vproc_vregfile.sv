@@ -89,7 +89,11 @@ module vproc_vregfile #(
             always_comb begin
                 wr_data = wr_data_i[gw];
                 for (int i = 0; i < PORTS_WR - 1; i++) begin
-                    wr_data = wr_data ^ ((i < gw) ? rd_data[PORTS_RD+gw-1][i] : rd_data[PORTS_RD+gw][i+1]);
+                    if (i < gw) begin
+                        wr_data = wr_data ^ rd_data[PORTS_RD+gw-1][i  ];
+                    end else begin
+                        wr_data = wr_data ^ rd_data[PORTS_RD+gw  ][i+1];
+                    end
                 end
             end
 
@@ -114,14 +118,16 @@ module vproc_vregfile #(
                     // one write port and three independent read ports
                     for (genvar gr = 0; gr < (PORTS_RD_TOTAL + 2) / 3; gr++) begin
                         for (genvar gm = 0; gm < PORT_W / 2; gm++) begin
+                            logic [4+$clog2(VREG_W/PORT_W):0] rd_addr_0, rd_addr_1, rd_addr_2;
+                            logic [                      1:0] rd_data_0, rd_data_1, rd_data_2;
                             RAM32M xlnx_ram32m_inst (
-                                .DOA    ( rd_data[gr*3  ][gw][2*gm +: 2]  ),
-                                .DOB    ( rd_data[gr*3+1][gw][2*gm +: 2]  ),
-                                .DOC    ( rd_data[gr*3+2][gw][2*gm +: 2]  ),
+                                .DOA    ( rd_data_0                       ),
+                                .DOB    ( rd_data_1                       ),
+                                .DOC    ( rd_data_2                       ),
                                 .DOD    (                                 ),
-                                .ADDRA  ( rd_addr[gr*3  ][gw]             ),
-                                .ADDRB  ( rd_addr[gr*3+1][gw]             ),
-                                .ADDRC  ( rd_addr[gr*3+2][gw]             ),
+                                .ADDRA  ( rd_addr_0                       ),
+                                .ADDRB  ( rd_addr_1                       ),
+                                .ADDRC  ( rd_addr_2                       ),
                                 .ADDRD  ( wr_addr_i[gw]                   ),
                                 .DIA    ( wr_data[2*gm +: 2]              ),
                                 .DIB    ( wr_data[2*gm +: 2]              ),
@@ -130,6 +136,20 @@ module vproc_vregfile #(
                                 .WCLK   ( clk_i                           ),
                                 .WE     ( wr_we_i[gw] & wr_be_i[gw][gm/4] )
                             );
+                            assign rd_addr_0                    = rd_addr[gr*3][gw];
+                            assign rd_data[gr*3][gw][2*gm +: 2] = rd_data_0;
+                            if (gr*3+1 < PORTS_RD_TOTAL) begin
+                                assign rd_addr_1                      = rd_addr[gr*3+1][gw];
+                                assign rd_data[gr*3+1][gw][2*gm +: 2] = rd_data_1;
+                            end else begin
+                                assign rd_addr_1                      = '0;
+                            end
+                            if (gr*3+2 < PORTS_RD_TOTAL) begin
+                                assign rd_addr_2                      = rd_addr[gr*3+2][gw];
+                                assign rd_data[gr*3+2][gw][2*gm +: 2] = rd_data_2;
+                            end else begin
+                                assign rd_addr_2                      = '0;
+                            end
                         end
                     end
                 end
