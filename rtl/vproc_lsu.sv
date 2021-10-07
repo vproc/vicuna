@@ -95,8 +95,8 @@ module vproc_lsu #(
     } lsu_counter;
 
     typedef struct packed {
+        // note: busy flag (also used to indicate whether state is valid) moved out of struct
         lsu_counter          count;
-        logic                busy;
         logic                first_cycle;
         logic                last_cycle;
         op_mode_lsu          mode;
@@ -127,20 +127,26 @@ module vproc_lsu #(
     // Initializing 'data' at the start instead of deriving it from e.g. 'req' allows memory requests
     // to continue while still waiting for read data (for memories that are capable of pipelining loads).
 
-    lsu_state state_init_q, state_init_d;   // addressing state
-    lsu_state state_load_q, state_load_d;   // data state
-    always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_state
+    logic     state_init_busy_q, state_init_busy_d;
+    lsu_state state_init_q,      state_init_d;      // addressing state
+    logic     state_load_busy_q, state_load_busy_d;
+    lsu_state state_load_q,      state_load_d;      // data state
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_state_busy
         if (~async_rst_ni) begin
-            state_init_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
-            state_load_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
-        end else begin
-            state_init_q <= state_init_d;
-            state_load_q <= state_load_d;
-            if (~sync_rst_ni) begin
-                state_init_q.busy <= 1'b0;
-                state_load_q.busy <= 1'b0;
-            end
+            state_init_busy_q <= 1'b0;
+            state_load_busy_q <= 1'b0;
         end
+        else if (~sync_rst_ni) begin
+            state_init_busy_q <= 1'b0;
+            state_load_busy_q <= 1'b0;
+        end else begin
+            state_init_busy_q <= state_init_busy_d;
+            state_load_busy_q <= state_load_busy_d;
+        end
+    end
+    always_ff @(posedge clk_i) begin : vproc_lsu_state
+        state_init_q <= state_init_d;
+        state_load_q <= state_load_d;
     end
 
     logic init_last_cycle, load_last_cycle;
@@ -224,12 +230,14 @@ module vproc_lsu #(
     logic next_init; // advance init state
     logic next_load; // advance load state
     always_comb begin
-        op_ack_o     = 1'b0;
-        misaligned_o = 1'b0;
-        state_init_d = state_init_q;
-        state_load_d = state_load_q;
+        op_ack_o          = 1'b0;
+        misaligned_o      = 1'b0;
+        state_init_busy_d = state_init_busy_q;
+        state_init_d      = state_init_q;
+        state_load_busy_d = state_load_busy_q;
+        state_load_d      = state_load_q;
 
-        if (((~state_init_q.busy) | (init_last_cycle & next_init)) & ((~state_load_q.busy) | (load_last_cycle & data_rvalid_i)) & op_rdy_i) begin
+        if (((~state_init_busy_q) | (init_last_cycle & next_init)) & ((~state_load_busy_q) | (load_last_cycle & data_rvalid_i)) & op_rdy_i) begin
             op_ack_o     = 1'b1;
             misaligned_o = (rs1_val_i[$clog2(VMEM_W/8)-1:0] != '0); // |
                            //((mode_q.stride == LSU_STRIDED) & (rs2_i.r.xval[]));
@@ -251,8 +259,8 @@ module vproc_lsu #(
                     default: ;
                 endcase
             end
-            state_init_d.busy        = 1'b1;
-            state_load_d.busy        = ~mode_i.store; // data stage only required for loads
+            state_init_busy_d        = 1'b1;
+            state_load_busy_d        = ~mode_i.store; // data stage only required for loads
             state_init_d.first_cycle = 1'b1;
             state_load_d.first_cycle = 1'b1;
             state_init_d.mode        = mode_i;
@@ -281,7 +289,7 @@ module vproc_lsu #(
             state_load_d.vd_store    = 1'b0;
         end else begin
             // advance address if load/store has been granted:
-            if (state_init_q.busy & next_init) begin
+            if (state_init_busy_q & next_init) begin
                 if (state_init_q.mode.stride == LSU_UNITSTRIDE) begin
                     state_init_d.count.val = state_init_q.count.val + (1 << LSU_STRI_COUNTER_EXT_W);
                 end else begin
@@ -292,7 +300,7 @@ module vproc_lsu #(
                         default: ;
                     endcase
                 end
-                state_init_d.busy        = ~init_last_cycle;
+                state_init_busy_d        = ~init_last_cycle;
                 state_init_d.first_cycle = 1'b0;
                 unique case (state_init_q.mode.stride)
                     LSU_UNITSTRIDE: state_init_d.base_addr = state_init_q.base_addr + (VMEM_W / 8);
@@ -314,7 +322,7 @@ module vproc_lsu #(
             end
 
             // increase data counter once load completes:
-            if (state_load_q.busy & next_load) begin
+            if (state_load_busy_q & next_load) begin
                 if (state_load_q.mode.stride == LSU_UNITSTRIDE) begin
                     state_load_d.count.val = state_load_q.count.val + (1 << LSU_STRI_COUNTER_EXT_W);
                 end else begin
@@ -325,7 +333,7 @@ module vproc_lsu #(
                         default: ;
                     endcase
                 end
-                state_load_d.busy        = ~load_last_cycle;
+                state_load_busy_d        = ~load_last_cycle;
                 state_load_d.first_cycle = 1'b0;
                 if (state_load_q.count.val[LSU_COUNTER_W-4:0] == '1) begin
                     state_load_d.vd[2:0]  = state_load_q.vd[2:0] + 3'b1;
@@ -339,31 +347,32 @@ module vproc_lsu #(
     // LSU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    //lsu_state state_addr_q, state_req_q, state_wb_q;  // addressing, memory request & register write-back stages
-    //lsu_state state_rd1_q, state_rd2_q, state_req_q, state_wb_q;  // register read, memory request & register write-back stages
-    lsu_state state_init, state_vreg_q, state_vs2_q, state_vs3_q, state_req_q, state_load, state_rdata_q, state_vd_q;
+    logic     state_init_busy, state_vreg_busy_q, state_vs2_busy_q, state_vs3_busy_q, state_req_busy_q, state_load_busy, state_rdata_busy_q, state_vd_busy_q;
+    lsu_state state_init,      state_vreg_q,      state_vs2_q,      state_vs3_q,      state_req_q,      state_load,      state_rdata_q,      state_vd_q;
     always_comb begin
+        state_init_busy       = state_init_busy_q;
         state_init            = state_init_q;
-        state_init.last_cycle = state_init_q.busy & init_last_cycle;
+        state_init.last_cycle = state_init_busy_q & init_last_cycle;
     end
     always_comb begin
+        state_load_busy       = state_load_busy_q;
         state_load            = state_load_q;
         state_load.last_cycle = load_last_cycle;
         state_load.vd_store   = state_load_q.count.val[LSU_COUNTER_W-4:0] == '1;
     end
-    assign next_init = (~state_req_q.busy) | (data_req_o & data_gnt_i);
-    assign next_load = (~state_load.busy)  | data_rvalid_i;
+    assign next_init = (~state_req_busy_q) | (data_req_o & data_gnt_i);
+    assign next_load = (~state_load_busy)  | data_rvalid_i;
 
-    assign pending_load_o  = (state_init.busy   & ~state_init.mode.store  ) |
-                             (state_vreg_q.busy & ~state_vreg_q.mode.store) |
-                             (state_vs2_q.busy  & ~state_vs2_q.mode.store ) |
-                             (state_vs3_q.busy  & ~state_vs3_q.mode.store ) |
-                             (state_req_q.busy  & ~state_req_q.mode.store );
-    assign pending_store_o = (state_init.busy   &  state_init.mode.store  ) |
-                             (state_vreg_q.busy &  state_vreg_q.mode.store) |
-                             (state_vs2_q.busy  &  state_vs2_q.mode.store ) |
-                             (state_vs3_q.busy  &  state_vs3_q.mode.store ) |
-                             (state_req_q.busy  &  state_req_q.mode.store );
+    assign pending_load_o  = (state_init_busy   & ~state_init.mode.store  ) |
+                             (state_vreg_busy_q & ~state_vreg_q.mode.store) |
+                             (state_vs2_busy_q  & ~state_vs2_q.mode.store ) |
+                             (state_vs3_busy_q  & ~state_vs3_q.mode.store ) |
+                             (state_req_busy_q  & ~state_req_q.mode.store );
+    assign pending_store_o = (state_init_busy   &  state_init.mode.store  ) |
+                             (state_vreg_busy_q &  state_vreg_q.mode.store) |
+                             (state_vs2_busy_q  &  state_vs2_q.mode.store ) |
+                             (state_vs3_busy_q  &  state_vs3_q.mode.store ) |
+                             (state_req_busy_q  &  state_req_q.mode.store );
 
     // common vreg read register:
     logic [VREG_W-1:0] vreg_rd_q, vreg_rd_d;
@@ -407,46 +416,60 @@ module vproc_lsu #(
 
     generate
         if (BUF_VREG) begin
-            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vreg
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vreg_busy
                 if (~async_rst_ni) begin
-                    state_vreg_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+                    state_vreg_busy_q <= 1'b0;
                 end
                 else if (~sync_rst_ni) begin
-                    state_vreg_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+                    state_vreg_busy_q <= 1'b0;
                 end
                 else if (next_init) begin
-                    state_vreg_q <= state_init;
-                    vreg_rd_q    <= vreg_rd_d;
+                    state_vreg_busy_q <= state_init_busy;
                 end
+            end
+            always_ff @(posedge clk_i) begin : vproc_lsu_stage_vreg
+                state_vreg_q <= state_init;
+                vreg_rd_q    <= vreg_rd_d;
             end
         end else begin
             always_comb begin
-                state_vreg_q = state_init;
-                vreg_rd_q    = vreg_rd_d;
+                state_vreg_busy_q = state_init_busy;
+                state_vreg_q      = state_init;
+                vreg_rd_q         = vreg_rd_d;
             end
         end
 
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs2
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs2_busy
             if (~async_rst_ni) begin
-                state_vs2_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+                state_vs2_busy_q <= 1'b0;
             end
             else if (~sync_rst_ni) begin
-                state_vs2_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+                state_vs2_busy_q <= 1'b0;
             end
             else if (next_init) begin
+                state_vs2_busy_q <= state_vreg_busy_q;
+            end
+        end
+        always_ff @(posedge clk_i) begin : vproc_lsu_stage_vs2
+            if (next_init) begin
                 state_vs2_q <= state_vreg_q;
                 vs2_shift_q <= vs2_shift_d;
             end
         end
 
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs3
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs3_busy
             if (~async_rst_ni) begin
-                state_vs3_q   <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+                state_vs3_busy_q <= 1'b0;
             end
             else if (~sync_rst_ni) begin
-                state_vs3_q   <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+                state_vs3_busy_q <= 1'b0;
             end
             else if (next_init) begin
+                state_vs3_busy_q <= state_vs2_busy_q;
+            end
+        end
+        always_ff @(posedge clk_i) begin : vproc_lsu_stage_vs3
+            if (next_init) begin
                 state_vs3_q   <= state_vs2_q;
                 vs3_shift_q   <= vs3_shift_d;
                 v0msk_shift_q <= v0msk_shift_d;
@@ -455,14 +478,19 @@ module vproc_lsu #(
         end
 
         if (BUF_REQUEST) begin
-             always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_req
+             always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_req_busy
                 if (~async_rst_ni) begin
-                    state_req_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+                    state_req_busy_q <= 1'b0;
                 end
                 else if (~sync_rst_ni) begin
-                    state_req_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
+                    state_req_busy_q <= 1'b0;
                 end
                 else if (next_init) begin
+                    state_req_busy_q <= state_vs3_busy_q;
+                end
+            end
+            always_ff @(posedge clk_i) begin : vproc_lsu_stage_req
+                if (next_init) begin
                     state_req_q <= state_vs3_q;
                     req_addr_q  <= req_addr_d;
                     wdata_buf_q <= wdata_buf_d;
@@ -472,37 +500,41 @@ module vproc_lsu #(
             end
         end else begin
             always_comb begin
-                state_req_q = state_vs3_q;
-                req_addr_q  = req_addr_d;
-                wdata_buf_q = wdata_buf_d;
-                wmask_buf_q = wmask_buf_d;
-                vmsk_tmp_q  = vmsk_tmp_d;
+                state_req_busy_q = state_vs3_busy_q;
+                state_req_q      = state_vs3_q;
+                req_addr_q       = req_addr_d;
+                wdata_buf_q      = wdata_buf_d;
+                wmask_buf_q      = wmask_buf_d;
+                vmsk_tmp_q       = vmsk_tmp_d;
             end
         end
 
         if (BUF_RDATA) begin
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_rdata
                 if (next_load) begin
-                    state_rdata_q <= state_load;
-                    rdata_buf_q   <= rdata_buf_d;
-                    rdata_off_q   <= rdata_off_d;
-                    rmask_buf_q   <= rmask_buf_d;
+                    state_rdata_busy_q <= state_load_busy;
+                    state_rdata_q      <= state_load;
+                    rdata_buf_q        <= rdata_buf_d;
+                    rdata_off_q        <= rdata_off_d;
+                    rmask_buf_q        <= rmask_buf_d;
                 end
             end
         end else begin
             always_comb begin
-                state_rdata_q = state_load;
-                rdata_buf_q   = rdata_buf_d;
-                rdata_off_q   = rdata_off_d;
-                rmask_buf_q   = rmask_buf_d;
+                state_rdata_busy_q = state_load_busy;
+                state_rdata_q      = state_load;
+                rdata_buf_q        = rdata_buf_d;
+                rdata_off_q        = rdata_off_d;
+                rmask_buf_q        = rmask_buf_d;
             end
         end
 
         always_ff @(posedge clk_i) begin : vproc_lsu_stage_vd
             if (next_load) begin
-                state_vd_q    <= state_rdata_q;
-                vd_shift_q    <= vd_shift_d;
-                vdmsk_shift_q <= vdmsk_shift_d;
+                state_vd_busy_q <= state_rdata_busy_q;
+                state_vd_q      <= state_rdata_q;
+                vd_shift_q      <= vd_shift_d;
+                vdmsk_shift_q   <= vdmsk_shift_d;
             end
         end
 
@@ -552,7 +584,7 @@ module vproc_lsu #(
     assign clear_wr_hazards_o = clear_wr_hazards_q;
 
     // read hazard clearing
-    assign clear_rd_hazards_d = state_init.busy ? (
+    assign clear_rd_hazards_d = state_init_busy ? (
         (state_init.vs2_fetch ? (32'b1 << state_init.rs2.r.vaddr) : 32'b0) |
         (state_init.vs3_fetch ? (32'b1 << state_init.vd         ) : 32'b0) |
         {31'b0, state_init.mode.masked & state_init.first_cycle}
@@ -701,16 +733,16 @@ module vproc_lsu #(
         .async_rst_ni ( async_rst_ni                                           ),
         .sync_rst_ni  ( sync_rst_ni                                            ),
         .enq_ready_o  ( lsu_queue_ready                                        ),
-        .enq_valid_i  ( state_req_q.busy & ~state_req_q.mode.store & next_init ),
+        .enq_valid_i  ( state_req_busy_q & ~state_req_q.mode.store & next_init ),
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q}         ),
-        .deq_ready_i  ( state_load_q.busy & data_rvalid_i                      ),
+        .deq_ready_i  ( state_load_busy_q & data_rvalid_i                      ),
         .deq_valid_o  (                                                        ),
         .deq_data_o   ( {rdata_off_d, rmask_buf_d}                             )
     );
 
     // memory request:
     assign data_addr_o  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
-    assign data_req_o   = state_req_q.busy & lsu_queue_ready; // keep requesting next access while addressing is not complete
+    assign data_req_o   = state_req_busy_q & lsu_queue_ready; // keep requesting next access while addressing is not complete
     assign data_we_o    = state_req_q.mode.store;
     assign data_be_o    = wmask_buf_q;
     assign data_wdata_o = wdata_buf_q;
@@ -751,7 +783,7 @@ module vproc_lsu #(
     end
 
     //
-    assign vreg_wr_en_d   = state_vd_q.busy & state_vd_q.vd_store & next_load;
+    assign vreg_wr_en_d   = state_vd_busy_q & state_vd_q.vd_store & next_load;
     assign vreg_wr_addr_d = state_vd_q.vd;
     assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d      = vd_shift_q;

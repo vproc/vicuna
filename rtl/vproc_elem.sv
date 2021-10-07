@@ -81,10 +81,10 @@ module vproc_elem #(
     } elem_counter;
 
     typedef struct packed {
+        // note: busy flag (also used to indicate whether state is valid) moved out of struct
         elem_counter                 count;
         logic [GATHER_COUNTER_W-1:0] count_gather;
         elem_counter                 count_store;
-        logic                        busy;
         logic                        first_cycle;
         logic                        last_cycle;
         logic                        requires_flush;
@@ -105,16 +105,20 @@ module vproc_elem #(
         logic                        vd_store;
     } elem_state;
 
-    elem_state state_q, state_d;
-    always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_state
+    logic      state_busy_q, state_busy_d;
+    elem_state state_q,      state_d;
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_state_busy
         if (~async_rst_ni) begin
-            state_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
-        end else begin
-            state_q <= state_d;
-            if (~sync_rst_ni) begin
-                state_q.busy <= 1'b0;
-            end
+            state_busy_q <= 1'b0;
         end
+        else if (~sync_rst_ni) begin
+            state_busy_q <= 1'b0;
+        end else begin
+            state_busy_q <= state_busy_d;
+        end
+    end
+    always_ff @(posedge clk_i) begin : vproc_elem_state
+        state_q <= state_d;
     end
 
     logic op_reduction;
@@ -154,10 +158,11 @@ module vproc_elem #(
     end
 
     always_comb begin
-        op_ack_o = 1'b0;
-        state_d  = state_q;
+        op_ack_o     = 1'b0;
+        state_busy_d = state_busy_q;
+        state_d      = state_q;
 
-        if (((~state_q.busy) | (last_cycle & ~state_q.requires_flush)) & op_rdy_i) begin
+        if (((~state_busy_q) | (last_cycle & ~state_q.requires_flush)) & op_rdy_i) begin
             op_ack_o               = 1'b1;
             state_d.count.val      = '0;
             state_d.count.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
@@ -168,7 +173,7 @@ module vproc_elem #(
                 default: ;
             endcase
             state_d.count_gather   = (mode_i.op == ELEM_VRGATHER) ? '0 : '1;
-            state_d.busy           = 1'b1;
+            state_busy_d           = 1'b1;
             state_d.first_cycle    = 1'b1;
             state_d.requires_flush = (mode_i.op == ELEM_VCOMPRESS) | op_reduction;
             state_d.mode           = mode_i;
@@ -196,7 +201,7 @@ module vproc_elem #(
             state_d.gather_fetch   = 1'b1;
             state_d.vd             = vd_i;
         end
-        else if (state_q.busy) begin
+        else if (state_busy_q) begin
             if (state_q.count_gather == '1) begin
                 unique case (state_q.eew)
                     VSEW_8:  state_d.count.val = state_q.count.val + 1;
@@ -222,7 +227,7 @@ module vproc_elem #(
                 state_d.requires_flush = 1'b0;
                 state_d.vs1_vreg       = 1'b0;
             end
-            state_d.busy         = ~last_cycle | state_q.requires_flush;
+            state_busy_d         = ~last_cycle | state_q.requires_flush;
             state_d.first_cycle  = 1'b0;
             state_d.vs1_fetch    = 1'b0;
             state_d.gather_fetch = 1'b0;
@@ -242,10 +247,12 @@ module vproc_elem #(
     // ELEM PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    elem_state state_init, state_vreg_q, state_vs1_q, state_vsm_q, state_gather_q, state_ex_q, state_res_q, state_vd_q;
+    logic      state_init_busy, state_vreg_busy_q, state_vs1_busy_q, state_vsm_busy_q, state_gather_busy_q, state_ex_busy_q, state_res_busy_q, state_vd_busy_q;
+    elem_state state_init,      state_vreg_q,      state_vs1_q,      state_vsm_q,      state_gather_q,      state_ex_q,      state_res_q,      state_vd_q;
     always_comb begin
+        state_init_busy       = state_busy_q;
         state_init            = state_q;
-        state_init.last_cycle = state_q.busy & last_cycle;
+        state_init.last_cycle = state_busy_q & last_cycle;
         state_init.vl_mask    = ~state_q.vl_0 & (state_q.count.val <= state_q.vl);
     end
     elem_counter count_store_d;
@@ -300,44 +307,51 @@ module vproc_elem #(
     generate
         if (BUF_VREG) begin
             always_ff @(posedge clk_i) begin : vproc_elem_stage_vreg
-                state_vreg_q <= state_init;
-                vreg_rd_q    <= vreg_rd_d;
+                state_vreg_busy_q <= state_init_busy;
+                state_vreg_q      <= state_init;
+                vreg_rd_q         <= vreg_rd_d;
             end
         end else begin
             always_comb begin
-                state_vreg_q = state_init;
-                vreg_rd_q    = vreg_rd_d;
+                state_vreg_busy_q = state_init_busy;
+                state_vreg_q      = state_init;
+                vreg_rd_q         = vreg_rd_d;
             end
         end
 
         always_ff @(posedge clk_i) begin : vproc_elem_stage_vs1
-            state_vs1_q <= state_vreg_q;
-            vs1_shift_q <= vs1_shift_d;
+            state_vs1_busy_q <= state_vreg_busy_q;
+            state_vs1_q      <= state_vreg_q;
+            vs1_shift_q      <= vs1_shift_d;
         end
 
         always_ff @(posedge clk_i) begin : vproc_elem_stage_vsm
-            state_vsm_q   <= state_vs1_q;
-            vs1_tmp_q     <= vs1_tmp_d;
-            vsm_shift_q   <= vsm_shift_d;
+            state_vsm_busy_q <= state_vs1_busy_q;
+            state_vsm_q      <= state_vs1_q;
+            vs1_tmp_q        <= vs1_tmp_d;
+            vsm_shift_q      <= vsm_shift_d;
         end
 
         if (BUF_VREG) begin
             always_ff @(posedge clk_i) begin : vproc_elem_stage_gather
-                state_gather_q <= state_vsm_q;
-                elem_tmp_q     <= elem_tmp_d;
-                mask_tmp_q     <= mask_tmp_d;
-                redinit_tmp_q  <= redinit_tmp_d;
+                state_gather_busy_q <= state_vsm_busy_q;
+                state_gather_q      <= state_vsm_q;
+                elem_tmp_q          <= elem_tmp_d;
+                mask_tmp_q          <= mask_tmp_d;
+                redinit_tmp_q       <= redinit_tmp_d;
             end
         end else begin
             always_comb begin
-                state_gather_q = state_vsm_q;
-                elem_tmp_q     = elem_tmp_d;
-                mask_tmp_q     = mask_tmp_d;
-                redinit_tmp_q  = redinit_tmp_d;
+                state_gather_busy_q = state_vsm_busy_q;
+                state_gather_q      = state_vsm_q;
+                elem_tmp_q          = elem_tmp_d;
+                mask_tmp_q          = mask_tmp_d;
+                redinit_tmp_q       = redinit_tmp_d;
             end
         end
 
         always_ff @(posedge clk_i) begin : vproc_elem_stage_ex
+            state_ex_busy_q  <= state_gather_busy_q;
             state_ex_q       <= state_gather_q;
             elem_q           <= elem_d;
             elem_idx_valid_q <= elem_idx_valid_d;
@@ -349,21 +363,24 @@ module vproc_elem #(
 
         if (BUF_RESULTS) begin
             always_ff @(posedge clk_i) begin : vproc_elem_stage_res
-                state_res_q    <= state_ex_q;
-                result_q       <= result_d;
-                result_mask_q  <= result_mask_d;
-                result_valid_q <= result_valid_d;
+                state_res_busy_q <= state_ex_busy_q;
+                state_res_q      <= state_ex_q;
+                result_q         <= result_d;
+                result_mask_q    <= result_mask_d;
+                result_valid_q   <= result_valid_d;
             end
         end else begin
             always_comb begin
-                state_res_q    = state_ex_q;
-                result_q       = result_d;
-                result_mask_q  = result_mask_d;
-                result_valid_q = result_valid_d;
+                state_res_busy_q = state_ex_busy_q;
+                state_res_q      = state_ex_q;
+                result_q         = result_d;
+                result_mask_q    = result_mask_d;
+                result_valid_q   = result_valid_d;
             end
         end
 
         always_ff @(posedge clk_i) begin : vproc_elem_stage_vd
+            state_vd_busy_q        <= state_res_busy_q;
             state_vd_q             <= state_res_q;
             state_vd_q.count_store <= count_store_d;
             state_vd_q.vd_store    <= vd_store_d;
@@ -457,10 +474,10 @@ module vproc_elem #(
     end
     // vs2 is either a mask vreg or it is the gather register group, which has to be cleared as a whole in the last cycle
     assign clear_rd_hazards_d = (
-        ((state_init.busy     & state_init.vs1_fetch                                                                         ) ? (32'b1 << state_init.vs1  ) : 32'b0) |
-        ((state_vreg_q.busy   & state_vreg_q.first_cycle  & state_vreg_q.vs2_vreg & (state_vreg_q.mode.op   != ELEM_VRGATHER)) ? (32'b1 << state_vreg_q.vs2) : 32'b0) |
-        ((state_gather_q.busy & state_gather_q.last_cycle &                         (state_gather_q.mode.op == ELEM_VRGATHER)) ? gather_hazard               : 32'b0) |
-        {31'b0, state_init.busy & state_init.mode.masked & state_init.first_cycle}
+        ((state_init_busy     & state_init.vs1_fetch                                                                         ) ? (32'b1 << state_init.vs1  ) : 32'b0) |
+        ((state_vreg_busy_q   & state_vreg_q.first_cycle  & state_vreg_q.vs2_vreg & (state_vreg_q.mode.op   != ELEM_VRGATHER)) ? (32'b1 << state_vreg_q.vs2) : 32'b0) |
+        ((state_gather_busy_q & state_gather_q.last_cycle &                         (state_gather_q.mode.op == ELEM_VRGATHER)) ? gather_hazard               : 32'b0) |
+        {31'b0, state_init_busy & state_init.mode.masked & state_init.first_cycle}
     );
     assign clear_rd_hazards_o = clear_rd_hazards_q;
 
@@ -571,7 +588,7 @@ module vproc_elem #(
     end
 
     // XREG write-back
-    assign xreg_valid_o = state_res_q.busy & state_res_q.mode.xreg & ((state_res_q.mode.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle);
+    assign xreg_valid_o = state_res_busy_q & state_res_q.mode.xreg & ((state_res_q.mode.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle);
     assign xreg_o       = result_q;
 
     //
@@ -580,7 +597,7 @@ module vproc_elem #(
         if (result_valid_q) begin
             first_valid_result_d = 1'b0;
         end
-        if (~state_res_q.busy | (state_res_q.last_cycle & ~state_res_q.requires_flush)) begin
+        if (~state_res_busy_q | (state_res_q.last_cycle & ~state_res_q.requires_flush)) begin
             first_valid_result_d = 1'b1;
         end
     end
@@ -606,11 +623,11 @@ module vproc_elem #(
     assign vd_store_d = ~state_res_q.mode.xreg & (count_store_d.part.low == '1);
 
     //
-    assign vreg_wr_en_d    = state_vd_q.busy & state_vd_q.vd_store;
+    assign vreg_wr_en_d    = state_vd_busy_q & state_vd_q.vd_store;
     assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count_store.part.mul[2:0]};
     assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d       = vd_shift_q;
-    assign vreg_wr_clear_d = state_vd_q.busy & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg;
+    assign vreg_wr_clear_d = state_vd_busy_q & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg;
     assign vreg_wr_base_d  = state_vd_q.vd;
     assign vreg_wr_emul_d  = state_vd_q.emul;
 

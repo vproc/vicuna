@@ -76,8 +76,8 @@ module vproc_alu #(
     } alu_counter;
 
     typedef struct packed {
+        // note: busy flag (also used to indicate whether state is valid) moved out of struct
         alu_counter          count;
-        logic                busy;
         logic                first_cycle;
         logic                last_cycle;
         op_mode_alu          mode;
@@ -101,16 +101,20 @@ module vproc_alu #(
         logic                vd_store;
     } alu_state;
 
-    alu_state state_q, state_d;
-    always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_state
+    logic     state_busy_q, state_busy_d;
+    alu_state state_q,      state_d;
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_state_busy
         if (~async_rst_ni) begin
-            state_q <= '{busy: 1'b0, default: DONT_CARE_ZERO ? '0 : 'x};
-        end else begin
-            state_q <= state_d;
-            if (~sync_rst_ni) begin
-                state_q.busy <= 1'b0;
-            end
+            state_busy_q <= 1'b0;
         end
+        else if (~sync_rst_ni) begin
+            state_busy_q <= 1'b0;
+        end else begin
+            state_busy_q <= state_busy_d;
+        end
+    end
+    always_ff @(posedge clk_i) begin : vproc_alu_state
+        state_q <= state_d;
     end
 
     logic last_cycle;
@@ -126,13 +130,14 @@ module vproc_alu #(
     end
 
     always_comb begin
-        op_ack_o = 1'b0;
-        state_d  = state_q;
+        op_ack_o     = 1'b0;
+        state_busy_d = state_busy_q;
+        state_d      = state_q;
 
-        if (((~state_q.busy) | last_cycle) & op_rdy_i) begin
+        if (((~state_busy_q) | last_cycle) & op_rdy_i) begin
             op_ack_o            = 1'b1;
             state_d.count.val   = '0;
-            state_d.busy        = 1'b1;
+            state_busy_d        = 1'b1;
             state_d.first_cycle = 1'b1;
             state_d.mode        = mode_i;
             state_d.subtract    = mode_i.inv_op1 | mode_i.inv_op2;
@@ -184,9 +189,9 @@ module vproc_alu #(
             state_d.vd_narrow  = widenarrow_i == OP_NARROWING;
             state_d.vd_store   = 1'b0;
         end
-        else if (state_q.busy) begin
+        else if (state_busy_q) begin
             state_d.count.val   = state_q.count.val + 1;
-            state_d.busy        = ~last_cycle;
+            state_busy_d        = ~last_cycle;
             state_d.first_cycle = 1'b0;
             state_d.vs1_fetch   = 1'b0;
             state_d.vs2_fetch   = 1'b0;
@@ -219,10 +224,12 @@ module vproc_alu #(
     // ALU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    alu_state state_init, state_vreg_q, state_vs1_q, state_vs2_q, state_ex1_q, state_ex2_q, state_ex3_q, state_res_q, state_vd_q;
+    logic     state_init_busy, state_vreg_busy_q, state_vs1_busy_q, state_vs2_busy_q, state_ex1_busy_q, state_ex2_busy_q, state_ex3_busy_q, state_res_busy_q, state_vd_busy_q;
+    alu_state state_init,      state_vreg_q,      state_vs1_q,      state_vs2_q,      state_ex1_q,      state_ex2_q,      state_ex3_q,      state_res_q,      state_vd_q;
     always_comb begin
+        state_init_busy       = state_busy_q;
         state_init            = state_q;
-        state_init.last_cycle = state_q.busy & last_cycle;
+        state_init.last_cycle = state_busy_q & last_cycle;
         state_init.vd_store   = (state_q.count.part.low == '1) & (~state_q.vd_narrow | state_q.count.part.mul[0]);
     end
 
@@ -274,85 +281,96 @@ module vproc_alu #(
     generate
         if (BUF_VREG) begin
             always_ff @(posedge clk_i) begin : vproc_alu_stage_vreg
-                state_vreg_q <= state_init;
-                vreg_rd_q    <= vreg_rd_d;
+                state_vreg_busy_q <= state_init_busy;
+                state_vreg_q      <= state_init;
+                vreg_rd_q         <= vreg_rd_d;
             end
         end else begin
             always_comb begin
-                state_vreg_q = state_init;
-                vreg_rd_q    = vreg_rd_d;
+                state_vreg_busy_q = state_init_busy;
+                state_vreg_q      = state_init;
+                vreg_rd_q         = vreg_rd_d;
             end
         end
 
         always_ff @(posedge clk_i) begin : vproc_alu_stage_vs1
-            state_vs1_q <= state_vreg_q;
-            vs1_shift_q <= vs1_shift_d;
+            state_vs1_busy_q <= state_vreg_busy_q;
+            state_vs1_q      <= state_vreg_q;
+            vs1_shift_q      <= vs1_shift_d;
         end
 
         always_ff @(posedge clk_i) begin : vproc_alu_stage_vs2
-            state_vs2_q   <= state_vs1_q;
-            vs2_shift_q   <= vs2_shift_d;
-            v0msk_shift_q <= v0msk_shift_d;
-            vs1_tmp_q     <= vs1_tmp_d;
+            state_vs2_busy_q <= state_vs1_busy_q;
+            state_vs2_q      <= state_vs1_q;
+            vs2_shift_q      <= vs2_shift_d;
+            v0msk_shift_q    <= v0msk_shift_d;
+            vs1_tmp_q        <= vs1_tmp_d;
         end
 
         if (BUF_OPERANDS) begin
             always_ff @(posedge clk_i) begin : vproc_alu_stage_ex1
-                state_ex1_q    <= state_vs2_q;
-                operand1_q     <= operand1_d;
-                operand2_q     <= operand2_d;
-                operand_mask_q <= operand_mask_d;
+                state_ex1_busy_q <= state_vs2_busy_q;
+                state_ex1_q      <= state_vs2_q;
+                operand1_q       <= operand1_d;
+                operand2_q       <= operand2_d;
+                operand_mask_q   <= operand_mask_d;
             end
         end else begin
             always_comb begin
-                state_ex1_q    = state_vs2_q;
-                operand1_q     = operand1_d;
-                operand2_q     = operand2_d;
-                operand_mask_q = operand_mask_d;
+                state_ex1_busy_q = state_vs2_busy_q;
+                state_ex1_q      = state_vs2_q;
+                operand1_q       = operand1_d;
+                operand2_q       = operand2_d;
+                operand_mask_q   = operand_mask_d;
             end
         end
 
         if (BUF_INTERMEDIATE) begin
             always_ff @(posedge clk_i) begin : vproc_alu_stage_ex2
-                state_ex2_q    <= state_ex1_q;
-                operand1_tmp_q <= operand1_tmp_d;
-                operand2_tmp_q <= operand2_tmp_d;
+                state_ex2_busy_q   <= state_ex1_busy_q;
+                state_ex2_q        <= state_ex1_q;
+                operand1_tmp_q     <= operand1_tmp_d;
+                operand2_tmp_q     <= operand2_tmp_d;
                 operand_mask_tmp_q <= operand_mask_tmp_d;
-                sum_q          <= sum_d;
-                cmp_q          <= cmp_d;
-                satval_q       <= satval_d;
-                shift_res_q    <= shift_res_d;
+                sum_q              <= sum_d;
+                cmp_q              <= cmp_d;
+                satval_q           <= satval_d;
+                shift_res_q        <= shift_res_d;
             end
         end else begin
             always_comb begin
-                state_ex2_q    = state_ex1_q;
-                operand1_tmp_q = operand1_tmp_d;
-                operand2_tmp_q = operand2_tmp_d;
+                state_ex2_busy_q   = state_ex1_busy_q;
+                state_ex2_q        = state_ex1_q;
+                operand1_tmp_q     = operand1_tmp_d;
+                operand2_tmp_q     = operand2_tmp_d;
                 operand_mask_tmp_q = operand_mask_tmp_d;
-                sum_q          = sum_d;
-                cmp_q          = cmp_d;
-                satval_q       = satval_d;
-                shift_res_q    = shift_res_d;
+                sum_q              = sum_d;
+                cmp_q              = cmp_d;
+                satval_q           = satval_d;
+                shift_res_q        = shift_res_d;
             end
         end
 
         if (BUF_RESULTS) begin
             always_ff @(posedge clk_i) begin : vproc_alu_stage_res
-                state_res_q   <= state_ex2_q;
-                result_alu_q  <= result_alu_d;
-                result_cmp_q  <= result_cmp_d;
-                result_mask_q <= result_mask_d;
+                state_res_busy_q <= state_ex2_busy_q;
+                state_res_q      <= state_ex2_q;
+                result_alu_q     <= result_alu_d;
+                result_cmp_q     <= result_cmp_d;
+                result_mask_q    <= result_mask_d;
             end
         end else begin
             always_comb begin
-                state_res_q   = state_ex2_q;
-                result_alu_q  = result_alu_d;
-                result_cmp_q  = result_cmp_d;
-                result_mask_q = result_mask_d;
+                state_res_busy_q = state_ex2_busy_q;
+                state_res_q      = state_ex2_q;
+                result_alu_q     = result_alu_d;
+                result_cmp_q     = result_cmp_d;
+                result_mask_q    = result_mask_d;
             end
         end
 
         always_ff @(posedge clk_i) begin : vproc_alu_stage_vd
+            state_vd_busy_q   <= state_res_busy_q;
             state_vd_q        <= state_res_q;
             vd_alu_shift_q    <= vd_alu_shift_d;
             vdmsk_alu_shift_q <= vdmsk_alu_shift_d;
@@ -414,7 +432,7 @@ module vproc_alu #(
     logic vs2_equals_vs1;
     //assign vs2_equals_vs1 = state_init.rs1.vreg & (state_init.rs1.r.vaddr == state_init.vs2);
     assign vs2_equals_vs1 = '0;
-    assign clear_rd_hazards_d = state_init.busy ? (
+    assign clear_rd_hazards_d = state_init_busy ? (
         ( state_init.vs1_fetch                    ? (32'b1 << state_init.rs1.r.vaddr) : 32'b0) |
         ((state_init.vs2_fetch & ~vs2_equals_vs1) ? (32'b1 << state_init.vs2        ) : 32'b0) |
         {31'b0, (state_init.mode.masked | (state_init.mode.op_mask == ALU_MASK_CARRY) | (state_init.mode.op_mask == ALU_MASK_SEL)) & state_init.first_cycle}
@@ -595,8 +613,8 @@ module vproc_alu #(
     end
 
     //
-    assign vreg_wr_en_d    = state_vd_q.busy & state_vd_q.vd_store;
-    assign vreg_wr_clear_d = state_vd_q.busy & (state_vd_q.mode.cmp ? state_vd_q.last_cycle : state_vd_q.vd_store);
+    assign vreg_wr_en_d    = state_vd_busy_q & state_vd_q.vd_store;
+    assign vreg_wr_clear_d = state_vd_busy_q & (state_vd_q.mode.cmp ? state_vd_q.last_cycle : state_vd_q.vd_store);
     assign vreg_wr_addr_d  = state_vd_q.vd;
     assign vreg_wr_mask_d  = vreg_wr_en_o ? (state_vd_q.mode.cmp ? vdmsk_cmp_q : vdmsk_alu_shift_q) : '0;
     assign vreg_wr_d       = state_vd_q.mode.cmp ? {8{vd_cmp_shift_q}} : vd_alu_shift_q;
