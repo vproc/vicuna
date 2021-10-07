@@ -528,10 +528,10 @@ module vproc_sld #(
 
         for (int i = 0; i < SLD_OP_W/8; i++) begin
             if ({3'b000, state_ex_q.op_shift} + $clog2(SLD_OP_W)'(i) < $clog2(SLD_OP_W)'(SLD_OP_W/8)) begin
-                result_d     [i*8 +: 8] = operand_low_q [{3'b000, state_ex_q.op_shift+SLD_OP_SHFT_W'(i)}*8          +: 8];
+                result_d     [i*8 +: 8] = operand_low_q [({3'b000, state_ex_q.op_shift}+$clog2(SLD_OP_W)'(i))*8          +: 8];
                 result_mask_d[i]        = op_low_valid;
             end else begin
-                result_d     [i*8 +: 8] = operand_high_q[{3'b000, state_ex_q.op_shift+SLD_OP_SHFT_W'(i)}*8-SLD_OP_W +: 8];
+                result_d     [i*8 +: 8] = operand_high_q[({3'b000, state_ex_q.op_shift}+$clog2(SLD_OP_W)'(i))*8-SLD_OP_W +: 8];
                 result_mask_d[i]        = op_high_valid;
             end
         end
