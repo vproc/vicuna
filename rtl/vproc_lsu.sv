@@ -428,8 +428,10 @@ module vproc_lsu #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_vreg
-                state_vreg_q <= state_init;
-                vreg_rd_q    <= vreg_rd_d;
+                if (next_init) begin
+                    state_vreg_q <= state_init;
+                    vreg_rd_q    <= vreg_rd_d;
+                end
             end
         end else begin
             always_comb begin
