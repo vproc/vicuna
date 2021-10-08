@@ -4,7 +4,6 @@
 
 
 module vproc_tb #(
-        parameter              MAIN_CORE       = "",
         parameter              PROG_PATHS_LIST = "",
         parameter int unsigned MEM_W           = 32,
         parameter int unsigned MEM_SZ          = 262144,
@@ -37,7 +36,6 @@ module vproc_tb #(
 
     vproc_top #(
         .MEM_W         ( MEM_W                       ),
-        .MAIN_CORE     ( MAIN_CORE                   ),
         .VREG_W        ( VREG_W                      ),
         .VMEM_W        ( VMEM_W                      ),
         .VMUL_W        ( VMUL_W                      ),

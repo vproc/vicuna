@@ -5,7 +5,6 @@
 
 module vproc_top #(
         parameter int unsigned        MEM_W         = 32,  // memory bus width in bits
-        parameter                     MAIN_CORE     = "",
         parameter int unsigned        VREG_W        = 128, // vector register width in bits
         parameter int unsigned        VMEM_W        = 32,  // vector memory interface width in bits
         parameter int unsigned        VMUL_W        = 64,  // MUL unit operand width in bits
@@ -44,6 +43,10 @@ module vproc_top #(
         end
     end
     assign sync_rst_n = rst_sync_qn[3];
+
+
+    ///////////////////////////////////////////////////////////////////////////
+    // MAIN CORE INTEGRATION
 
     // Instruction fetch interface
     logic        instr_req;
@@ -93,6 +96,8 @@ module vproc_top #(
         12'hC21, // vtype
         12'hC22  // vlenb
     };
+
+`ifdef MAIN_CORE_IBEX
 
     ibex_top #(
         .DmHaltAddr             ( 32'h00000000                       ),
@@ -159,6 +164,96 @@ module vproc_top #(
 
         .scan_rst_ni            ( 1'b1                               )
     );
+
+
+`else
+`ifdef MAIN_CORE_CV32E40X
+
+    // eXtension Interface
+    if_xif #(
+        .X_NUM_RS    ( 2  ),
+        .X_MEM_WIDTH ( 32 ),
+        .X_RFR_WIDTH ( 32 ),
+        .X_RFW_WIDTH ( 32 ),
+        .X_MISA      ( '0 )
+    ) ext_if();
+
+    cv32e40x_core core (
+        .clk_i               ( clk_i         ),
+        .rst_ni              ( rst_ni        ),
+        .scan_cg_en_i        ( 1'b0          ),
+        .boot_addr_i         ( 32'h00000080  ),
+        .mtvec_addr_i        ( 32'h00000000  ),
+        .dm_halt_addr_i      ( '0            ),
+        .hart_id_i           ( '0            ),
+        .dm_exception_addr_i ( '0            ),
+        .nmi_addr_i          ( '0            ),
+        .instr_req_o         ( instr_req     ),
+        .instr_gnt_i         ( instr_gnt     ),
+        .instr_rvalid_i      ( instr_rvalid  ),
+        .instr_addr_o        ( instr_addr    ),
+        .instr_memtype_o     (               ),
+        .instr_prot_o        (               ),
+        .instr_rdata_i       ( instr_rdata   ),
+        .instr_err_i         ( instr_err     ),
+        .data_req_o          ( sdata_req     ),
+        .data_gnt_i          ( sdata_gnt     ),
+        .data_rvalid_i       ( sdata_rvalid  ),
+        .data_we_o           ( sdata_we      ),
+        .data_be_o           ( sdata_be      ),
+        .data_addr_o         ( sdata_addr    ),
+        .data_memtype_o      (               ),
+        .data_prot_o         (               ),
+        .data_wdata_o        ( sdata_wdata   ),
+        .data_rdata_i        ( sdata_rdata   ),
+        .data_err_i          ( sdata_err     ),
+        .data_atop_o         (               ),
+        .data_exokay_i       ( 1'b0          ),
+        .xif_compressed_if   ( ext_if        ),
+        .xif_issue_if        ( ext_if        ),
+        .xif_commit_if       ( ext_if        ),
+        .xif_mem_if          ( ext_if        ),
+        .xif_mem_result_if   ( ext_if        ),
+        .xif_result_if       ( ext_if        ),
+        .irq_i               ( '0            ),
+        .fencei_flush_req_o  (               ),
+        .fencei_flush_ack_i  ( 1'b0          ),
+        .debug_req_i         ( 1'b0          ),
+        .debug_havereset_o   (               ),
+        .debug_running_o     (               ),
+        .debug_halted_o      (               ),
+        .fetch_enable_i      ( 1'b1          ),
+        .core_sleep_o        (               )
+    );
+
+    assign vect_instr_valid              = ext_if.x_issue_valid;
+    assign vect_instr                    = ext_if.x_issue_req.instr;
+    assign vect_x_rs1                    = ext_if.x_issue_req.rs[0];
+    assign vect_x_rs2                    = ext_if.x_issue_req.rs[1];
+    assign ext_if.x_issue_ready          = vect_instr_gnt;
+    assign ext_if.x_issue_resp.accept    = ~vect_instr_illegal;
+    assign ext_if.x_issue_resp.writeback = vect_xreg_wait;
+
+
+    assign ext_if.x_result.id            = '0;
+    assign ext_if.x_result.data          = vect_xreg;
+    assign ext_if.x_result.rd            = '0;
+    assign ext_if.x_result.we            = vect_xreg_valid;
+    assign ext_if.x_result.float         = '0;
+    assign ext_if.x_result.exc           = '0;
+    assign ext_if.x_result.exccode       = '0;
+
+    assign vect_csr_we    = '{default:'0};
+    assign vect_csr_wdata = '{default:'0};
+
+`else
+    $fatal(1, "One of the MAIN_CORE_* macros must be defined to select a main core.");
+`endif
+`endif
+
+
+    ///////////////////////////////////////////////////////////////////////////
+    // VECTOR CORE INTEGRATION
 
     // Vector CSR read/write conversion
     logic [31:0] csr_vtype;
@@ -312,7 +407,7 @@ module vproc_top #(
 
 
     ///////////////////////////////////////////////////////////////////////////
-    // Caches
+    // CACHES
 
     // instruction cache
     logic             imem_req;
@@ -432,7 +527,7 @@ module vproc_top #(
 
 
     ///////////////////////////////////////////////////////////////////////////
-    // Memory arbiter
+    // MEMORY ARBITER
 
     always_comb begin
         mem_req_o   = imem_req | dmem_req;

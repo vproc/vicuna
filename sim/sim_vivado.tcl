@@ -63,7 +63,7 @@ foreach file {
 }
 set main_core ""
 if {[string first "ibex" $core_dir] != -1} {
-    set main_core "ibex"
+    set main_core "MAIN_CORE_IBEX"
     foreach file {ibex_pkg.sv ibex_top.sv ibex_core.sv ibex_alu.sv ibex_branch_predict.sv
                   ibex_compressed_decoder.sv ibex_controller.sv ibex_counter.sv
                   ibex_cs_registers.sv ibex_csr.sv ibex_decoder.sv ibex_dummy_instr.sv
@@ -77,13 +77,37 @@ if {[string first "ibex" $core_dir] != -1} {
     lappend src_list "$core_dir/syn/rtl/prim_clock_gating.v"
     lappend src_list "$core_dir/vendor/lowrisc_ip/dv/sv/dv_utils/"
     lappend src_list "$core_dir/vendor/lowrisc_ip/ip/prim/rtl/"
+} elseif {[string first "cv32e40x" $core_dir] != -1} {
+    set main_core "MAIN_CORE_CV32E40X"
+    lappend src_list "$core_dir/rtl/include/cv32e40x_pkg.sv"
+    foreach file {
+        if_core_v_xif.sv if_c_obi.sv cv32e40x_core.sv
+        cv32e40x_if_stage.sv cv32e40x_id_stage.sv cv32e40x_ex_stage.sv
+        cv32e40x_load_store_unit.sv cv32e40x_wb_stage.sv cv32e40x_register_file.sv
+        cv32e40x_register_file_wrapper.sv cv32e40x_cs_registers.sv cv32e40x_csr.sv
+        cv32e40x_a_decoder.sv           cv32e40x_decoder.sv              cv32e40x_pc_target.sv
+        cv32e40x_alignment_buffer.sv    cv32e40x_div.sv                  cv32e40x_pma.sv
+        cv32e40x_alu_b_cpop.sv          cv32e40x_popcnt.sv               cv32e40x_m_decoder.sv
+        cv32e40x_alu.sv                 cv32e40x_ff_one.sv               cv32e40x_prefetcher.sv
+        cv32e40x_b_decoder.sv           cv32e40x_i_decoder.sv            cv32e40x_prefetch_unit.sv
+        cv32e40x_compressed_decoder.sv  cv32e40x_controller_bypass.sv    cv32e40x_mpu.sv
+        cv32e40x_controller_fsm.sv      cv32e40x_instr_obi_interface.sv  cv32e40x_sleep_unit.sv
+        cv32e40x_controller.sv          cv32e40x_int_controller.sv       cv32e40x_mult.sv
+        cv32e40x_data_obi_interface.sv
+    } {
+        lappend src_list "$core_dir/rtl/$file"
+    }
+    lappend src_list "$core_dir/bhv/cv32e40x_sim_clock_gate.sv"
 }
 add_files -fileset $obj -norecurse -scan_for_includes $src_list
 
 # configure simulation
 set_property top vproc_tb [get_filesets sim_1]
 set_property top_lib xil_defaultlib [get_filesets sim_1]
-set_property generic "MAIN_CORE=\"$main_core\" $prog_paths_var $params_var" -objects [get_filesets sim_1]
+set_property verilog_define "$main_core" -objects [get_filesets sim_1]
+set_property generic "$prog_paths_var $params_var" -objects [get_filesets sim_1]
+
+report_property -all [get_filesets sim_1]
 
 launch_simulation
 

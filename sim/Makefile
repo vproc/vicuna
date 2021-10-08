@@ -60,20 +60,33 @@ verilator:
 	if [[ "$(TRACE_VCD)" != "" ]]; then                                       \
 	    trace="--trace -CFLAGS -DTRACE_VCD";                                  \
 	fi;                                                                       \
+	core="";                                                                  \
+	inc="";                                                                   \
+	src="";                                                                   \
+	if echo "$(CORE_DIR)" | grep -q "ibex"; then                              \
+	    core="-DMAIN_CORE_IBEX";                                              \
+	    inc="-I$(CORE_DIR)/rtl/ -I$(CORE_DIR)/dv/uvm/core_ibex/common/prim/"; \
+	    inc="$$inc -I$(CORE_DIR)/vendor/lowrisc_ip/dv/sv/dv_utils/";          \
+	    inc="$$inc -I$(CORE_DIR)/vendor/lowrisc_ip/ip/prim/rtl/";             \
+	    inc="$$inc -I$(CORE_DIR)/vendor/lowrisc_ip/ip/prim_generic/rtl/";     \
+	    src="ibex_pkg.sv prim_pkg.sv prim_assert.sv prim_ram_1p_pkg.sv";      \
+	    src="$$src ibex_register_file_ff.sv";                                 \
+	elif echo "$(CORE_DIR)" | grep -q "cv32e40x"; then                        \
+	    core="-DMAIN_CORE_CV32E40X";                                          \
+	    inc="-I$(CORE_DIR)/rtl/ -I$(CORE_DIR)/rtl/include/";                  \
+	    inc="$$inc -I$(CORE_DIR)/bhv/";                                       \
+	    src="cv32e40x_pkg.sv if_core_v_xif.sv if_c_obi.sv";                   \
+	    src="$$src cv32e40x_sim_clock_gate.sv";                               \
+	fi;                                                                       \
 	verilator --unroll-count 1024 -Wno-WIDTH -Wno-PINMISSING -Wno-UNOPTFLAT   \
-	    -Wno-UNSIGNED                                                         \
-	    -I$(SIM_DIR)/../rtl/ -I$(CORE_DIR)/rtl/                               \
-	    -I$(CORE_DIR)/dv/uvm/core_ibex/common/prim/                           \
-	    -I$(CORE_DIR)/vendor/lowrisc_ip/dv/sv/dv_utils/                       \
-	    -I$(CORE_DIR)/vendor/lowrisc_ip/ip/prim/rtl/                          \
-	    -I$(CORE_DIR)/vendor/lowrisc_ip/ip/prim_generic/rtl/                  \
-	    -GMEM_W=$(MEM_W)                                                      \
+	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
+	    -Wno-SYMRSVDWORD -Wno-BLKANDNBLK                                      \
+	    -I$(SIM_DIR)/../rtl/ $$inc $$core -GMEM_W=$(MEM_W)                    \
 	    -GVREG_W=$(VREG_W) -GVMEM_W=$(VMEM_W) -GVMUL_W=$(VMUL_W)              \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
-	    --cc ibex_pkg.sv prim_pkg.sv prim_assert.sv prim_ram_1p_pkg.sv        \
-	    ibex_register_file_ff.sv vproc_pkg.sv vproc_top.sv vproc_hazards.sv   \
-	    vproc_vregpack.sv vproc_vregunpack.sv                                 \
+	    --cc $$src vproc_pkg.sv vproc_top.sv                                  \
+	    vproc_hazards.sv vproc_vregpack.sv vproc_vregunpack.sv                \
 	    --top-module vproc_top --clk clk_i $$trace --exe verilator_main.cpp;  \
 	if [ "$$?" != "0" ]; then                                                 \
 	    exit 1;                                                               \
