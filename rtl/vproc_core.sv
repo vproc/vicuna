@@ -24,13 +24,21 @@ module vproc_core #(
 
         input  logic                  instr_valid_i,
         input  logic [31:0]           instr_i,
+        input  logic                  x_rs1_valid_i,
         input  logic [31:0]           x_rs1_i,          // value of x register rs1
+        input  logic                  x_rs2_valid_i,
         input  logic [31:0]           x_rs2_i,          // value of x register rs2
 
         output logic                  instr_gnt_o,      // grant instructions
         output logic                  instr_illegal_o,  // illegal instruction flag
         output logic                  misaligned_ls_o,  // misaligned load/store
         output logic                  xreg_wait_o,      // main processor shall wait for result
+
+        input  logic                  instr_commit_i,   // commit the previous instruction
+        input  logic                  instr_kill_i,     // kill the previous instruction
+
+        input  logic                  result_ready_i,   // host is ready to accept the result
+        output logic                  result_valid_o,
         output logic                  xreg_valid_o,
         output logic [31:0]           xreg_o,           // value to be written to destination x register
 
@@ -171,40 +179,26 @@ module vproc_core #(
         op_regd              rd;
     } decoder_data;
 
-    // instruction queue ready signal
-    logic queue_ready;
-
     // signals for decoder and for decoder buffer
-    logic        dec_valid;
+    logic        dec_ready,       dec_valid,       dec_clear;
     logic        dec_buf_valid_q, dec_buf_valid_d;
-    logic        dec_buf_ready;
-    decoder_data dec_data_q, dec_data_d;
-    generate
-        // add a pipeline stage to buffer the decoded instruction
-        if (BUF_DEC) begin
-            always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_dec_buf_valid
-                if (~async_rst_n) begin
-                    dec_buf_valid_q <= 1'b0;
-                end
-                else if (~sync_rst_n) begin
-                    dec_buf_valid_q <= 1'b0;
-                end else begin
-                    dec_buf_valid_q <= dec_buf_valid_d;
-                end
-            end
-            always_ff @(posedge clk_i) begin : vproc_dec_buf_data
-                if (dec_buf_ready) begin
-                    dec_data_q <= dec_data_d;
-                end
-            end
-            assign dec_buf_valid_d = (dec_buf_valid_q & ~queue_ready) | (dec_valid & (dec_data_d.unit != UNIT_CFG));
-        end else begin
-            assign dec_buf_valid_d = (dec_valid & (dec_data_d.unit != UNIT_CFG));
-            assign dec_buf_valid_q = dec_buf_valid_d;
-            assign dec_data_q      = dec_data_d;
+    decoder_data dec_data_q,      dec_data_d;
+    always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_dec_buf_valid
+        if (~async_rst_n) begin
+            dec_buf_valid_q <= 1'b0;
         end
-    endgenerate
-    assign dec_buf_ready = ~dec_buf_valid_q | queue_ready;
+        else if (~sync_rst_n) begin
+            dec_buf_valid_q <= 1'b0;
+        end else begin
+            dec_buf_valid_q <= dec_buf_valid_d;
+        end
+    end
+    always_ff @(posedge clk_i) begin : vproc_dec_buf_data
+        if (dec_ready) begin
+            dec_data_q <= dec_data_d;
+        end
+    end
+    assign dec_buf_valid_d = (~dec_ready | dec_valid) & ~dec_clear;
 
     vproc_decoder #(
         .DONT_CARE_ZERO ( DONT_CARE_ZERO        )
@@ -230,17 +224,64 @@ module vproc_core #(
     assign dec_data_d.vl_0 = vl_0_q;
     assign dec_data_d.vl   = vl_q;
 
-    assign instr_gnt_o = instr_valid_i & (instr_illegal_o | (dec_valid & dec_buf_ready));
+    assign instr_gnt_o = instr_valid_i & (instr_illegal_o | (dec_valid & dec_ready));
     assign xreg_wait_o = ((dec_data_d.unit == UNIT_ELEM) & dec_data_d.mode.elem.xreg) | (dec_data_d.unit == UNIT_CFG);
+
+
+    ///////////////////////////////////////////////////////////////////////////
+    // INSTRUCTION COMMIT STAGE
+
+    // track whether the host has commited or killed the instruction in the decode buffer
+    logic dec_commited_q, dec_commited_d;
+    logic dec_killed_q,   dec_killed_d;
+    always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_commit_buf
+        if (~async_rst_n) begin
+            dec_commited_q <= 1'b0;
+            dec_killed_q   <= 1'b0;
+        end
+        else if (~sync_rst_n) begin
+            dec_commited_q <= 1'b0;
+            dec_killed_q   <= 1'b0;
+        end else begin
+            dec_commited_q <= dec_commited_d;
+            dec_killed_q   <= dec_killed_d;
+        end
+    end
+    assign dec_commited_d = dec_ready ? instr_commit_i : dec_commited_q;
+    assign dec_killed_d   = dec_ready ? instr_kill_i   : dec_killed_q;
+
+    logic queue_ready,  queue_push; // instruction queue ready and push signals (enqueue handshake)
+    logic result_empty, result_vl;  // return an empty result or VL as result
+    always_comb begin
+        queue_push = 1'b0;
+        result_vl  = 1'b0;
+        if (dec_buf_valid_q & (dec_commited_q | instr_commit_i)) begin
+            if (dec_data_q.unit == UNIT_CFG) begin
+                // vset[i]vl[i] instructions are not enqueued, return the result upon commit
+                result_vl  = 1'b1;
+            end else begin
+                // attempt to enqueue all other instructions once they have been commited
+                queue_push = 1'b1;
+            end
+        end
+    end
+    // return the result for instructions that do not write to an XREG as they are enqueued
+    assign result_empty = queue_ready & queue_push & ((dec_data_q.unit != UNIT_ELEM) | ~dec_data_q.mode.elem.xreg);
+
+    // decode buffer is vacated either by enqueueing an instruction, upon commit for vset[i]vl[i],
+    // or when the instruction is killed; for vset[i]vl[i] it will take an additional cycle until
+    // the CSR values are updated, hence the decode buffer is cleared without asserting dec_ready
+    assign dec_ready = ~dec_buf_valid_q | (queue_ready & queue_push) | (dec_killed_q | instr_kill_i);
+    assign dec_clear = result_vl;
 
     // temporary variables for calculating new vector length for vset[i]vl[i]
     logic [33:0] cfg_avl;   // AVL * (VSEW / 8) - 1
     always_comb begin
         cfg_avl = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (dec_data_d.mode.cfg.vsew)
-            VSEW_8:  cfg_avl = {2'b00, dec_data_d.rs1.r.xval - 1       };
-            VSEW_16: cfg_avl = {1'b0 , dec_data_d.rs1.r.xval - 1, 1'b1 };
-            VSEW_32: cfg_avl = {       dec_data_d.rs1.r.xval - 1, 2'b11};
+        unique case (dec_data_q.mode.cfg.vsew)
+            VSEW_8:  cfg_avl = {2'b00, dec_data_q.rs1.r.xval - 1       };
+            VSEW_16: cfg_avl = {1'b0 , dec_data_q.rs1.r.xval - 1, 1'b1 };
+            VSEW_32: cfg_avl = {       dec_data_q.rs1.r.xval - 1, 2'b11};
             default: ;
         endcase
     end
@@ -253,18 +294,18 @@ module vproc_core #(
         vl_0_d     = vl_0_q;
         vl_d       = vl_q;
         vl_csr_d   = vl_csr_q;
-        if (dec_valid & (dec_data_d.unit == UNIT_CFG)) begin
-            vsew_d     = dec_data_d.mode.cfg.vsew;
-            lmul_d     = dec_data_d.mode.cfg.lmul;
-            agnostic_d = dec_data_d.mode.cfg.agnostic;
-            if ((dec_data_d.mode.cfg.vsew == VSEW_INVALID) | (dec_data_d.rs1.r.xval == 32'b0)) begin
+        if (result_vl) begin
+            vsew_d     = dec_data_q.mode.cfg.vsew;
+            lmul_d     = dec_data_q.mode.cfg.lmul;
+            agnostic_d = dec_data_q.mode.cfg.agnostic;
+            if ((dec_data_q.mode.cfg.vsew == VSEW_INVALID) | (dec_data_q.rs1.r.xval == 32'b0)) begin
                 vl_0_d   = 1'b1;
                 vl_d     = {CFG_VL_W{1'b0}};
                 vl_csr_d = '0;
             end else begin
                 vl_0_d = 1'b0;
                 vl_d   = DONT_CARE_ZERO ? '0 : 'x;
-                unique case (dec_data_d.mode.cfg.lmul)
+                unique case (dec_data_q.mode.cfg.lmul)
                     // TODO support fractional LMUL
                     LMUL_1: vl_d = (cfg_avl[33:CFG_VL_W-3] == '0) ? cfg_avl[CFG_VL_W-1:0] : {3'b000, {(CFG_VL_W-3){1'b1}}};
                     LMUL_2: vl_d = (cfg_avl[33:CFG_VL_W-2] == '0) ? cfg_avl[CFG_VL_W-1:0] : {2'b00,  {(CFG_VL_W-2){1'b1}}};
@@ -273,35 +314,29 @@ module vproc_core #(
                     default: ;
                 endcase
                 vl_csr_d = DONT_CARE_ZERO ? '0 : 'x;
-                unique case ({dec_data_d.mode.cfg.lmul, dec_data_d.mode.cfg.vsew})
+                unique case ({dec_data_q.mode.cfg.lmul, dec_data_q.mode.cfg.vsew})
                     // TODO support fractional LMUL
-                    {LMUL_1, VSEW_32}: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W-5] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {6'b1, {(CFG_VL_W-5){1'b0}}};
+                    {LMUL_1, VSEW_32}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-5] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {6'b1, {(CFG_VL_W-5){1'b0}}};
                     {LMUL_1, VSEW_16},
-                    {LMUL_2, VSEW_32}: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W-4] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {5'b1, {(CFG_VL_W-4){1'b0}}};
+                    {LMUL_2, VSEW_32}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-4] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {5'b1, {(CFG_VL_W-4){1'b0}}};
                     {LMUL_1, VSEW_8 },
                     {LMUL_2, VSEW_16},
-                    {LMUL_4, VSEW_32}: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W-3] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {4'b1, {(CFG_VL_W-3){1'b0}}};
+                    {LMUL_4, VSEW_32}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-3] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {4'b1, {(CFG_VL_W-3){1'b0}}};
                     {LMUL_2, VSEW_8 },
                     {LMUL_4, VSEW_16},
-                    {LMUL_8, VSEW_32}: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W-2] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {3'b1, {(CFG_VL_W-2){1'b0}}};
+                    {LMUL_8, VSEW_32}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-2] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {3'b1, {(CFG_VL_W-2){1'b0}}};
                     {LMUL_4, VSEW_8 },
-                    {LMUL_8, VSEW_16}: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W-1] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {2'b1, {(CFG_VL_W-1){1'b0}}};
-                    {LMUL_8, VSEW_8 }: vl_csr_d = (dec_data_d.rs1.r.xval[31:CFG_VL_W  ] == '0) ? dec_data_d.rs1.r.xval[CFG_VL_W:0] : {1'b1, {(CFG_VL_W  ){1'b0}}};
+                    {LMUL_8, VSEW_16}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-1] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {2'b1, {(CFG_VL_W-1){1'b0}}};
+                    {LMUL_8, VSEW_8 }: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W  ] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {1'b1, {(CFG_VL_W  ){1'b0}}};
                     default: ;
                 endcase
             end
         end
     end
 
-    logic vl_updated_q, vl_updated_d;
-    always_ff @(posedge clk_i) begin
-        vl_updated_q <= vl_updated_d;
-    end
-    assign vl_updated_d = dec_valid & (dec_data_d.unit == UNIT_CFG);
-
 
     ///////////////////////////////////////////////////////////////////////////
-    // DECODED INSTRUCTION QUEUE
+    // INSTRUCTION QUEUE
 
     // acknowledge signal from the dispatcher (indicate that an instruction has
     // been accepted for execution on an execution unit)
@@ -354,14 +389,14 @@ module vproc_core #(
                 .async_rst_ni ( async_rst_n             ),
                 .sync_rst_ni  ( sync_rst_n              ),
                 .enq_ready_o  ( queue_ready             ),
-                .enq_valid_i  ( dec_buf_valid_q         ),
+                .enq_valid_i  ( queue_push              ),
                 .enq_data_i   ( dec_data_q              ),
                 .deq_ready_i  ( ~queue_valid_q | op_ack ),
                 .deq_valid_o  ( queue_valid_d           ),
                 .deq_data_o   ( queue_data_d            )
             );
         end else begin
-            assign queue_valid_d = dec_buf_valid_q;
+            assign queue_valid_d = queue_push;
             assign queue_ready   = ~queue_valid_q | op_ack;
             assign queue_data_d  = dec_data_q;
         end
@@ -754,9 +789,6 @@ module vproc_core #(
         .xreg_o             ( elem_xreg                )
     );
 
-    assign xreg_valid_o = vl_updated_q | elem_xreg_valid;
-    assign xreg_o       = vl_updated_q ? csr_vl_o : elem_xreg;
-
 
     // LSU/ALU/ELEM write multiplexer:
     always_comb begin
@@ -774,5 +806,47 @@ module vproc_core #(
         vregfile_wr_data_d[1] = mul_wr_en ? mul_wr_data : sld_wr_data;
         vregfile_wr_mask_d[1] = mul_wr_en ? mul_wr_mask : sld_wr_mask;
     end
+
+
+    ///////////////////////////////////////////////////////////////////////////
+    // RESULT INTERFACE
+
+    // TODO: take care of simultaneous results from commit stage and ELEM unit
+
+    logic        result_valid_q, result_valid_d;
+    logic        result_vl_q,    result_vl_d;
+    logic        result_xreg_q,  result_xreg_d;
+    logic [31:0] result_data_q,  result_data_d;
+    always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_result_valid
+        if (~async_rst_n) begin
+            result_valid_q <= 1'b0;
+        end
+        else if (~sync_rst_n) begin
+            result_valid_q <= 1'b0;
+        end
+        else begin
+            result_valid_q <= result_valid_d;
+        end
+    end
+    always_ff @(posedge clk_i) begin : vproc_result
+        result_vl_q   <= result_vl_d;
+        result_xreg_q <= result_xreg_d;
+        result_data_q <= result_data_d;
+    end
+    always_comb begin
+        result_valid_d = result_valid_q;
+        result_vl_d    = result_vl_q;
+        result_xreg_d  = result_xreg_q;
+        result_data_d  = result_data_q;
+        if (~result_valid_q | result_ready_i) begin
+            result_valid_d = result_empty | result_vl | elem_xreg_valid;
+            result_vl_d    = result_vl;
+            result_xreg_d  = elem_xreg_valid;
+            result_data_d  = elem_xreg;
+        end
+    end
+    assign result_valid_o = result_valid_q;
+    assign xreg_valid_o   = result_vl_q | result_xreg_q;
+    assign xreg_o         = result_vl_q ? csr_vl_o : result_data_q;
 
 endmodule

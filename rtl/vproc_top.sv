@@ -76,6 +76,10 @@ module vproc_top #(
     logic        vect_instr_illegal;
     logic        vect_misaligned_ls;
     logic        vect_xreg_wait;
+    logic        vect_instr_commit;
+    logic        vect_instr_kill;
+    logic        vect_result_ready;
+    logic        vect_result_valid;
     logic        vect_xreg_valid;
     logic [31:0] vect_xreg;
     logic        vect_pending_load;
@@ -140,7 +144,7 @@ module vproc_top #(
         .cpi_gnt_i              ( vect_instr_gnt                     ),
         .cpi_instr_illegal_i    ( vect_instr_illegal                 ),
         .cpi_wait_i             ( vect_xreg_wait                     ),
-        .cpi_res_valid_i        ( vect_xreg_valid                    ),
+        .cpi_res_valid_i        ( vect_result_valid & vect_xreg_valid),
         .cpi_res_i              ( vect_xreg                          ),
 
         .irq_software_i         ( 1'b0                               ),
@@ -165,6 +169,9 @@ module vproc_top #(
         .scan_rst_ni            ( 1'b1                               )
     );
 
+    assign vect_instr_commit = vect_instr_gnt;
+    assign vect_instr_kill   = 1'b0;
+    assign vect_result_ready = 1'b1;
 
 `else
 `ifdef MAIN_CORE_CV32E40X
@@ -228,13 +235,17 @@ module vproc_top #(
 
     assign vect_instr_valid              = ext_if.x_issue_valid;
     assign vect_instr                    = ext_if.x_issue_req.instr;
-    assign vect_x_rs1                    = ext_if.x_issue_req.rs[0];
-    assign vect_x_rs2                    = ext_if.x_issue_req.rs[1];
+    assign vect_x_rs1                    = ext_if.x_issue_req.rs[31: 0];
+    assign vect_x_rs2                    = ext_if.x_issue_req.rs[63:32];
     assign ext_if.x_issue_ready          = vect_instr_gnt;
     assign ext_if.x_issue_resp.accept    = ~vect_instr_illegal;
     assign ext_if.x_issue_resp.writeback = vect_xreg_wait;
 
+    assign vect_instr_commit = ext_if.x_commit_valid & ~ext_if.x_commit.commit_kill;
+    assign vect_instr_kill   = ext_if.x_commit_valid &  ext_if.x_commit.commit_kill;
 
+    assign vect_result_ready             = ext_if.x_result_ready;
+    assign ext_if.x_result_valid         = vect_result_valid;
     assign ext_if.x_result.id            = '0;
     assign ext_if.x_result.data          = vect_xreg;
     assign ext_if.x_result.rd            = '0;
@@ -309,12 +320,21 @@ module vproc_top #(
 
         .instr_valid_i    ( vect_instr_valid   ),
         .instr_i          ( vect_instr         ),
+        .x_rs1_valid_i    ( 1'b1               ),
         .x_rs1_i          ( vect_x_rs1         ),
+        .x_rs2_valid_i    ( 1'b1               ),
         .x_rs2_i          ( vect_x_rs2         ),
+
         .instr_gnt_o      ( vect_instr_gnt     ),
         .instr_illegal_o  ( vect_instr_illegal ),
         .misaligned_ls_o  ( vect_misaligned_ls ),
         .xreg_wait_o      ( vect_xreg_wait     ),
+
+        .instr_commit_i   ( vect_instr_commit  ),
+        .instr_kill_i     ( vect_instr_kill    ),
+
+        .result_ready_i   ( vect_result_ready  ),
+        .result_valid_o   ( vect_result_valid  ),
         .xreg_valid_o     ( vect_xreg_valid    ),
         .xreg_o           ( vect_xreg          ),
 
