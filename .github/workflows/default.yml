@@ -56,6 +56,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
+      matrix:
+        main_core: [ibex, cv32e40x]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -79,8 +81,9 @@ jobs:
       - name: Run tests
         run: |
           verilator --version
+          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
           export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make lsu
+          cd test && make lsu CORE=${{ matrix.main_core }}
 
 
   alu:
@@ -88,6 +91,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
+      matrix:
+        main_core: [ibex, cv32e40x]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -111,8 +116,9 @@ jobs:
       - name: Run tests
         run: |
           verilator --version
+          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
           export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make alu
+          cd test && make alu CORE=${{ matrix.main_core }}
 
 
   mul:
@@ -120,6 +126,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
+      matrix:
+        main_core: [ibex, cv32e40x]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -143,8 +151,9 @@ jobs:
       - name: Run tests
         run: |
           verilator --version
+          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
           export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make mul
+          cd test && make mul CORE=${{ matrix.main_core }}
 
 
   sld:
@@ -152,6 +161,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
+      matrix:
+        main_core: [ibex, cv32e40x]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -175,8 +186,9 @@ jobs:
       - name: Run tests
         run: |
           verilator --version
+          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
           export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make sld
+          cd test && make sld CORE=${{ matrix.main_core }}
 
 
   elem:
@@ -184,6 +196,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
+      matrix:
+        main_core: [ibex, cv32e40x]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -207,8 +221,9 @@ jobs:
       - name: Run tests
         run: |
           verilator --version
+          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
           export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make elem
+          cd test && make elem CORE=${{ matrix.main_core }}
 
 
   csr:
@@ -216,6 +231,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
+      matrix:
+        main_core: [ibex]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -239,5 +256,6 @@ jobs:
       - name: Run tests
         run: |
           verilator --version
+          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
           export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make csr
+          cd test && make csr CORE=${{ matrix.main_core }}
