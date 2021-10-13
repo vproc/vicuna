@@ -232,6 +232,7 @@ module vproc_core #(
     // INSTRUCTION COMMIT STAGE
 
     // track whether the host has commited or killed the instruction in the decode buffer
+    // TODO: assumption: instr_commit_i and instr_kill_i are not asserted simultaneously
     logic dec_commited_q, dec_commited_d;
     logic dec_killed_q,   dec_killed_d;
     always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_commit_buf
@@ -247,8 +248,12 @@ module vproc_core #(
             dec_killed_q   <= dec_killed_d;
         end
     end
-    assign dec_commited_d = dec_ready ? instr_commit_i : dec_commited_q;
-    assign dec_killed_d   = dec_ready ? instr_kill_i   : dec_killed_q;
+    // instr_commit_i (or instr_kill_i) can either refer to the instruction currently held in the
+    // decode buffer or to the next instruction to enter the decode buffer if the current instr is
+    // moving on (dec_ready is asserted); however the latter is only true if the current instr has
+    // already been commited/killed or if the buffer is currently empty (i.e., ~dec_buf_valid_q)
+    assign dec_commited_d = dec_ready ? (~dec_buf_valid_q | dec_commited_q) & instr_commit_i : dec_commited_q | instr_commit_i;
+    assign dec_killed_d   = dec_ready ? (~dec_buf_valid_q | dec_killed_q  ) & instr_kill_i   : dec_killed_q   | instr_kill_i  ;
 
     logic queue_ready,  queue_push; // instruction queue ready and push signals (enqueue handshake)
     logic result_empty, result_vl;  // return an empty result or VL as result
