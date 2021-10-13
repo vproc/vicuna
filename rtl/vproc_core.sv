@@ -233,39 +233,39 @@ module vproc_core #(
 
     // track whether the host has commited or killed the instruction in the decode buffer
     // TODO: assumption: instr_commit_i and instr_kill_i are not asserted simultaneously
-    logic dec_commited_q, dec_commited_d;
-    logic dec_killed_q,   dec_killed_d;
+    logic dec_committed_q, dec_committed_d;
+    logic dec_killed_q,    dec_killed_d;
     always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_commit_buf
         if (~async_rst_n) begin
-            dec_commited_q <= 1'b0;
-            dec_killed_q   <= 1'b0;
+            dec_committed_q <= 1'b0;
+            dec_killed_q    <= 1'b0;
         end
         else if (~sync_rst_n) begin
-            dec_commited_q <= 1'b0;
-            dec_killed_q   <= 1'b0;
+            dec_committed_q <= 1'b0;
+            dec_killed_q    <= 1'b0;
         end else begin
-            dec_commited_q <= dec_commited_d;
-            dec_killed_q   <= dec_killed_d;
+            dec_committed_q <= dec_committed_d;
+            dec_killed_q    <= dec_killed_d;
         end
     end
     // instr_commit_i (or instr_kill_i) can either refer to the instruction currently held in the
     // decode buffer or to the next instruction to enter the decode buffer if the current instr is
     // moving on (dec_ready is asserted); however the latter is only true if the current instr has
-    // already been commited/killed or if the buffer is currently empty (i.e., ~dec_buf_valid_q)
-    assign dec_commited_d = dec_ready ? (~dec_buf_valid_q | dec_commited_q) & instr_commit_i : dec_commited_q | instr_commit_i;
-    assign dec_killed_d   = dec_ready ? (~dec_buf_valid_q | dec_killed_q  ) & instr_kill_i   : dec_killed_q   | instr_kill_i  ;
+    // already been committed/killed or if the buffer is currently empty (i.e., ~dec_buf_valid_q)
+    assign dec_committed_d = dec_ready ? (~dec_buf_valid_q | dec_committed_q) & instr_commit_i : dec_committed_q | instr_commit_i;
+    assign dec_killed_d    = dec_ready ? (~dec_buf_valid_q | dec_killed_q   ) & instr_kill_i   : dec_killed_q    | instr_kill_i  ;
 
     logic queue_ready,  queue_push; // instruction queue ready and push signals (enqueue handshake)
     logic result_empty, result_vl;  // return an empty result or VL as result
     always_comb begin
         queue_push = 1'b0;
         result_vl  = 1'b0;
-        if (dec_buf_valid_q & (dec_commited_q | instr_commit_i)) begin
+        if (dec_buf_valid_q & (dec_committed_q | instr_commit_i)) begin
             if (dec_data_q.unit == UNIT_CFG) begin
                 // vset[i]vl[i] instructions are not enqueued, return the result upon commit
                 result_vl  = 1'b1;
             end else begin
-                // attempt to enqueue all other instructions once they have been commited
+                // attempt to enqueue all other instructions once they have been committed
                 queue_push = 1'b1;
             end
         end
