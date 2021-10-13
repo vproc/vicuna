@@ -235,8 +235,8 @@ module vproc_top #(
 
     assign vect_instr_valid              = ext_if.x_issue_valid;
     assign vect_instr                    = ext_if.x_issue_req.instr;
-    assign vect_x_rs1                    = ext_if.x_issue_req.rs[31: 0];
-    assign vect_x_rs2                    = ext_if.x_issue_req.rs[63:32];
+    assign vect_x_rs1                    = ext_if.x_issue_req.rs[0];
+    assign vect_x_rs2                    = ext_if.x_issue_req.rs[1];
     assign ext_if.x_issue_ready          = vect_instr_gnt;
     assign ext_if.x_issue_resp.accept    = ~vect_instr_illegal;
     assign ext_if.x_issue_resp.writeback = vect_xreg_wait;
