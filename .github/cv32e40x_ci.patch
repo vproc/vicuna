@@ -20,10 +20,10 @@ index 152715e..29a0a05 100644
      // A channel signals
      obi_req_t                  s_req;
      obi_gnt_t                  s_gnt;
-diff --git a/rtl/if_core_v_xif.sv b/rtl/if_core_v_xif.sv
+diff --git a/rtl/if_xif.sv b/rtl/if_xif.sv
 index a701932..6fd1b45 100644
---- a/rtl/if_core_v_xif.sv
-+++ b/rtl/if_core_v_xif.sv
+--- a/rtl/if_xif.sv
++++ b/rtl/if_xif.sv
 @@ -28,7 +28,7 @@
  //                                                                            //
  ////////////////////////////////////////////////////////////////////////////////

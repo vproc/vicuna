@@ -185,7 +185,9 @@ module vproc_top #(
         .X_MISA      ( '0 )
     ) ext_if();
 
-    cv32e40x_core core (
+    cv32e40x_core #(
+        .X_EXT               ( 1'b1          )
+    ) core (
         .clk_i               ( clk_i         ),
         .rst_ni              ( rst_ni        ),
         .scan_cg_en_i        ( 1'b0          ),
@@ -233,26 +235,26 @@ module vproc_top #(
         .core_sleep_o        (               )
     );
 
-    assign vect_instr_valid              = ext_if.x_issue_valid;
-    assign vect_instr                    = ext_if.x_issue_req.instr;
-    assign vect_x_rs1                    = ext_if.x_issue_req.rs[0];
-    assign vect_x_rs2                    = ext_if.x_issue_req.rs[1];
-    assign ext_if.x_issue_ready          = vect_instr_gnt;
-    assign ext_if.x_issue_resp.accept    = ~vect_instr_illegal;
-    assign ext_if.x_issue_resp.writeback = vect_xreg_wait;
+    assign vect_instr_valid            = ext_if.issue_valid;
+    assign vect_instr                  = ext_if.issue_req.instr;
+    assign vect_x_rs1                  = ext_if.issue_req.rs[0];
+    assign vect_x_rs2                  = ext_if.issue_req.rs[1];
+    assign ext_if.issue_ready          = vect_instr_gnt;
+    assign ext_if.issue_resp.accept    = ~vect_instr_illegal;
+    assign ext_if.issue_resp.writeback = vect_xreg_wait;
 
-    assign vect_instr_commit = ext_if.x_commit_valid & ~ext_if.x_commit.commit_kill;
-    assign vect_instr_kill   = ext_if.x_commit_valid &  ext_if.x_commit.commit_kill;
+    assign vect_instr_commit = ext_if.commit_valid & ~ext_if.commit.commit_kill;
+    assign vect_instr_kill   = ext_if.commit_valid &  ext_if.commit.commit_kill;
 
-    assign vect_result_ready             = ext_if.x_result_ready;
-    assign ext_if.x_result_valid         = vect_result_valid;
-    assign ext_if.x_result.id            = '0;
-    assign ext_if.x_result.data          = vect_xreg;
-    assign ext_if.x_result.rd            = '0;
-    assign ext_if.x_result.we            = vect_xreg_valid;
-    assign ext_if.x_result.float         = '0;
-    assign ext_if.x_result.exc           = '0;
-    assign ext_if.x_result.exccode       = '0;
+    assign vect_result_ready           = ext_if.result_ready;
+    assign ext_if.result_valid         = vect_result_valid;
+    assign ext_if.result.id            = '0;
+    assign ext_if.result.data          = vect_xreg;
+    assign ext_if.result.rd            = '0;
+    assign ext_if.result.we            = vect_xreg_valid;
+    assign ext_if.result.float         = '0;
+    assign ext_if.result.exc           = '0;
+    assign ext_if.result.exccode       = '0;
 
     assign vect_csr_we    = '{default:'0};
     assign vect_csr_wdata = '{default:'0};

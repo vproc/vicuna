@@ -75,7 +75,7 @@ verilator:
 	    core="-DMAIN_CORE_CV32E40X";                                          \
 	    inc="-I$(CORE_DIR)/rtl/ -I$(CORE_DIR)/rtl/include/";                  \
 	    inc="$$inc -I$(CORE_DIR)/bhv/";                                       \
-	    src="cv32e40x_pkg.sv if_core_v_xif.sv if_c_obi.sv";                   \
+	    src="cv32e40x_pkg.sv if_xif.sv if_c_obi.sv";                          \
 	    src="$$src cv32e40x_sim_clock_gate.sv";                               \
 	fi;                                                                       \
 	verilator --unroll-count 1024 -Wno-WIDTH -Wno-PINMISSING -Wno-UNOPTFLAT   \

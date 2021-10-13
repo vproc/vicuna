@@ -81,7 +81,7 @@ if {[string first "ibex" $core_dir] != -1} {
     set main_core "MAIN_CORE_CV32E40X"
     lappend src_list "$core_dir/rtl/include/cv32e40x_pkg.sv"
     foreach file {
-        if_core_v_xif.sv if_c_obi.sv cv32e40x_core.sv
+        if_xif.sv if_c_obi.sv cv32e40x_core.sv
         cv32e40x_if_stage.sv cv32e40x_id_stage.sv cv32e40x_ex_stage.sv
         cv32e40x_load_store_unit.sv cv32e40x_wb_stage.sv cv32e40x_register_file.sv
         cv32e40x_register_file_wrapper.sv cv32e40x_cs_registers.sv cv32e40x_csr.sv

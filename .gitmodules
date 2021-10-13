@@ -4,4 +4,4 @@
 	branch = coproc_if_external_csr
 [submodule "cv32e40x"]
 	path = cv32e40x
-	url = git@github.com:michael-platzer/cv32e40x.git
+	url = https://github.com/openhwgroup/cv32e40x.git
