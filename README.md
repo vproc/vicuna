@@ -50,6 +50,12 @@ If you use Vicuna in academic work, please cite
 
 ## Getting Started
 
+This repository uses submodules.  After cloning the repository, run following
+command in the top directory to initialize the submodules:
+```
+git submodule update --init --recursive
+```
+
 ### Compilation toolchain
 
 In order to compile programs for Vicuna, you need a RISC-V compiler which
