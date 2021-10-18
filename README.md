@@ -9,8 +9,9 @@ although patches for ASIC support are welcome.
 
 Vicuna is a coprocessor and thus requires a main processor with a suitable
 interface.  Currently, a modified version of the
-[Ibex core](https://github.com/lowRISC/ibex) serves as the main core.
-Support for further RISC-V CPUs is under development.
+[Ibex core](https://github.com/lowRISC/ibex) or the
+[CV32E40X core](https://github.com/openhwgroup/cv32e40x) serves as the main
+core. Support for further RISC-V CPUs is under development.
 
 Vicuna is an integer vector coprocessor and supports element widths of 8, 16,
 and 32 bits.  Note that Vicuna currently does not have a floating-point unit
@@ -101,3 +102,7 @@ unnecessary removed).
 The Ibex core (included in this repository as a submodule) is licensed under
 the Apache License, see [the Ibex repository](https://github.com/lowRISC/ibex)
 for details.
+
+The CV32E40X core (included in this repository as a submodule) is licensed
+under the Solderpad Hardware License, see
+[the CV32E40X repository](https://github.com/openhwgroup/cv32e40x) for details.

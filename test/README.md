@@ -8,12 +8,18 @@ are executed, a specific test from within a subdirectory (e.g., `alu/vadd_8`),
 or `all` (the default target) which runs all the tests (note that this might
 take a while).
 
-The default simulator used for the tests is verilator.  This can be changed by
-setting the environment variable `SIMULATOR`.  Currently only verilator and
-xsim (part of the Xilinx Vivado suite, set `SIMULATOR` to `vivado` to use it)
-are supported.
+The default main core used for the tests is
+[Ibex](https://github.com/lowRISC/ibex).  This can be changed by setting the
+environment variable `CORE`.
 
-By default tracing is disabled in verilator.  Use the environment variable
+The default simulator used for the tests is
+[Verilator](https://www.veripool.org/verilator/).  This can be changed by
+setting the environment variable `SIMULATOR`.  Currently only Verilator and
+xsim (part of the
+[Xilinx Vivado](https://www.xilinx.com/products/design-tools/vivado.html)
+suite, set `SIMULATOR` to `vivado` to use it) are supported.
+
+By default tracing is disabled in Verilator.  Use the environment variable
 `TRACE_VCD` to specify a `*.vcd` file path if you wish to generate a VCD trace
 file of a set of tests.  The specified path is relative to the subdirectory of
 the respective test set.
@@ -34,6 +40,12 @@ $ make mul
 Run the simple addition test with a single-element width of 8:
 ```
 $ make alu/vadd_8
+```
+
+Run the ELEM tests using [CV32E40X](https://github.com/openhwgroup/cv32e40x)
+as the main core instead of Ibex:
+```
+$ make elem CORE=cv32e40x
 ```
 
 Run the LSU tests using the `xsim` simulator (part of the Xilinx Vivado suite):
