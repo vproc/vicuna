@@ -51,13 +51,17 @@ jobs:
           rm -rf build
 
 
-  lsu:
+  unit:
     needs: toolchain
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
+        unit: [lsu, alu, mul, sld, elem, csr]
         main_core: [ibex, cv32e40x]
+        exclude:
+          - unit: csr
+            main_core: cv32e40x
     steps:
       - uses: actions/checkout@v2
         with:
@@ -83,179 +87,4 @@ jobs:
           verilator --version
           cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
           export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make lsu CORE=${{ matrix.main_core }}
-
-
-  alu:
-    needs: toolchain
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        main_core: [ibex, cv32e40x]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-
-      - uses: actions/cache@v2
-        id: cache-riscv-gcc
-        with:
-          path: /opt/riscv-gcc
-          key: ubuntu-20_04-riscv-gcc-rvv0_10
-
-      - name: Abort if no cache
-        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
-        run: exit 1
-
-      - name: Install packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install srecord verilator
-
-      - name: Run tests
-        run: |
-          verilator --version
-          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
-          export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make alu CORE=${{ matrix.main_core }}
-
-
-  mul:
-    needs: toolchain
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        main_core: [ibex, cv32e40x]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-
-      - uses: actions/cache@v2
-        id: cache-riscv-gcc
-        with:
-          path: /opt/riscv-gcc
-          key: ubuntu-20_04-riscv-gcc-rvv0_10
-
-      - name: Abort if no cache
-        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
-        run: exit 1
-
-      - name: Install packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install srecord verilator
-
-      - name: Run tests
-        run: |
-          verilator --version
-          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
-          export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make mul CORE=${{ matrix.main_core }}
-
-
-  sld:
-    needs: toolchain
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        main_core: [ibex, cv32e40x]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-
-      - uses: actions/cache@v2
-        id: cache-riscv-gcc
-        with:
-          path: /opt/riscv-gcc
-          key: ubuntu-20_04-riscv-gcc-rvv0_10
-
-      - name: Abort if no cache
-        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
-        run: exit 1
-
-      - name: Install packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install srecord verilator
-
-      - name: Run tests
-        run: |
-          verilator --version
-          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
-          export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make sld CORE=${{ matrix.main_core }}
-
-
-  elem:
-    needs: toolchain
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        main_core: [ibex, cv32e40x]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-
-      - uses: actions/cache@v2
-        id: cache-riscv-gcc
-        with:
-          path: /opt/riscv-gcc
-          key: ubuntu-20_04-riscv-gcc-rvv0_10
-
-      - name: Abort if no cache
-        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
-        run: exit 1
-
-      - name: Install packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install srecord verilator
-
-      - name: Run tests
-        run: |
-          verilator --version
-          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
-          export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make elem CORE=${{ matrix.main_core }}
-
-
-  csr:
-    needs: toolchain
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        main_core: [ibex]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-
-      - uses: actions/cache@v2
-        id: cache-riscv-gcc
-        with:
-          path: /opt/riscv-gcc
-          key: ubuntu-20_04-riscv-gcc-rvv0_10
-
-      - name: Abort if no cache
-        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
-        run: exit 1
-
-      - name: Install packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install srecord verilator
-
-      - name: Run tests
-        run: |
-          verilator --version
-          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
-          export PATH=$PATH:/opt/riscv-gcc/bin
-          cd test && make csr CORE=${{ matrix.main_core }}
+          cd test && make ${{ matrix.unit }} CORE=${{ matrix.main_core }}
