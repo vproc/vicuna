@@ -82,13 +82,16 @@ make
 
 ### Simulation
 
-The `sim/` subdirectory contains scripts for simulating Vicuna with either
-Verilator or xsim (the default simulator in Vivado).
+The [`sim/`](https://github.com/vproc/vicuna/tree/main/sim) subdirectory
+contains scripts for simulating Vicuna with either
+[Verilator](https://www.veripool.org/verilator/) or xsim (the default simulator
+in [Vivado](https://www.xilinx.com/products/design-tools/vivado.html)).
 
 
 ### Synthesis
 
-The `demo/` subdirectory contains a minimalist demo design for Xilinx FPGAs.
+The [`demo/`](https://github.com/vproc/vicuna/tree/main/demo) subdirectory
+contains a minimalist demo design for Xilinx FPGAs.
 
 
 ## Configuration
