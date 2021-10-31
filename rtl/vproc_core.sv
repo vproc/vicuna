@@ -303,36 +303,39 @@ module vproc_core #(
             vsew_d     = dec_data_q.mode.cfg.vsew;
             lmul_d     = dec_data_q.mode.cfg.lmul;
             agnostic_d = dec_data_q.mode.cfg.agnostic;
-            if ((dec_data_q.mode.cfg.vsew == VSEW_INVALID) | (dec_data_q.rs1.r.xval == 32'b0)) begin
+            if ((dec_data_q.mode.cfg.vsew == VSEW_INVALID) | ((dec_data_q.rs1.r.xval == 32'b0) & ~dec_data_q.mode.cfg.vlmax)) begin
                 vl_0_d   = 1'b1;
                 vl_d     = {CFG_VL_W{1'b0}};
                 vl_csr_d = '0;
+            end
+            else if (dec_data_q.mode.cfg.keep_vl) begin
+                // TODO keeping the current VL is only possible if the VSEW/LMUL ratio is not changed
             end else begin
                 vl_0_d = 1'b0;
                 vl_d   = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (dec_data_q.mode.cfg.lmul)
                     // TODO support fractional LMUL
-                    LMUL_1: vl_d = (cfg_avl[33:CFG_VL_W-3] == '0) ? cfg_avl[CFG_VL_W-1:0] : {3'b000, {(CFG_VL_W-3){1'b1}}};
-                    LMUL_2: vl_d = (cfg_avl[33:CFG_VL_W-2] == '0) ? cfg_avl[CFG_VL_W-1:0] : {2'b00,  {(CFG_VL_W-2){1'b1}}};
-                    LMUL_4: vl_d = (cfg_avl[33:CFG_VL_W-1] == '0) ? cfg_avl[CFG_VL_W-1:0] : {1'b0,   {(CFG_VL_W-1){1'b1}}};
-                    LMUL_8: vl_d = (cfg_avl[33:CFG_VL_W  ] == '0) ? cfg_avl[CFG_VL_W-1:0] :          { CFG_VL_W   {1'b1}} ;
+                    LMUL_1: vl_d = ((cfg_avl[33:CFG_VL_W-3] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {3'b000, {(CFG_VL_W-3){1'b1}}};
+                    LMUL_2: vl_d = ((cfg_avl[33:CFG_VL_W-2] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {2'b00,  {(CFG_VL_W-2){1'b1}}};
+                    LMUL_4: vl_d = ((cfg_avl[33:CFG_VL_W-1] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {1'b0,   {(CFG_VL_W-1){1'b1}}};
+                    LMUL_8: vl_d = ((cfg_avl[33:CFG_VL_W  ] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] :          { CFG_VL_W   {1'b1}} ;
                     default: ;
                 endcase
                 vl_csr_d = DONT_CARE_ZERO ? '0 : 'x;
                 unique case ({dec_data_q.mode.cfg.lmul, dec_data_q.mode.cfg.vsew})
                     // TODO support fractional LMUL
-                    {LMUL_1, VSEW_32}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-5] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {6'b1, {(CFG_VL_W-5){1'b0}}};
+                    {LMUL_1, VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-5] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {6'b1, {(CFG_VL_W-5){1'b0}}};
                     {LMUL_1, VSEW_16},
-                    {LMUL_2, VSEW_32}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-4] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {5'b1, {(CFG_VL_W-4){1'b0}}};
+                    {LMUL_2, VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-4] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {5'b1, {(CFG_VL_W-4){1'b0}}};
                     {LMUL_1, VSEW_8 },
                     {LMUL_2, VSEW_16},
-                    {LMUL_4, VSEW_32}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-3] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {4'b1, {(CFG_VL_W-3){1'b0}}};
+                    {LMUL_4, VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-3] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {4'b1, {(CFG_VL_W-3){1'b0}}};
                     {LMUL_2, VSEW_8 },
                     {LMUL_4, VSEW_16},
-                    {LMUL_8, VSEW_32}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-2] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {3'b1, {(CFG_VL_W-2){1'b0}}};
+                    {LMUL_8, VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-2] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {3'b1, {(CFG_VL_W-2){1'b0}}};
                     {LMUL_4, VSEW_8 },
-                    {LMUL_8, VSEW_16}: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W-1] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {2'b1, {(CFG_VL_W-1){1'b0}}};
-                    {LMUL_8, VSEW_8 }: vl_csr_d = (dec_data_q.rs1.r.xval[31:CFG_VL_W  ] == '0) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {1'b1, {(CFG_VL_W  ){1'b0}}};
+                    {LMUL_8, VSEW_16}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-1] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {2'b1, {(CFG_VL_W-1){1'b0}}};
+                    {LMUL_8, VSEW_8 }: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W  ] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {1'b1, {(CFG_VL_W  ){1'b0}}};
                     default: ;
                 endcase
             end
