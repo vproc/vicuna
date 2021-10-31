@@ -120,15 +120,15 @@ module vproc_sld #(
         state_q <= state_d;
     end
 
-    // in contrast to other units the last cycle is delayed by one cycle
+    // in contrast to other units the last cycle is delayed by the cycles required for one VREG
     logic last_cycle;
     always_comb begin
         last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (state_q.emul)
-            EMUL_1: last_cycle = state_q.count.part.mul[0];
-            EMUL_2: last_cycle = state_q.count.part.mul[1];
-            EMUL_4: last_cycle = state_q.count.part.mul[2];
-            EMUL_8: last_cycle = state_q.count.part.mul[3];
+            EMUL_1: last_cycle = state_q.count.part.mul[0] & (state_q.count.part.low == '1);
+            EMUL_2: last_cycle = state_q.count.part.mul[1] & (state_q.count.part.low == '1);
+            EMUL_4: last_cycle = state_q.count.part.mul[2] & (state_q.count.part.low == '1);
+            EMUL_8: last_cycle = state_q.count.part.mul[3] & (state_q.count.part.low == '1);
             default: ;
         endcase
     end
@@ -201,7 +201,7 @@ module vproc_sld #(
             state_d.vd          = vd_i;
             unique case (mode_i.op)
                 SLD_UP, SLD_1UP: begin
-                    state_d.count_store.val = {1'b0,  byte_slide[$clog2(VREG_W)-1:SLD_OP_SHFT_W]};
+                    state_d.count_store.val = {1'b0,  byte_slide[$clog2(VREG_W)-1:SLD_OP_SHFT_W]} - ((byte_slide[SLD_OP_SHFT_W-1:0] == '0) ? 1 : 0);
                     state_d.op_shift        = -byte_slide[SLD_OP_SHFT_W-1:0];
                 end
                 SLD_DOWN, SLD_1DOWN: begin
