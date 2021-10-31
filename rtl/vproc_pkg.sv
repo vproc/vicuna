@@ -79,9 +79,8 @@ typedef struct packed {
     logic       store;
     lsu_stride  stride;
     cfg_vsew    eew;
-    logic       sigext;
 `ifdef VPROC_OP_MODE_UNION
-    logic [4:0] unused;
+    logic [5:0] unused;
 `endif
 } op_mode_lsu;
 

@@ -81,37 +81,19 @@ module vproc_decoder #(
                     instr_illegal = 1'b1; // Zvlsseg is not supported
                 end
 
-                unique case (instr_i[28:26])
-                    3'b000: begin // zero-ext unit-stride load
+                unique case (instr_i[27:26])
+                    2'b00: begin // unit-stride load
                         mode_o.lsu.stride = LSU_UNITSTRIDE;
-                        mode_o.lsu.sigext = 1'b0;
                         rs2_o.vreg        = 1'b0;
                     end
-                    3'b010: begin // zero-ext strided load
+                    2'b10: begin // strided load
                         mode_o.lsu.stride = LSU_STRIDED;
-                        mode_o.lsu.sigext = 1'b0;
                         rs2_o.vreg        = 1'b0;
                         rs2_o.r.xval      = x_rs2_i;
                     end
-                    3'b011: begin // zero-ext indexed load
+                    2'b01,
+                    2'b11: begin // indexed load
                         mode_o.lsu.stride = LSU_INDEXED;
-                        mode_o.lsu.sigext = 1'b0;
-                        rs2_o.vreg        = 1'b1;
-                        rs2_o.r.vaddr     = instr_vs2;
-                    end
-                    3'b100: begin // sign-ext unit-stride load
-                        mode_o.lsu.stride = LSU_UNITSTRIDE;
-                        mode_o.lsu.sigext = 1'b1;
-                    end
-                    3'b110: begin // sign-ext strided load
-                        mode_o.lsu.stride = LSU_STRIDED;
-                        mode_o.lsu.sigext = 1'b1;
-                        rs2_o.vreg        = 1'b0;
-                        rs2_o.r.xval      = x_rs2_i;
-                    end
-                    3'b111: begin // sign-ext indexed load
-                        mode_o.lsu.stride = LSU_INDEXED;
-                        mode_o.lsu.sigext = 1'b1;
                         rs2_o.vreg        = 1'b1;
                         rs2_o.r.vaddr     = instr_vs2;
                     end
@@ -150,27 +132,19 @@ module vproc_decoder #(
                     instr_illegal = 1'b1; // Zvlsseg is not supported
                 end
 
-                unique case (instr_i[28:26])
-                    3'b000: begin // unit-stride store
+                unique case (instr_i[27:26])
+                    2'b00: begin // unit-stride store
                         mode_o.lsu.stride = LSU_UNITSTRIDE;
-                        mode_o.lsu.sigext = 1'b0;
                         rs2_o.vreg        = 1'b0;
                     end
-                    3'b010: begin // strided store
+                    2'b10: begin // strided store
                         mode_o.lsu.stride = LSU_STRIDED;
-                        mode_o.lsu.sigext = 1'b0;
                         rs2_o.vreg        = 1'b0;
                         rs2_o.r.xval      = x_rs2_i;
                     end
-                    3'b011: begin // indexed-ordered store
+                    2'b01,
+                    2'b11: begin // indexed store
                         mode_o.lsu.stride = LSU_INDEXED;
-                        mode_o.lsu.sigext = 1'b0;
-                        rs2_o.vreg        = 1'b1;
-                        rs2_o.r.vaddr     = instr_vs2;
-                    end
-                    3'b111: begin // indexed-unordered store
-                        mode_o.lsu.stride = LSU_INDEXED;
-                        mode_o.lsu.sigext = 1'b0;
                         rs2_o.vreg        = 1'b1;
                         rs2_o.r.vaddr     = instr_vs2;
                     end
