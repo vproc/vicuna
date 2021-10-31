@@ -70,8 +70,17 @@ module vproc_lsu #(
                   "The current value of %d is invalid.", VMEM_W);
     end
 
+    if (MAX_WR_ATTEMPTS < 1 || (1 << (MAX_WR_ATTEMPTS - 1)) > VREG_W / VMEM_W) begin
+        $fatal(1, "The maximum number of write attempts MAX_WR_ATTEMPTS of a unit ",
+                  "must be at least 1 and 2^(MAX_WR_ATTEMPTS-1) must be less than or ",
+                  "equal to the ratio of the vector register width vs the operand width ",
+                  "of that unit.  ",
+                  "For the vector LSU MAX_WR_ATTEMPTS is %d and that ratio is %d.",
+                  MAX_WR_ATTEMPTS, VREG_W / VMEM_W);
+    end
+
     // max number of cycles by which a write can be delayed
-    localparam int unsigned MAX_WR_DELAY = (1 << MAX_WR_ATTEMPTS) - 1;
+    localparam int unsigned MAX_WR_DELAY = (1 << (MAX_WR_ATTEMPTS - 1)) - 1;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -405,10 +414,11 @@ module vproc_lsu #(
     logic [VMSK_W-1:0] vdmsk_shift_q, vdmsk_shift_d;
 
     // vreg write buffers
-    logic              vreg_wr_en_q  [MAX_WR_DELAY], vreg_wr_en_d;
-    logic [4:0]        vreg_wr_addr_q[MAX_WR_DELAY], vreg_wr_addr_d;
-    logic [VMSK_W-1:0] vreg_wr_mask_q[MAX_WR_DELAY], vreg_wr_mask_d;
-    logic [VREG_W-1:0] vreg_wr_q     [MAX_WR_DELAY], vreg_wr_d;
+    localparam WRITE_BUFFER_SZ = (MAX_WR_DELAY > 0) ? MAX_WR_DELAY : 1;
+    logic              vreg_wr_en_q  [WRITE_BUFFER_SZ], vreg_wr_en_d;
+    logic [4:0]        vreg_wr_addr_q[WRITE_BUFFER_SZ], vreg_wr_addr_d;
+    logic [VMSK_W-1:0] vreg_wr_mask_q[WRITE_BUFFER_SZ], vreg_wr_mask_d;
+    logic [VREG_W-1:0] vreg_wr_q     [WRITE_BUFFER_SZ], vreg_wr_d;
 
     // hazard clear registers
     logic [31:0] clear_rd_hazards_q, clear_rd_hazards_d;
