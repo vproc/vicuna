@@ -84,10 +84,26 @@ module vproc_decoder #(
                     instr_illegal = 1'b1; // Zvlsseg is not supported
                 end
 
+                // mop field
                 unique case (instr_i[27:26])
                     2'b00: begin // unit-stride load
                         mode_o.lsu.stride = LSU_UNITSTRIDE;
                         rs2_o.vreg        = 1'b0;
+
+                        // lumop field
+                        unique case (instr_i[24:20])
+                            5'b00000,       // regular unit-stride load
+                            5'b10000: begin // fault-only-first load
+                            end
+                            5'b01000,       // whole register load
+                            5'b01011: begin // mask load
+                                // TODO whole register loads use nf field
+                                lmul_o = LMUL_1;
+                            end
+                            default: begin
+                                instr_illegal = 1'b1;
+                            end
+                        endcase
                     end
                     2'b10: begin // strided load
                         mode_o.lsu.stride = LSU_STRIDED;
@@ -103,14 +119,15 @@ module vproc_decoder #(
                     default: ;
                 endcase
 
-                unique case (instr_i[14:12])
-                    3'b000: begin
+                // width field (including mew)
+                unique case ({instr_i[28], instr_i[14:12]})
+                    4'b0000: begin
                         mode_o.lsu.eew = VSEW_8;
                     end
-                    3'b101: begin
+                    4'b0101: begin
                         mode_o.lsu.eew = VSEW_16;
                     end
-                    3'b110: begin
+                    4'b0110: begin
                         mode_o.lsu.eew = VSEW_32;
                     end
                     default: begin
@@ -135,10 +152,25 @@ module vproc_decoder #(
                     instr_illegal = 1'b1; // Zvlsseg is not supported
                 end
 
+                // mop field
                 unique case (instr_i[27:26])
                     2'b00: begin // unit-stride store
                         mode_o.lsu.stride = LSU_UNITSTRIDE;
                         rs2_o.vreg        = 1'b0;
+
+                        // sumop field
+                        unique case (instr_i[24:20])
+                            5'b00000: begin // regular unit-stride store
+                            end
+                            5'b01000,       // whole register store
+                            5'b01011: begin // mask store
+                                // TODO whole register stores use nf field
+                                lmul_o = LMUL_1;
+                            end
+                            default: begin
+                                instr_illegal = 1'b1;
+                            end
+                        endcase
                     end
                     2'b10: begin // strided store
                         mode_o.lsu.stride = LSU_STRIDED;
@@ -154,14 +186,15 @@ module vproc_decoder #(
                     default: ;
                 endcase
 
-                unique case (instr_i[14:12])
-                    3'b000: begin
+                // width field (including mew)
+                unique case ({instr_i[28], instr_i[14:12]})
+                    4'b0000: begin
                         mode_o.lsu.eew = VSEW_8;
                     end
-                    3'b101: begin
+                    4'b0101: begin
                         mode_o.lsu.eew = VSEW_16;
                     end
-                    3'b110: begin
+                    4'b0110: begin
                         mode_o.lsu.eew = VSEW_32;
                     end
                     default: begin
