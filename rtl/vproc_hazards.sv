@@ -89,11 +89,6 @@ module vproc_hazards #(
         endcase
         unique case (unit_i)
             UNIT_LSU: emul = lsu_emul;
-            UNIT_ALU: begin
-                if (mode_i.alu.op_mask == ALU_MASK_ARIT) begin
-                    emul = EMUL_1;
-                end
-            end
             default: ;
         endcase
     end

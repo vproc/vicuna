@@ -212,6 +212,7 @@ module vproc_core #(
         .vxrm_i         ( vxrm_q                ),
         .illegal_o      ( instr_illegal_o       ),
         .valid_o        ( dec_valid             ),
+        .lmul_o         ( dec_data_d.lmul       ),
         .unit_o         ( dec_data_d.unit       ),
         .mode_o         ( dec_data_d.mode       ),
         .widenarrow_o   ( dec_data_d.widenarrow ),
@@ -220,7 +221,6 @@ module vproc_core #(
         .rd_o           ( dec_data_d.rd         )
     );
     assign dec_data_d.vsew = vsew_q;
-    assign dec_data_d.lmul = lmul_q;
     assign dec_data_d.vl_0 = vl_0_q;
     assign dec_data_d.vl   = vl_q;
 

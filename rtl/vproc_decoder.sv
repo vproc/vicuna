@@ -19,6 +19,7 @@ module vproc_decoder #(
         output logic                    illegal_o,    // 1 if instr_i is illegal, 0 otherwise
         output logic                    valid_o,
 
+        output vproc_pkg::cfg_lmul      lmul_o,       // LMUL setting for this instruction
         output vproc_pkg::op_unit       unit_o,       //
         output vproc_pkg::op_mode       mode_o,
         output vproc_pkg::op_widenarrow widenarrow_o,
@@ -46,6 +47,8 @@ module vproc_decoder #(
 
     always_comb begin
         instr_illegal = 1'b0;
+
+        lmul_o        = lmul_i;
 
         unit_o        = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
         mode_o.unused = DONT_CARE_ZERO ? '0 : 'x;
@@ -550,74 +553,82 @@ module vproc_decoder #(
                             widenarrow_o        = OP_WIDENING;
                         end
                         {6'b011000, 3'b010}: begin  // vmandnot VV
+                            lmul_o              = LMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_ARIT;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011001, 3'b010}: begin  // vmand VV
+                            lmul_o              = LMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_ARIT;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011010, 3'b010}: begin  // vmor VV
+                            lmul_o              = LMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_ARIT;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011011, 3'b010}: begin  // vmxor VV
+                            lmul_o              = LMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_ARIT;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011100, 3'b010}: begin  // vmornot VV
+                            lmul_o              = LMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_ARIT;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011101, 3'b010}: begin  // vmnand VV
+                            lmul_o              = LMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b1;
-                            mode_o.alu.op_mask  = ALU_MASK_ARIT;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011110, 3'b010}: begin  // vmnor VV
+                            lmul_o              = LMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b1;
-                            mode_o.alu.op_mask  = ALU_MASK_ARIT;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011111, 3'b010}: begin  // vmxnor VV
+                            lmul_o              = LMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_ARIT;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = 1'b0;
                         end
@@ -1171,28 +1182,31 @@ module vproc_decoder #(
 
 
     // address masks (lower bits that must be 0) for registers based on EMUL:
-    logic [2:0] regaddr_mask, regaddr_mask_w;
+    logic [2:0] regaddr_mask, regaddr_mask_wide;
     always_comb begin
-        regaddr_mask   = DONT_CARE_ZERO ? '0 : 'x;
-        regaddr_mask_w = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (lmul_i)
+        regaddr_mask      = DONT_CARE_ZERO ? '0 : 'x;
+        regaddr_mask_wide = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (lmul_o)
             LMUL_F8,
             LMUL_F4,
-            LMUL_F2,
+            LMUL_F2: begin
+                regaddr_mask      = 3'b000;
+                regaddr_mask_wide = 3'b000;
+            end
             LMUL_1: begin
-                regaddr_mask   = 3'b000;
-                regaddr_mask_w = 3'b001;
+                regaddr_mask      = 3'b000;
+                regaddr_mask_wide = 3'b001;
             end
             LMUL_2: begin
-                regaddr_mask   = 3'b001;
-                regaddr_mask_w = 3'b011;
+                regaddr_mask      = 3'b001;
+                regaddr_mask_wide = 3'b011;
             end
             LMUL_4: begin
-                regaddr_mask   = 3'b011;
-                regaddr_mask_w = 3'b111;
+                regaddr_mask      = 3'b011;
+                regaddr_mask_wide = 3'b111;
             end
             LMUL_8: begin
-                regaddr_mask   = 3'b111;
+                regaddr_mask      = 3'b111;
             end
             default: ;
         endcase
@@ -1208,32 +1222,30 @@ module vproc_decoder #(
         // regular operation:
         unique case (widenarrow_o)
             OP_SINGLEWIDTH: begin
-                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask  }) != 5'b0;
-                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask  }) != 5'b0;
-                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask  }) != 5'b0;
+                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask     }) != 5'b0;
+                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask     }) != 5'b0;
+                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask     }) != 5'b0;
             end
             OP_WIDENING: begin
-                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask  }) != 5'b0;
-                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask  }) != 5'b0;
-                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask_w}) != 5'b0;
+                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask     }) != 5'b0;
+                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask     }) != 5'b0;
+                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask_wide}) != 5'b0;
             end
             OP_WIDENING_VS2: begin
-                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask  }) != 5'b0;
-                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask_w}) != 5'b0;
-                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask_w}) != 5'b0;
+                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask     }) != 5'b0;
+                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask_wide}) != 5'b0;
+                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask_wide}) != 5'b0;
             end
             OP_NARROWING: begin
-                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask_w}) != 5'b0;
-                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask_w}) != 5'b0;
-                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask  }) != 5'b0;
+                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask_wide}) != 5'b0;
+                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask_wide}) != 5'b0;
+                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask     }) != 5'b0;
             end
             default: ;
         endcase
 
-        // special cases (e.g. mask operations):
-        if ((unit_o == UNIT_ALU) & (mode_o.alu.op_mask == ALU_MASK_ARIT)) begin
-            vs1_invalid = 1'b0;
-            vs2_invalid = 1'b0;
+        // compare instruction produce a mask (i.e., vd address always valid)
+        if ((unit_o == UNIT_ALU) & mode_o.alu.cmp) begin
             vd_invalid  = 1'b0;
         end
 

@@ -116,17 +116,14 @@ typedef enum logic [2:0] {
 } opcode_alu_cmp;
 
 typedef enum logic [1:0] {
-    ALU_MASK_NONE,  // mask is not involved in operation
+    ALU_MASK_NONE,  // mask is not involved in operation (could be used as write mask)
     ALU_MASK_CARRY, // mask used as carry
-    ALU_MASK_SEL,   // mask used as selector
-    ALU_MASK_ARIT   // mask arithmetic (i.e., EMUL == 1)
+    ALU_MASK_SEL    // mask used as selector
 } opcode_alu_mask;
 
 typedef struct packed {
     logic         masked;  // the instruction is masked
-    //logic         op_mask; // the mask register is used as an additional operand
     logic         cmp;     // compare instruction (result is a mask)
-    //logic         emul_1;  // EMUL of the operation is 1 (overriding other settings)
     union packed {
         opcode_alu_sel   sel;
         opcode_alu_shift shift;

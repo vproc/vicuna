@@ -180,9 +180,6 @@ module vproc_alu #(
                 endcase
                 state_d.vl = {vl_i[CFG_VL_W-2:0], 1'b1};
             end
-            if (mode_i.op_mask == ALU_MASK_ARIT) begin
-                state_d.emul = EMUL_1; // mask arithmetic always uses EMUL == 1
-            end
             state_d.vl_0       = vl_0_i;
             state_d.rs1        = rs1_i;
             state_d.vs1_narrow = (widenarrow_i == OP_WIDENING) | (widenarrow_i == OP_WIDENING_VS2);
