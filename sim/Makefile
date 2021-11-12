@@ -57,8 +57,15 @@ verilator:
 	cp $(SIM_DIR)/verilator_main.cpp $(PROJ_DIR)/
 	cd $(PROJ_DIR);                                                           \
 	trace="";                                                                 \
+	cflags="";                                                                \
 	if [[ "$(TRACE_VCD)" != "" ]]; then                                       \
-	    trace="--trace -CFLAGS -DTRACE_VCD";                                  \
+	    trace="--trace";                                                      \
+	    cflags="-DTRACE_VCD";                                                 \
+	fi;                                                                       \
+	version=`verilator --version | awk '{print $$2}'`;                        \
+	if [ `printf '4.210\n%s\n' "$$version" | sort -V | head -n1` = "4.210" ]; \
+	then                                                                      \
+	    cflags="$$cflags -DVERILATOR_4_210";                                  \
 	fi;                                                                       \
 	core="";                                                                  \
 	inc="";                                                                   \
@@ -85,9 +92,9 @@ verilator:
 	    -GVREG_W=$(VREG_W) -GVMEM_W=$(VMEM_W) -GVMUL_W=$(VMUL_W)              \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
-	    --cc $$src vproc_pkg.sv vproc_top.sv                                  \
-	    vproc_hazards.sv vproc_vregpack.sv vproc_vregunpack.sv                \
-	    --top-module vproc_top --clk clk_i $$trace --exe verilator_main.cpp;  \
+	    --cc $$src vproc_pkg.sv vproc_top.sv vproc_hazards.sv                 \
+	    vproc_vregpack.sv vproc_vregunpack.sv --top-module vproc_top          \
+	    --clk clk_i $$trace -CFLAGS "$$cflags" --exe verilator_main.cpp;      \
 	if [ "$$?" != "0" ]; then                                                 \
 	    exit 1;                                                               \
 	fi;                                                                       \

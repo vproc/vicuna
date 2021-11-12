@@ -9,6 +9,14 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 
+// Verilator 4.210 or newer inserts extra class for accessing signals
+#ifdef VERILATOR_4_210
+#include "Vvproc_top___024root.h"
+#define SIGNALS_ROOT top->rootp
+#else
+#define SIGNALS_ROOT top
+#endif
+
 static void log_cycle(Vvproc_top *top, VerilatedVcdC* tfp, FILE *fcsv);
 
 int main(int argc, char **argv) {
@@ -236,7 +244,10 @@ double sc_time_stamp() {
 
 static void log_cycle(Vvproc_top *top, VerilatedVcdC* tfp, FILE *fcsv) {
     fprintf(fcsv, "%d;%d;%08X;%08X;%08X;'{XX,'{X,X,X}},%d,X,'{X,X,X,X,X},X,XX,X,XXXXXXXX,'{X,'{XX,XXXXXXXX}},XX;\n",
-            top->rst_ni, top->mem_req_o, top->mem_addr_o, top->vproc_top__DOT__v_core__DOT__vreg_rd_hazard_map_q, top->vproc_top__DOT__v_core__DOT__vreg_wr_hazard_map_q, 0);
+            top->rst_ni, top->mem_req_o, top->mem_addr_o,
+            SIGNALS_ROOT->vproc_top__DOT__v_core__DOT__vreg_rd_hazard_map_q,
+            SIGNALS_ROOT->vproc_top__DOT__v_core__DOT__vreg_wr_hazard_map_q,
+            0);
     main_time++;
 #ifdef TRACE_VCD
     if (tfp != NULL)
