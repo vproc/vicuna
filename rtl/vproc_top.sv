@@ -169,7 +169,7 @@ module vproc_top #(
         .scan_rst_ni            ( 1'b1                               )
     );
 
-    assign vect_instr_commit = vect_instr_gnt;
+    assign vect_instr_commit = 1'b1;
     assign vect_instr_kill   = 1'b0;
     assign vect_result_ready = 1'b1;
 
