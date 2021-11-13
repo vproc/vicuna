@@ -60,12 +60,12 @@ verilator:
 	cflags="";                                                                \
 	if [[ "$(TRACE_VCD)" != "" ]]; then                                       \
 	    trace="--trace";                                                      \
-	    cflags="-DTRACE_VCD";                                                 \
+	    cflags="-CFLAGS -DTRACE_VCD";                                         \
 	fi;                                                                       \
 	version=`verilator --version | awk '{print $$2}'`;                        \
 	if [ `printf '4.210\n%s\n' "$$version" | sort -V | head -n1` = "4.210" ]; \
 	then                                                                      \
-	    cflags="$$cflags -DVERILATOR_4_210";                                  \
+	    cflags="$$cflags -CFLAGS -DVERILATOR_4_210";                          \
 	fi;                                                                       \
 	core="";                                                                  \
 	inc="";                                                                   \
@@ -84,9 +84,6 @@ verilator:
 	    inc="$$inc -I$(CORE_DIR)/bhv/";                                       \
 	    src="cv32e40x_pkg.sv if_xif.sv if_c_obi.sv";                          \
 	    src="$$src cv32e40x_sim_clock_gate.sv";                               \
-	fi;                                                                       \
-	if [ "$$cflags" != "" ]; then                                             \
-	    cflags="-CFLAGS \"$$cflags\"";                                        \
 	fi;                                                                       \
 	verilator --unroll-count 1024 -Wno-WIDTH -Wno-PINMISSING -Wno-UNOPTFLAT   \
 	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
