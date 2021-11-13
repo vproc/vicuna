@@ -4,7 +4,6 @@
 
 
 module demo_top #(
-        parameter              MAIN_CORE  = "",
         parameter              RAM_FPATH  = "",
         parameter int unsigned RAM_SIZE   = 262144,
         parameter bit          DIFF_CLK   = 1'b0,
@@ -86,7 +85,6 @@ module demo_top #(
     end
 
     vproc_top #(
-        .MAIN_CORE    ( MAIN_CORE                   ),
         .VREG_W       ( 2048                        ),
         .VMEM_W       ( 32                          ),
         .VMUL_W       ( 1024                        ),

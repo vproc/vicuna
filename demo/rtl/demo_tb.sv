@@ -6,7 +6,6 @@
 // minimalistic simulation top module with clock gen and initial reset
 
 module demo_tb #(
-        parameter              MAIN_CORE  = "",
         parameter              RAM_FPATH  = "",
         parameter int unsigned RAM_SIZE   = 262144,
         parameter bit          DIFF_CLK   = 1'b0,
@@ -19,7 +18,6 @@ module demo_tb #(
     logic rx, tx;
 
     demo_top #(
-        .MAIN_CORE  ( MAIN_CORE  ),
         .RAM_FPATH  ( RAM_FPATH  ),
         .RAM_SIZE   ( RAM_SIZE   ),
         .DIFF_CLK   ( DIFF_CLK   ),
