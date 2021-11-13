@@ -85,6 +85,9 @@ verilator:
 	    src="cv32e40x_pkg.sv if_xif.sv if_c_obi.sv";                          \
 	    src="$$src cv32e40x_sim_clock_gate.sv";                               \
 	fi;                                                                       \
+	if [ "$$cflags" != "" ]; then                                             \
+	    cflags="-CFLAGS \"$$cflags\"";                                        \
+	fi;                                                                       \
 	verilator --unroll-count 1024 -Wno-WIDTH -Wno-PINMISSING -Wno-UNOPTFLAT   \
 	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
 	    -Wno-SYMRSVDWORD -Wno-BLKANDNBLK -Wno-BLKSEQ -Wno-SYNCASYNCNET        \
@@ -94,7 +97,7 @@ verilator:
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
 	    --cc $$src vproc_pkg.sv vproc_top.sv vproc_hazards.sv                 \
 	    vproc_vregpack.sv vproc_vregunpack.sv --top-module vproc_top          \
-	    --clk clk_i $$trace -CFLAGS "$$cflags" --exe verilator_main.cpp;      \
+	    --clk clk_i $$trace $$cflags --exe verilator_main.cpp;                \
 	if [ "$$?" != "0" ]; then                                                 \
 	    exit 1;                                                               \
 	fi;                                                                       \
