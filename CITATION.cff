@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Platzer"
+  given-names: "Michael"
+title: "Vicuna - a RISC-V Zve32x Vector Coprocessor"
+url: https://github.com/vproc/vicuna
+repository-code: https://github.com/vproc/vicuna
+license: ISC
+preferred-citation:
+  type: conference-paper
+  authors:
+  - family-names: "Platzer"
+    given-names: "Michael"
+  - family-names: "Puschner"
+    given-names: "Peter"
+  title: "Vicuna: A Timing-Predictable RISC-V Vector Coprocessor for Scalable Parallel Computation"
+  conference: "33rd Euromicro Conference on Real-Time Systems (ECRTS 2021)"
+  start: 1:1
+  end: 1:18
+  year: 2021
+  volume: 196
+  editors:
+    - family-names: Brandenburg
+      given-names: Björn B.
+  publisher:
+    - name: Schloss Dagstuhl -- Leibniz-Zentrum für Informatik
+      address: Dagstuhl, Germany
+  doi: 10.4230/LIPIcs.ECRTS.2021.1
+  url: https://drops.dagstuhl.de/opus/volltexte/2021/13932/
