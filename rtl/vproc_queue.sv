@@ -36,7 +36,6 @@ module vproc_queue #(
             last_wr <= '0;
         end else begin
             if (enq_ready_o & enq_valid_i) begin
-                data[wr_pos] <= enq_data_i;
                 wr_pos       <= (wr_pos == $clog2(DEPTH)'(DEPTH-1)) ? '0 : wr_pos + 1;
                 last_wr      <= 1'b1;
             end
@@ -44,6 +43,11 @@ module vproc_queue #(
                 rd_pos       <= (rd_pos == $clog2(DEPTH)'(DEPTH-1)) ? '0 : rd_pos + 1;
                 last_wr      <= 1'b0;
             end
+        end
+    end
+    always_ff @(posedge clk_i) begin
+        if (enq_ready_o & enq_valid_i) begin
+            data[wr_pos] <= enq_data_i;
         end
     end
 
