@@ -182,7 +182,7 @@ module vproc_alu #(
             end
             state_d.vl_0       = vl_0_i;
             state_d.rs1        = rs1_i;
-            state_d.vs1_narrow = (widenarrow_i == OP_WIDENING) | (widenarrow_i == OP_WIDENING_VS2);
+            state_d.vs1_narrow = widenarrow_i != OP_SINGLEWIDTH;
             state_d.vs1_fetch  = rs1_i.vreg;
             state_d.vs1_shift  = 1'b1;
             state_d.vs2        = vs2_i;

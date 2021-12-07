@@ -45,9 +45,9 @@ typedef enum logic [1:0] {
 
 typedef enum logic [1:0] {
     OP_SINGLEWIDTH,  // neither widening nor narrowing
-    OP_WIDENING,     // widening operation with 2*SEW =   SEW op   SEW
-    OP_WIDENING_VS2, // widening operation with 2*SEW = 2*SEW op   SEW
-    OP_NARROWING     // narrowing operating with  SEW = 2*SEW op 2*SEW
+    OP_WIDENING,     // widening operation with 2*SEW =   SEW op SEW
+    OP_WIDENING_VS2, // widening operation with 2*SEW = 2*SEW op SEW
+    OP_NARROWING     // narrowing operating with  SEW = 2*SEW op SEW
 } op_widenarrow;
 
 // fixed-point rounding mode
