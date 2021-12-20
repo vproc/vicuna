@@ -487,6 +487,7 @@ module vproc_top #(
     logic [MEM_W/8-1:0] dmem_be;
     logic [MEM_W  -1:0] dmem_wdata;
     logic               dmem_rvalid;
+    logic               dmem_wvalid;
     logic [MEM_W  -1:0] dmem_rdata;
     logic               dmem_err;
     generate
@@ -540,7 +541,7 @@ module vproc_top #(
             assign dmem_be     = data_be;
             assign dmem_wdata  = data_wdata;
             assign data_gnt    = dmem_gnt;
-            assign data_rvalid = dmem_rvalid;
+            assign data_rvalid = dmem_rvalid | dmem_wvalid;
             assign data_rdata  = dmem_rdata;
             assign data_err    = dmem_err;
         end
@@ -567,6 +568,7 @@ module vproc_top #(
 
     // shift register keeping track of the source of mem requests for up to 32 cycles
     logic        req_sources  [32];
+    logic        req_write    [32]; // keeping track of whether the request was a write
     logic [31:0] imem_req_addr[32]; // keeping track of address for instruction memory requests
     logic [4:0]  req_count;
     always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -576,24 +578,28 @@ module vproc_top #(
             if (mem_rvalid_i) begin
                 for (int i = 0; i < 31; i++) begin
                     req_sources  [i] <= req_sources  [i+1];
+                    req_write    [i] <= req_write    [i+1];
                     imem_req_addr[i] <= imem_req_addr[i+1];
                 end
                 if (~imem_gnt & ~dmem_gnt) begin
                     req_count <= req_count - 1;
                 end else begin
                     req_sources  [req_count-1] <= dmem_gnt;
+                    req_write    [req_count-1] <= dmem_we;
                     imem_req_addr[req_count-1] <= imem_addr;
                 end
             end
             else if (imem_gnt | dmem_gnt) begin
                 req_sources  [req_count] <= dmem_gnt;
+                req_write    [req_count] <= dmem_we;
                 imem_req_addr[req_count] <= imem_addr;
                 req_count                <= req_count + 1;
             end
         end
     end
     assign imem_rvalid = mem_rvalid_i & ~req_sources[0];
-    assign dmem_rvalid = mem_rvalid_i &  req_sources[0];
+    assign dmem_rvalid = mem_rvalid_i &  req_sources[0] & ~req_write[0];
+    assign dmem_wvalid = mem_rvalid_i &  req_sources[0] &  req_write[0];
     assign imem_err    = mem_err_i;
     assign dmem_err    = mem_err_i;
     assign imem_rdata  = (ICACHE_SZ != 0) ? mem_rdata_i : mem_rdata_i[
