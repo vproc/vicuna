@@ -106,7 +106,7 @@ module vproc_top #(
     ibex_top #(
         .DmHaltAddr             ( 32'h00000000                       ),
         .DmExceptionAddr        ( 32'h00000000                       ),
-        .RV32M                  ( ibex_pkg::RV32MNone                ),
+        .RV32M                  ( ibex_pkg::RV32MFast                ),
         .ExternalCSRs           ( VECT_CSR_CNT                       ),
         // LOAD-FP, STORE-FP and VECTOR opcodes
         .CoprocOpcodes          ( 32'h00200202                       )
