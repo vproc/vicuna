@@ -139,12 +139,13 @@ module vproc_mul #(
         endcase
     end
 
+    logic pipeline_ready;
     always_comb begin
         op_ack_o       = 1'b0;
         state_valid_d  = state_valid_q;
         state_d        = state_q;
 
-        if (((~state_valid_q) | last_cycle) & op_rdy_i) begin
+        if (((~state_valid_q) | (last_cycle & pipeline_ready)) & op_rdy_i) begin
             op_ack_o            = 1'b1;
             state_d.count.val   = '0;
             state_valid_d       = 1'b1;
@@ -192,7 +193,7 @@ module vproc_mul #(
             state_d.vd         = vd_i;
             state_d.vd_store   = 1'b0;
         end
-        else if (state_valid_q) begin
+        else if (state_valid_q & pipeline_ready) begin
             state_d.count.val   = state_q.count.val + 1;
             state_valid_d       = ~last_cycle;
             state_d.first_cycle = 1'b0;
@@ -228,6 +229,7 @@ module vproc_mul #(
     // MUL PIPELINE BUFFERS:
 
     // pass state information along pipeline:
+    logic                       state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_ex3_ready,   state_res_ready,   state_vd_ready;
     logic     state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_ex3_valid_q, state_res_valid_q, state_vd_valid_q;
     mul_state state_init,       state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_ex3_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -236,6 +238,7 @@ module vproc_mul #(
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vd_store   = state_q.count.part.low == '1;
     end
+    assign pipeline_ready = state_vreg_ready;
 
     // common vreg read register:
     logic [VREG_W-1:0] vreg_rd_q, vreg_rd_d;
@@ -277,43 +280,96 @@ module vproc_mul #(
 
     generate
         if (BUF_VREG) begin
-            always_ff @(posedge clk_i) begin : vproc_mul_stage_vreg
-                state_vreg_valid_q <= state_init_valid;
-                state_vreg_q      <= state_init;
-                vreg_rd_q         <= vreg_rd_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_vreg_valid
+                if (~async_rst_ni) begin
+                    state_vreg_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_vreg_valid_q <= 1'b0;
+                end
+                else if (state_vreg_ready) begin
+                    state_vreg_valid_q <= state_init_valid;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_mul_stage_vreg
+                if (state_vreg_ready) begin
+                    state_vreg_q <= state_init;
+                    vreg_rd_q    <= vreg_rd_d;
+                end
+            end
+            assign state_vreg_ready = ~state_vreg_valid_q | state_vs1_ready;
         end else begin
             always_comb begin
                 state_vreg_valid_q = state_init_valid;
                 state_vreg_q       = state_init;
                 vreg_rd_q          = vreg_rd_d;
             end
+            assign state_vreg_ready = state_vs1_ready;
         end
 
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_vs1_valid
+            if (~async_rst_ni) begin
+                state_vs1_valid_q <= 1'b0;
+            end
+            else if (~sync_rst_ni) begin
+                state_vs1_valid_q <= 1'b0;
+            end
+            else if (state_vs1_ready) begin
+                state_vs1_valid_q <= state_vreg_valid_q;
+            end
+        end
         always_ff @(posedge clk_i) begin : vproc_mul_stage_vs1
-            state_vs1_valid_q <= state_vreg_valid_q;
-            state_vs1_q       <= state_vreg_q;
-            vs1_shift_q       <= vs1_shift_d;
+            if (state_vs1_ready) begin
+                state_vs1_q <= state_vreg_q;
+                vs1_shift_q <= vs1_shift_d;
+            end
         end
+        assign state_vs1_ready = ~state_vs1_valid_q | state_vs2_ready;
 
-        always_ff @(posedge clk_i) begin : vproc_mul_stage_vs2
-            state_vs2_valid_q <= state_vs1_valid_q;
-            state_vs2_q       <= state_vs1_q;
-            vs2_shift_q       <= vs2_shift_d;
-            vs3_shift_q       <= vs3_shift_d;
-            v0msk_shift_q     <= v0msk_shift_d;
-            vs1_tmp_q         <= vs1_tmp_d;
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_vs2_valid
+            if (~async_rst_ni) begin
+                state_vs2_valid_q <= 1'b0;
+            end
+            else if (~sync_rst_ni) begin
+                state_vs2_valid_q <= 1'b0;
+            end
+            else if (state_vs2_ready) begin
+                state_vs2_valid_q <= state_vs1_valid_q;
+            end
         end
+        always_ff @(posedge clk_i) begin : vproc_mul_stage_vs2
+            if (state_vs2_ready) begin
+                state_vs2_q   <= state_vs1_q;
+                vs2_shift_q   <= vs2_shift_d;
+                vs3_shift_q   <= vs3_shift_d;
+                v0msk_shift_q <= v0msk_shift_d;
+                vs1_tmp_q     <= vs1_tmp_d;
+            end
+        end
+        assign state_vs2_ready = ~state_vs2_valid_q | state_ex1_ready;
 
         if (BUF_OPERANDS) begin
-            always_ff @(posedge clk_i) begin : vproc_mul_stage_ex1
-                state_ex1_valid_q <= state_vs2_valid_q;
-                state_ex1_q       <= state_vs2_q;
-                operand1_q        <= operand1_d;
-                operand2_q        <= operand2_d;
-                operand_mask_q    <= operand_mask_d;
-                accumulator1_q    <= accumulator1_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_ex1_valid
+                if (~async_rst_ni) begin
+                    state_ex1_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_ex1_valid_q <= 1'b0;
+                end
+                else if (state_ex1_ready) begin
+                    state_ex1_valid_q <= state_vs2_valid_q;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_mul_stage_ex1
+                if (state_ex1_ready) begin
+                    state_ex1_q    <= state_vs2_q;
+                    operand1_q     <= operand1_d;
+                    operand2_q     <= operand2_d;
+                    operand_mask_q <= operand_mask_d;
+                    accumulator1_q <= accumulator1_d;
+                end
+            end
+            assign state_ex1_ready = ~state_ex1_valid_q | state_ex2_ready;
         end else begin
             always_comb begin
                 state_ex1_valid_q = state_vs2_valid_q;
@@ -323,15 +379,29 @@ module vproc_mul #(
                 operand_mask_q    = operand_mask_d;
                 accumulator1_q    = accumulator1_d;
             end
+            assign state_ex1_ready = state_ex2_ready;
         end
 
         if (BUF_MUL_IN) begin
-            always_ff @(posedge clk_i) begin : vproc_mul_stage_ex2
-                state_ex2_valid_q <= state_ex1_valid_q;
-                state_ex2_q       <= state_ex1_q;
-                accumulator2_q    <= accumulator2_d;
-                result_mask1_q    <= result_mask1_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_ex2_valid
+                if (~async_rst_ni) begin
+                    state_ex2_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_ex2_valid_q <= 1'b0;
+                end
+                else if (state_ex2_ready) begin
+                    state_ex2_valid_q <= state_ex1_valid_q;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_mul_stage_ex2
+                if (state_ex2_ready) begin
+                    state_ex2_q    <= state_ex1_q;
+                    accumulator2_q <= accumulator2_d;
+                    result_mask1_q <= result_mask1_d;
+                end
+            end
+            assign state_ex2_ready = ~state_ex2_valid_q | state_ex3_ready;
         end else begin
             always_comb begin
                 state_ex2_valid_q = state_ex1_valid_q;
@@ -339,29 +409,57 @@ module vproc_mul #(
                 accumulator2_q    = accumulator2_d;
                 result_mask1_q    = result_mask1_d;
             end
+            assign state_ex2_ready = state_ex3_ready;
         end
 
         if (BUF_MUL_OUT) begin
-            always_ff @(posedge clk_i) begin : vproc_mul_stage_ex3
-                state_ex3_valid_q <= state_ex2_valid_q;
-                state_ex3_q       <= state_ex2_q;
-                result_mask2_q    <= result_mask2_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_ex3_valid
+                if (~async_rst_ni) begin
+                    state_ex3_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_ex3_valid_q <= 1'b0;
+                end
+                else if (state_ex3_ready) begin
+                    state_ex3_valid_q <= state_ex2_valid_q;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_mul_stage_ex3
+                if (state_ex3_ready) begin
+                    state_ex3_q    <= state_ex2_q;
+                    result_mask2_q <= result_mask2_d;
+                end
+            end
+            assign state_ex3_ready = ~state_ex3_valid_q | state_res_ready;
         end else begin
             always_comb begin
                 state_ex3_valid_q = state_ex2_valid_q;
                 state_ex3_q       = state_ex2_q;
                 result_mask2_q    = result_mask2_d;
             end
+            assign state_ex3_ready = state_res_ready;
         end
 
         if (BUF_RESULTS) begin
-            always_ff @(posedge clk_i) begin : vproc_mul_stage_res
-                state_res_valid_q <= state_ex3_valid_q;
-                state_res_q       <= state_ex3_q;
-                result_q          <= result_d;
-                result_mask3_q    <= result_mask3_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_res_valid
+                if (~async_rst_ni) begin
+                    state_res_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_res_valid_q <= 1'b0;
+                end
+                else if (state_res_ready) begin
+                    state_res_valid_q <= state_ex3_valid_q;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_mul_stage_res
+                if (state_res_ready) begin
+                    state_res_q    <= state_ex3_q;
+                    result_q       <= result_d;
+                    result_mask3_q <= result_mask3_d;
+                end
+            end
+            assign state_res_ready = ~state_res_valid_q | state_vd_ready;
         end else begin
             always_comb begin
                 state_res_valid_q = state_ex3_valid_q;
@@ -369,14 +467,28 @@ module vproc_mul #(
                 result_q          = result_d;
                 result_mask3_q    = result_mask3_d;
             end
+            assign state_res_ready = state_vd_ready;
         end
 
-        always_ff @(posedge clk_i) begin : vproc_mul_stage_vd
-            state_vd_valid_q <= state_res_valid_q;
-            state_vd_q       <= state_res_q;
-            vd_shift_q       <= vd_shift_d;
-            vdmsk_shift_q    <= vdmsk_shift_d;
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_vd_valid
+            if (~async_rst_ni) begin
+                state_vd_valid_q <= 1'b0;
+            end
+            else if (~sync_rst_ni) begin
+                state_vd_valid_q <= 1'b0;
+            end
+            else if (state_vd_ready) begin
+                state_vd_valid_q <= state_res_valid_q;
+            end
         end
+        always_ff @(posedge clk_i) begin : vproc_mul_stage_vd
+            if (state_vd_ready) begin
+                state_vd_q    <= state_res_q;
+                vd_shift_q    <= vd_shift_d;
+                vdmsk_shift_q <= vdmsk_shift_d;
+            end
+        end
+        assign state_vd_ready = ~state_vd_valid_q | 1'b1;
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_mul_wr_delay

@@ -137,12 +137,13 @@ module vproc_alu #(
         endcase
     end
 
+    logic pipeline_ready;
     always_comb begin
         op_ack_o       = 1'b0;
         state_valid_d  = state_valid_q;
         state_d        = state_q;
 
-        if (((~state_valid_q) | last_cycle) & op_rdy_i) begin
+        if (((~state_valid_q) | (last_cycle & pipeline_ready)) & op_rdy_i) begin
             op_ack_o            = 1'b1;
             state_d.count.val   = '0;
             state_valid_d       = 1'b1;
@@ -194,7 +195,7 @@ module vproc_alu #(
             state_d.vd_narrow  = widenarrow_i == OP_NARROWING;
             state_d.vd_store   = 1'b0;
         end
-        else if (state_valid_q) begin
+        else if (state_valid_q & pipeline_ready) begin
             state_d.count.val   = state_q.count.val + 1;
             state_valid_d       = ~last_cycle;
             state_d.first_cycle = 1'b0;
@@ -229,6 +230,7 @@ module vproc_alu #(
     // ALU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
+    logic                       state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_res_ready,   state_vd_ready;
     logic     state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_res_valid_q, state_vd_valid_q;
     alu_state state_init,       state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -237,6 +239,7 @@ module vproc_alu #(
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vd_store   = (state_q.count.part.low == '1) & (~state_q.vd_narrow | state_q.count.part.mul[0]);
     end
+    assign pipeline_ready = state_vreg_ready;
 
     // common vreg read register:
     logic [VREG_W-1:0] vreg_rd_q, vreg_rd_d;
@@ -286,41 +289,94 @@ module vproc_alu #(
 
     generate
         if (BUF_VREG) begin
-            always_ff @(posedge clk_i) begin : vproc_alu_stage_vreg
-                state_vreg_valid_q <= state_init_valid;
-                state_vreg_q       <= state_init;
-                vreg_rd_q          <= vreg_rd_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_vreg_valid
+                if (~async_rst_ni) begin
+                    state_vreg_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_vreg_valid_q <= 1'b0;
+                end
+                else if (state_vreg_ready) begin
+                    state_vreg_valid_q <= state_init_valid;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_alu_stage_vreg
+                if (state_vreg_ready) begin
+                    state_vreg_q <= state_init;
+                    vreg_rd_q    <= vreg_rd_d;
+                end
+            end
+            assign state_vreg_ready = ~state_vreg_valid_q | state_vs1_ready;
         end else begin
             always_comb begin
                 state_vreg_valid_q = state_init_valid;
                 state_vreg_q       = state_init;
                 vreg_rd_q          = vreg_rd_d;
             end
+            assign state_vreg_ready = state_vs1_ready;
         end
 
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_vs1_valid
+            if (~async_rst_ni) begin
+                state_vs1_valid_q <= 1'b0;
+            end
+            else if (~sync_rst_ni) begin
+                state_vs1_valid_q <= 1'b0;
+            end
+            else if (state_vs1_ready) begin
+                state_vs1_valid_q <= state_vreg_valid_q;
+            end
+        end
         always_ff @(posedge clk_i) begin : vproc_alu_stage_vs1
-            state_vs1_valid_q <= state_vreg_valid_q;
-            state_vs1_q       <= state_vreg_q;
-            vs1_shift_q       <= vs1_shift_d;
+            if (state_vs1_ready) begin
+                state_vs1_q <= state_vreg_q;
+                vs1_shift_q <= vs1_shift_d;
+            end
         end
+        assign state_vs1_ready = ~state_vs1_valid_q | state_vs2_ready;
 
-        always_ff @(posedge clk_i) begin : vproc_alu_stage_vs2
-            state_vs2_valid_q <= state_vs1_valid_q;
-            state_vs2_q       <= state_vs1_q;
-            vs2_shift_q       <= vs2_shift_d;
-            v0msk_shift_q     <= v0msk_shift_d;
-            vs1_tmp_q         <= vs1_tmp_d;
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_vs2_valid
+            if (~async_rst_ni) begin
+                state_vs2_valid_q <= 1'b0;
+            end
+            else if (~sync_rst_ni) begin
+                state_vs2_valid_q <= 1'b0;
+            end
+            else if (state_vs2_ready) begin
+                state_vs2_valid_q <= state_vs1_valid_q;
+            end
         end
+        always_ff @(posedge clk_i) begin : vproc_alu_stage_vs2
+            if (state_vs2_ready) begin
+                state_vs2_q   <= state_vs1_q;
+                vs2_shift_q   <= vs2_shift_d;
+                v0msk_shift_q <= v0msk_shift_d;
+                vs1_tmp_q     <= vs1_tmp_d;
+            end
+        end
+        assign state_vs2_ready = ~state_vs2_valid_q | state_ex1_ready;
 
         if (BUF_OPERANDS) begin
-            always_ff @(posedge clk_i) begin : vproc_alu_stage_ex1
-                state_ex1_valid_q <= state_vs2_valid_q;
-                state_ex1_q       <= state_vs2_q;
-                operand1_q        <= operand1_d;
-                operand2_q        <= operand2_d;
-                operand_mask_q    <= operand_mask_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_ex1_valid
+                if (~async_rst_ni) begin
+                    state_ex1_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_ex1_valid_q <= 1'b0;
+                end
+                else if (state_ex1_ready) begin
+                    state_ex1_valid_q <= state_vs2_valid_q;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_alu_stage_ex1
+                if (state_ex1_ready) begin
+                    state_ex1_q    <= state_vs2_q;
+                    operand1_q     <= operand1_d;
+                    operand2_q     <= operand2_d;
+                    operand_mask_q <= operand_mask_d;
+                end
+            end
+            assign state_ex1_ready = ~state_ex1_valid_q | state_ex2_ready;
         end else begin
             always_comb begin
                 state_ex1_valid_q = state_vs2_valid_q;
@@ -329,20 +385,34 @@ module vproc_alu #(
                 operand2_q        = operand2_d;
                 operand_mask_q    = operand_mask_d;
             end
+            assign state_ex1_ready = state_ex2_ready;
         end
 
         if (BUF_INTERMEDIATE) begin
-            always_ff @(posedge clk_i) begin : vproc_alu_stage_ex2
-                state_ex2_valid_q   <= state_ex1_valid_q;
-                state_ex2_q         <= state_ex1_q;
-                operand1_tmp_q      <= operand1_tmp_d;
-                operand2_tmp_q      <= operand2_tmp_d;
-                operand_mask_tmp_q  <= operand_mask_tmp_d;
-                sum_q               <= sum_d;
-                cmp_q               <= cmp_d;
-                satval_q            <= satval_d;
-                shift_res_q         <= shift_res_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_ex2_valid
+                if (~async_rst_ni) begin
+                    state_ex2_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_ex2_valid_q <= 1'b0;
+                end
+                else if (state_ex2_ready) begin
+                    state_ex2_valid_q <= state_ex1_valid_q;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_alu_stage_ex2
+                if (state_ex2_ready) begin
+                    state_ex2_q        <= state_ex1_q;
+                    operand1_tmp_q     <= operand1_tmp_d;
+                    operand2_tmp_q     <= operand2_tmp_d;
+                    operand_mask_tmp_q <= operand_mask_tmp_d;
+                    sum_q              <= sum_d;
+                    cmp_q              <= cmp_d;
+                    satval_q           <= satval_d;
+                    shift_res_q        <= shift_res_d;
+                end
+            end
+            assign state_ex2_ready = ~state_ex2_valid_q | state_res_ready;
         end else begin
             always_comb begin
                 state_ex2_valid_q   = state_ex1_valid_q;
@@ -355,16 +425,30 @@ module vproc_alu #(
                 satval_q            = satval_d;
                 shift_res_q         = shift_res_d;
             end
+            assign state_ex2_ready = state_res_ready;
         end
 
         if (BUF_RESULTS) begin
-            always_ff @(posedge clk_i) begin : vproc_alu_stage_res
-                state_res_valid_q <= state_ex2_valid_q;
-                state_res_q       <= state_ex2_q;
-                result_alu_q      <= result_alu_d;
-                result_cmp_q      <= result_cmp_d;
-                result_mask_q     <= result_mask_d;
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_res_valid
+                if (~async_rst_ni) begin
+                    state_res_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_res_valid_q <= 1'b0;
+                end
+                else if (state_res_ready) begin
+                    state_res_valid_q <= state_ex2_valid_q;
+                end
             end
+            always_ff @(posedge clk_i) begin : vproc_alu_stage_res
+                if (state_res_ready) begin
+                    state_res_q   <= state_ex2_q;
+                    result_alu_q  <= result_alu_d;
+                    result_cmp_q  <= result_cmp_d;
+                    result_mask_q <= result_mask_d;
+                end
+            end
+            assign state_res_ready = ~state_res_valid_q | state_vd_ready;
         end else begin
             always_comb begin
                 state_res_valid_q = state_ex2_valid_q;
@@ -373,16 +457,30 @@ module vproc_alu #(
                 result_cmp_q      = result_cmp_d;
                 result_mask_q     = result_mask_d;
             end
+            assign state_res_ready = state_vd_ready;
         end
 
-        always_ff @(posedge clk_i) begin : vproc_alu_stage_vd
-            state_vd_valid_q   <= state_res_valid_q;
-            state_vd_q         <= state_res_q;
-            vd_alu_shift_q     <= vd_alu_shift_d;
-            vdmsk_alu_shift_q  <= vdmsk_alu_shift_d;
-            vd_cmp_shift_q     <= vd_cmp_shift_d;
-            vdmsk_cmp_q        <= vdmsk_cmp_d;
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_vd_valid
+            if (~async_rst_ni) begin
+                state_vd_valid_q <= 1'b0;
+            end
+            else if (~sync_rst_ni) begin
+                state_vd_valid_q <= 1'b0;
+            end
+            else if (state_vd_ready) begin
+                state_vd_valid_q <= state_res_valid_q;
+            end
         end
+        always_ff @(posedge clk_i) begin : vproc_alu_stage_vd
+            if (state_vd_ready) begin
+                state_vd_q        <= state_res_q;
+                vd_alu_shift_q    <= vd_alu_shift_d;
+                vdmsk_alu_shift_q <= vdmsk_alu_shift_d;
+                vd_cmp_shift_q    <= vd_cmp_shift_d;
+                vdmsk_cmp_q       <= vdmsk_cmp_d;
+            end
+        end
+        assign state_vd_ready = ~state_vd_valid_q | 1'b1;
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_alu_wr_delay
