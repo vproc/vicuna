@@ -355,6 +355,7 @@ module vproc_lsu #(
     // LSU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
+    logic                       state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready,                     state_rdata_ready,   state_vd_ready;
     logic     state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_load_valid, state_rdata_valid_q, state_vd_valid_q;
     lsu_state state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q,       state_load,       state_rdata_q,       state_vd_q;
     always_comb begin
@@ -368,8 +369,8 @@ module vproc_lsu #(
         state_load.last_cycle = load_last_cycle;
         state_load.vd_store   = state_load_q.count.val[LSU_COUNTER_W-4:0] == '1;
     end
-    assign next_init = (~state_req_valid_q) | (data_req_o & data_gnt_i);
-    assign next_load = (~state_load_valid)  | data_rvalid_i;
+    assign next_init = state_vreg_ready;
+    assign next_load = (~state_load_valid) | data_rvalid_i; // TODO incorporate into stalling logic
 
     assign pending_load_o  = (state_init_valid   & ~state_init.mode.store  ) |
                              (state_vreg_valid_q & ~state_vreg_q.mode.store) |
@@ -432,22 +433,24 @@ module vproc_lsu #(
                 else if (~sync_rst_ni) begin
                     state_vreg_valid_q <= 1'b0;
                 end
-                else if (next_init) begin
+                else if (state_vreg_ready) begin
                     state_vreg_valid_q <= state_init_valid;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_vreg
-                if (next_init) begin
+                if (state_vreg_ready) begin
                     state_vreg_q <= state_init;
                     vreg_rd_q    <= vreg_rd_d;
                 end
             end
+            assign state_vreg_ready = ~state_vreg_valid_q | state_vs2_ready;
         end else begin
             always_comb begin
                 state_vreg_valid_q = state_init_valid;
                 state_vreg_q       = state_init;
                 vreg_rd_q          = vreg_rd_d;
             end
+            assign state_vreg_ready = state_vs2_ready;
         end
 
         always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs2_valid
@@ -457,16 +460,17 @@ module vproc_lsu #(
             else if (~sync_rst_ni) begin
                 state_vs2_valid_q <= 1'b0;
             end
-            else if (next_init) begin
+            else if (state_vs2_ready) begin
                 state_vs2_valid_q <= state_vreg_valid_q;
             end
         end
         always_ff @(posedge clk_i) begin : vproc_lsu_stage_vs2
-            if (next_init) begin
+            if (state_vs2_ready) begin
                 state_vs2_q <= state_vreg_q;
                 vs2_shift_q <= vs2_shift_d;
             end
         end
+        assign state_vs2_ready = ~state_vs2_valid_q | state_vs3_ready;
 
         always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs3_valid
             if (~async_rst_ni) begin
@@ -475,18 +479,19 @@ module vproc_lsu #(
             else if (~sync_rst_ni) begin
                 state_vs3_valid_q <= 1'b0;
             end
-            else if (next_init) begin
+            else if (state_vs3_ready) begin
                 state_vs3_valid_q <= state_vs2_valid_q;
             end
         end
         always_ff @(posedge clk_i) begin : vproc_lsu_stage_vs3
-            if (next_init) begin
+            if (state_vs3_ready) begin
                 state_vs3_q   <= state_vs2_q;
                 vs3_shift_q   <= vs3_shift_d;
                 v0msk_shift_q <= v0msk_shift_d;
                 vs2_tmp_q     <= vs2_tmp_d;
             end
         end
+        assign state_vs3_ready = ~state_vs3_valid_q | state_req_ready;
 
         if (BUF_REQUEST) begin
              always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_req_valid
@@ -496,12 +501,12 @@ module vproc_lsu #(
                 else if (~sync_rst_ni) begin
                     state_req_valid_q <= 1'b0;
                 end
-                else if (next_init) begin
+                else if (state_req_ready) begin
                     state_req_valid_q <= state_vs3_valid_q;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_req
-                if (next_init) begin
+                if (state_req_ready) begin
                     state_req_q <= state_vs3_q;
                     req_addr_q  <= req_addr_d;
                     wdata_buf_q <= wdata_buf_d;
@@ -509,6 +514,7 @@ module vproc_lsu #(
                     vmsk_tmp_q  <= vmsk_tmp_d;
                 end
             end
+            assign state_req_ready = ~state_req_valid_q | (data_req_o & data_gnt_i);
         end else begin
             always_comb begin
                 state_req_valid_q = state_vs3_valid_q;
@@ -518,6 +524,7 @@ module vproc_lsu #(
                 wmask_buf_q       = wmask_buf_d;
                 vmsk_tmp_q        = vmsk_tmp_d;
             end
+            assign state_req_ready = data_req_o & data_gnt_i;
         end
 
         if (BUF_RDATA) begin
@@ -737,18 +744,18 @@ module vproc_lsu #(
     // queue for storing masks and offsets until the memory system fulfills the request:
     logic lsu_queue_ready;
     vproc_queue #(
-        .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8                             ),
-        .DEPTH        ( 4                                                       )
+        .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8                                   ),
+        .DEPTH        ( 4                                                             )
     ) lsu_queue (
-        .clk_i        ( clk_i                                                   ),
-        .async_rst_ni ( async_rst_ni                                            ),
-        .sync_rst_ni  ( sync_rst_ni                                             ),
-        .enq_ready_o  ( lsu_queue_ready                                         ),
-        .enq_valid_i  ( state_req_valid_q & ~state_req_q.mode.store & next_init ),
-        .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q}          ),
-        .deq_ready_i  ( state_load_valid_q & data_rvalid_i                      ),
-        .deq_valid_o  (                                                         ),
-        .deq_data_o   ( {rdata_off_d, rmask_buf_d}                              )
+        .clk_i        ( clk_i                                                         ),
+        .async_rst_ni ( async_rst_ni                                                  ),
+        .sync_rst_ni  ( sync_rst_ni                                                   ),
+        .enq_ready_o  ( lsu_queue_ready                                               ),
+        .enq_valid_i  ( state_req_valid_q & state_req_ready & ~state_req_q.mode.store ),
+        .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q}                ),
+        .deq_ready_i  ( state_load_valid_q & data_rvalid_i                            ),
+        .deq_valid_o  (                                                               ),
+        .deq_data_o   ( {rdata_off_d, rmask_buf_d}                                    )
     );
 
     // memory request:
