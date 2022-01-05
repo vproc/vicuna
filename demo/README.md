@@ -34,15 +34,15 @@ If the desired board is not among the few supported boards, then you first need
 to create a constraint file (`*.xdc` file) which specifies the pin connections
 of your board.  Edit one of the existing `*.xdc` files in this directory and
 replace pin numbers, pin I/O standards, the clock period, and the configuration
-values with those required for your board.  Invoking the `Makefile` for a new
-board requires the part name and information about the clock.  The variable
-`PART` is used to specify the part that shall be used by Vivado.  `CLK_PER`
-specifies the clock period of the reference clock in nanoseconds and `DIFF_CLK`
-indicates whether the clock is differential or single-ended. For instance,
-after creating a constraint file called `board.xdc` for your new board which
-uses part `xc7a200tsbg484-1` and has a single-ended reference clock with a
-period of 50 ns, you may use following command to create a Vivado project for
-that board:
+voltage values with those required for your board.  Invoking the `Makefile` for
+a new board requires the part name and information about the clock.  The
+variable `PART` is used to specify the part that shall be used by Vivado.
+`CLK_PER` specifies the clock period of the reference clock in nanoseconds and
+`DIFF_CLK` indicates whether the clock is differential or single-ended.  For
+instance, after creating a constraint file called `board.xdc` for your new
+board which uses part `xc7a200tsbg484-1` and has a single-ended reference clock
+with a period of 50 ns, you may use following command to create a Vivado
+project for that board:
 ```
 make RAM_FILE=test.vmem BOARD=board PART=xc7a200tsbg484-1 CLK_PER=50 DIFF_CLK=0
 ```
