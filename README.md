@@ -56,29 +56,11 @@ command in the top directory to initialize the submodules:
 git submodule update --init --recursive
 ```
 
-### Compilation toolchain
+### Compiling programs
 
-In order to compile programs for Vicuna, you need a RISC-V compiler which
-supports the RISC-V V extension (e.g., LLVM or GCC).  Currently, this extension
-is not ratified, and thus only experimental support is available, which is not
-included in the official releases.  Therefore, one needs to compile the desired
-compilation toolchain with support for the V extension from source.
+The [`sw/`](https://github.com/vproc/vicuna/tree/main/sw) subdirectory
+contains utilities for generating programs that can be executed on Vicuna.
 
-Execute the following shell commands to compile the RISC-V GNU toolchain with
-V extension support enabled.  Note that `/desired/installation/path` should be
-replaced with the path where the toolchain should be installed.  Please refer
-to the documentation in the
-[RISC-V GNU toolchain repository](https://github.com/riscv/riscv-gnu-toolchain#prerequisites)
-for the required prerequisites for compiling the toolchain.
-
-```
-git clone https://github.com/riscv/riscv-gnu-toolchain -b rvv-intrinsic
-cd riscv-gnu-toolchain
-git submodule update --init --recursive
-mkdir build && cd build
-../configure --prefix=/desired/installation/path
-make
-```
 
 ### Simulation
 
