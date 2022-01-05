@@ -31,6 +31,9 @@ module vproc_sld #(
         input  logic [4:0]            vs2_i,
         input  logic [4:0]            vd_i,
 
+        input  logic [31:0]           vreg_pend_wr_i,
+        output logic [31:0]           vreg_pend_rd_o,
+
         output logic [31:0]           clear_rd_hazards_o,
         output logic [31:0]           clear_wr_hazards_o,
 
@@ -105,6 +108,7 @@ module vproc_sld #(
 
     logic     state_valid_q,  state_valid_d;
     sld_state state_q,        state_d;
+    logic     vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_sld_state_valid
         if (~async_rst_ni) begin
             state_valid_q <= 1'b0;
@@ -116,7 +120,8 @@ module vproc_sld #(
         end
     end
     always_ff @(posedge clk_i) begin : vproc_sld_state
-        state_q <= state_d;
+        state_q        <= state_d;
+        vreg_pend_wr_q <= vreg_pend_wr_d;
     end
 
     // in contrast to other units the last cycle is delayed by the cycles required for one VREG
@@ -173,6 +178,7 @@ module vproc_sld #(
         op_ack_o       = 1'b0;
         state_valid_d  = state_valid_q;
         state_d        = state_q;
+        vreg_pend_wr_d = vreg_pend_wr_q & vreg_pend_wr_i;
 
         if (((~state_valid_q) | (last_cycle & pipeline_ready)) & op_rdy_i) begin
             op_ack_o            = 1'b1;
@@ -214,6 +220,7 @@ module vproc_sld #(
                 state_d.count_store.val = {1'b1, {(SLD_COUNTER_W-1){1'b0}}};
                 state_d.op_shift        = '0;
             end
+            vreg_pend_wr_d = vreg_pend_wr_i;
         end
         else if (state_valid_q & pipeline_ready) begin
             state_d.count.val       = state_q.count.val + 1;
@@ -227,6 +234,28 @@ module vproc_sld #(
             end
         end
     end
+
+    logic [31:0] mask_vs2;
+    always_comb begin
+        mask_vs2 = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_q.emul)
+            EMUL_1: begin
+                mask_vs2 = 32'h1 <<  state_q.vs2;
+            end
+            EMUL_2: begin
+                mask_vs2 = 32'h3 << {state_q.vs2[4:1], 1'b0};
+            end
+            EMUL_4: begin
+                mask_vs2 = 32'h7 << {state_q.vs2[4:2], 2'b0};
+            end
+            EMUL_8: begin
+                mask_vs2 = 32'hF << {state_q.vs2[4:3], 3'b0};
+            end
+        endcase
+    end
+    assign vreg_pend_rd_o = (
+        (state_valid_q ? mask_vs2 : '0)
+    ) & ~vreg_pend_wr_q;
 
 
     ///////////////////////////////////////////////////////////////////////////

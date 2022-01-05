@@ -36,6 +36,9 @@ module vproc_alu #(
         input  logic                    vs2_vreg_i,
         input  logic [4:0]              vd_i,
 
+        input  logic [31:0]             vreg_pend_wr_i,
+        output logic [31:0]             vreg_pend_rd_o,
+
         output logic [31:0]             clear_rd_hazards_o,
         output logic [31:0]             clear_wr_hazards_o,
 
@@ -111,6 +114,7 @@ module vproc_alu #(
 
     logic     state_valid_q,  state_valid_d;
     alu_state state_q,        state_d;
+    logic     vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_state_valid
         if (~async_rst_ni) begin
             state_valid_q <= 1'b0;
@@ -122,7 +126,8 @@ module vproc_alu #(
         end
     end
     always_ff @(posedge clk_i) begin : vproc_alu_state
-        state_q <= state_d;
+        state_q        <= state_d;
+        vreg_pend_wr_q <= vreg_pend_wr_d;
     end
 
     logic last_cycle;
@@ -142,6 +147,7 @@ module vproc_alu #(
         op_ack_o       = 1'b0;
         state_valid_d  = state_valid_q;
         state_d        = state_q;
+        vreg_pend_wr_d = vreg_pend_wr_q & vreg_pend_wr_i;
 
         if (((~state_valid_q) | (last_cycle & pipeline_ready)) & op_rdy_i) begin
             op_ack_o            = 1'b1;
@@ -194,6 +200,7 @@ module vproc_alu #(
             state_d.vd         = vd_i;
             state_d.vd_narrow  = widenarrow_i == OP_NARROWING;
             state_d.vd_store   = 1'b0;
+            vreg_pend_wr_d     = vreg_pend_wr_i;
         end
         else if (state_valid_q & pipeline_ready) begin
             state_d.count.val   = state_q.count.val + 1;
@@ -224,6 +231,36 @@ module vproc_alu #(
             endcase
         end
     end
+
+    logic [31:0] mask_vs1, mask_vs2;
+    always_comb begin
+        mask_vs1 = DONT_CARE_ZERO ? '0 : 'x;
+        mask_vs2 = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_q.emul)
+            EMUL_1: begin
+                mask_vs1 = 32'h1 << state_q.rs1.r.vaddr;
+                mask_vs2 = 32'h1 << state_q.vs2;
+            end
+            // TODO clear registers that have already been read
+            // TODO handle narrow registers
+            EMUL_2: begin
+                mask_vs1 = 32'h3 << {state_q.rs1.r.vaddr[4:1], 1'b0};
+                mask_vs2 = 32'h3 << {state_q.vs2        [4:1], 1'b0};
+            end
+            EMUL_4: begin
+                mask_vs1 = 32'h7 << {state_q.rs1.r.vaddr[4:2], 2'b0};
+                mask_vs2 = 32'h7 << {state_q.vs2        [4:2], 2'b0};
+            end
+            EMUL_8: begin
+                mask_vs1 = 32'hF << {state_q.rs1.r.vaddr[4:3], 3'b0};
+                mask_vs2 = 32'hF << {state_q.vs2        [4:3], 3'b0};
+            end
+        endcase
+    end
+    assign vreg_pend_rd_o = (
+        ((state_valid_q & state_q.rs1.vreg) ? mask_vs1 : '0) |
+        ((state_valid_q & state_q.vs2_vreg) ? mask_vs2 : '0)
+    ) & ~vreg_pend_wr_q;
 
 
     ///////////////////////////////////////////////////////////////////////////

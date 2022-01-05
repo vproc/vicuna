@@ -38,6 +38,9 @@ module vproc_lsu #(
         output logic                  pending_load_o,
         output logic                  pending_store_o,
 
+        input  logic [31:0]           vreg_pend_wr_i,
+        output logic [31:0]           vreg_pend_rd_o,
+
         output logic [31:0]           clear_rd_hazards_o,
         output logic [31:0]           clear_wr_hazards_o,
 
@@ -147,6 +150,7 @@ module vproc_lsu #(
 
     logic     state_valid_q,  state_valid_d;
     lsu_state state_q,        state_d;        // addressing state
+    logic     vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_state_valid
         if (~async_rst_ni) begin
             state_valid_q <= 1'b0;
@@ -159,6 +163,7 @@ module vproc_lsu #(
     end
     always_ff @(posedge clk_i) begin : vproc_lsu_state
         state_q        <= state_d;
+        vreg_pend_wr_q <= vreg_pend_wr_d;
     end
 
     logic last_cycle;
@@ -237,6 +242,7 @@ module vproc_lsu #(
         misaligned_o   = 1'b0;
         state_valid_d  = state_valid_q;
         state_d        = state_q;
+        vreg_pend_wr_d = vreg_pend_wr_q & vreg_pend_wr_i;
 
         if (((~state_valid_q) | (last_cycle & pipeline_ready)) & op_rdy_i) begin
             op_ack_o     = 1'b1;
@@ -270,6 +276,7 @@ module vproc_lsu #(
             state_d.vs3_fetch   = mode_i.store;
             state_d.vs3_shift   = 1'b1;
             state_d.vd_store    = 1'b0;
+            vreg_pend_wr_d           = vreg_pend_wr_i;
         end else begin
             // advance address if load/store has been granted:
             if (state_valid_q & pipeline_ready) begin
@@ -303,9 +310,37 @@ module vproc_lsu #(
                 state_d.vs2_shift = (state_q.count.part.stri == '1) | (state_q.mode.stride == LSU_UNITSTRIDE);
                 state_d.vs3_shift = (state_q.count.part.stri == '1) | (state_q.mode.stride == LSU_UNITSTRIDE);
             end
-
-            end
+        end
     end
+
+    logic [31:0] mask_vs2, mask_vs3;
+    always_comb begin
+        mask_vs2 = DONT_CARE_ZERO ? '0 : 'x;
+        mask_vs3 = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_q.emul)
+            EMUL_1: begin
+                mask_vs2 = 32'h1 << state_q.rs2.r.vaddr;
+                mask_vs3 = 32'h1 << state_q.vd;
+            end
+            // TODO clear registers that have already been read
+            EMUL_2: begin
+                mask_vs2 = 32'h3 << {state_q.rs2.r.vaddr[4:1], 1'b0};
+                mask_vs3 = 32'h3 << {state_q.vd         [4:1], 1'b0};
+            end
+            EMUL_4: begin
+                mask_vs2 = 32'h7 << {state_q.rs2.r.vaddr[4:2], 2'b0};
+                mask_vs3 = 32'h7 << {state_q.vd         [4:2], 2'b0};
+            end
+            EMUL_8: begin
+                mask_vs2 = 32'hF << {state_q.rs2.r.vaddr[4:3], 3'b0};
+                mask_vs3 = 32'hF << {state_q.vd         [4:3], 3'b0};
+            end
+        endcase
+    end
+    assign vreg_pend_rd_o = (
+        ((state_valid_q & state_q.rs2.vreg  ) ? mask_vs2 : '0) |
+        ((state_valid_q & state_q.mode.store) ? mask_vs3 : '0)
+    ) & ~vreg_pend_wr_q;
 
 
     ///////////////////////////////////////////////////////////////////////////
