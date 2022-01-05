@@ -355,7 +355,7 @@ module vproc_lsu #(
     // LSU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    logic                       state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready,                     state_rdata_ready,   state_vd_ready;
+    logic                       state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready;
     logic     state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_load_valid, state_rdata_valid_q, state_vd_valid_q;
     lsu_state state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q,       state_load,       state_rdata_q,       state_vd_q;
     always_comb begin
@@ -527,19 +527,35 @@ module vproc_lsu #(
             assign state_req_ready = data_req_o & data_gnt_i;
         end
 
+        // Note: The stages receiving memory data and writing it to vector
+        // registers cannot stall, since there is no way to pause memory read
+        // data once the memory requests have been issued.  Therefore, any
+        // checks which might stall the pipeline (destination vector register
+        // available, instruction committed) must be done *before* generating
+        // the memory requests.
         if (BUF_RDATA) begin
+            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_rdata_valid
+                if (~async_rst_ni) begin
+                    state_rdata_valid_q <= 1'b0;
+                end
+                else if (~sync_rst_ni) begin
+                    state_rdata_valid_q <= 1'b0;
+                end
+                else begin
+                    state_rdata_valid_q <= data_rvalid_i & state_load_valid;
+                end
+            end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_rdata
-                if (next_load) begin
-                    state_rdata_valid_q <= state_load_valid;
-                    state_rdata_q       <= state_load;
-                    rdata_buf_q         <= rdata_buf_d;
-                    rdata_off_q         <= rdata_off_d;
-                    rmask_buf_q         <= rmask_buf_d;
+                if (data_rvalid_i & state_load_valid) begin
+                    state_rdata_q <= state_load;
+                    rdata_buf_q   <= rdata_buf_d;
+                    rdata_off_q   <= rdata_off_d;
+                    rmask_buf_q   <= rmask_buf_d;
                 end
             end
         end else begin
             always_comb begin
-                state_rdata_valid_q = state_load_valid;
+                state_rdata_valid_q = data_rvalid_i & state_load_valid;
                 state_rdata_q       = state_load;
                 rdata_buf_q         = rdata_buf_d;
                 rdata_off_q         = rdata_off_d;
@@ -547,12 +563,22 @@ module vproc_lsu #(
             end
         end
 
-        always_ff @(posedge clk_i) begin : vproc_lsu_stage_vd
-            if (next_load) begin
+        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vd_valid
+            if (~async_rst_ni) begin
+                state_vd_valid_q <= 1'b0;
+            end
+            else if (~sync_rst_ni) begin
+                state_vd_valid_q <= 1'b0;
+            end
+            else begin
                 state_vd_valid_q <= state_rdata_valid_q;
-                state_vd_q       <= state_rdata_q;
-                vd_shift_q       <= vd_shift_d;
-                vdmsk_shift_q    <= vdmsk_shift_d;
+            end
+        end
+        always_ff @(posedge clk_i) begin : vproc_lsu_stage_vd
+            if (state_rdata_valid_q) begin
+                state_vd_q    <= state_rdata_q;
+                vd_shift_q    <= vd_shift_d;
+                vdmsk_shift_q <= vdmsk_shift_d;
             end
         end
 
@@ -801,7 +827,7 @@ module vproc_lsu #(
     end
 
     //
-    assign vreg_wr_en_d   = state_vd_valid_q & state_vd_q.vd_store & next_load;
+    assign vreg_wr_en_d   = state_vd_valid_q & state_vd_q.vd_store;
     assign vreg_wr_addr_d = state_vd_q.vd;
     assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d      = vd_shift_q;
