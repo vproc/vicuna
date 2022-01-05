@@ -135,30 +135,30 @@ module vproc_lsu #(
     // Initializing 'data' at the start instead of deriving it from e.g. 'req' allows memory requests
     // to continue while still waiting for read data (for memories that are capable of pipelining loads).
 
-    logic     state_init_valid_q, state_init_valid_d;
-    lsu_state state_init_q,       state_init_d;       // addressing state
+    logic     state_valid_q,  state_valid_d;
+    lsu_state state_q,        state_d;        // addressing state
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_state_valid
         if (~async_rst_ni) begin
-            state_init_valid_q <= 1'b0;
+            state_valid_q <= 1'b0;
         end
         else if (~sync_rst_ni) begin
-            state_init_valid_q <= 1'b0;
+            state_valid_q <= 1'b0;
         end else begin
-            state_init_valid_q <= state_init_valid_d;
+            state_valid_q <= state_valid_d;
         end
     end
     always_ff @(posedge clk_i) begin : vproc_lsu_state
-        state_init_q <= state_init_d;
+        state_q        <= state_d;
     end
 
-    logic init_last_cycle;
+    logic last_cycle;
     always_comb begin
-        init_last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
-        unique case (state_init_q.emul)
-            EMUL_1: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-4:0] == '1;
-            EMUL_2: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-3:0] == '1;
-            EMUL_4: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-2:0] == '1;
-            EMUL_8: init_last_cycle = state_init_q.count.val[LSU_COUNTER_W-1:0] == '1;
+        last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        unique case (state_q.emul)
+            EMUL_1: last_cycle = state_q.count.val[LSU_COUNTER_W-4:0] == '1;
+            EMUL_2: last_cycle = state_q.count.val[LSU_COUNTER_W-3:0] == '1;
+            EMUL_4: last_cycle = state_q.count.val[LSU_COUNTER_W-2:0] == '1;
+            EMUL_8: last_cycle = state_q.count.val[LSU_COUNTER_W-1:0] == '1;
             default: ;
         endcase
     end
@@ -221,77 +221,77 @@ module vproc_lsu #(
         endcase
     end
 
-    logic next_init; // advance init state
+    logic pipeline_ready;
     always_comb begin
-        op_ack_o           = 1'b0;
-        misaligned_o       = 1'b0;
-        state_init_valid_d = state_init_valid_q;
-        state_init_d       = state_init_q;
+        op_ack_o       = 1'b0;
+        misaligned_o   = 1'b0;
+        state_valid_d  = state_valid_q;
+        state_d        = state_q;
 
-        if (((~state_init_valid_q) | (init_last_cycle & next_init)) & op_rdy_i) begin
+        if (((~state_valid_q) | (last_cycle & pipeline_ready)) & op_rdy_i) begin
             op_ack_o     = 1'b1;
             misaligned_o = (rs1_val_i[$clog2(VMEM_W/8)-1:0] != '0); // |
                            //((mode_q.stride == LSU_STRIDED) & (rs2_i.r.xval[]));
-            state_init_d.count.val = '0;
+            state_d.count.val = '0;
             if (mode_i.stride == LSU_UNITSTRIDE) begin
-                state_init_d.count.part.stri = '1;
+                state_d.count.part.stri = '1;
             end else begin
                 unique case (mode_i.eew)
                     VSEW_16: begin
-                        state_init_d.count.part.stri = 1;
+                        state_d.count.part.stri = 1;
                     end
                     VSEW_32: begin
-                        state_init_d.count.part.stri = 3;
+                        state_d.count.part.stri = 3;
                     end
                     default: ;
                 endcase
             end
-            state_init_valid_d       = 1'b1;
-            state_init_d.first_cycle = 1'b1;
-            state_init_d.mode        = mode_i;
-            state_init_d.emul        = emul;
-            state_init_d.vl          = vl;
-            state_init_d.vl_0        = vl_0_i;
-            state_init_d.base_addr   = rs1_val_i[31:0];
-            state_init_d.rs2         = rs2_i;
-            state_init_d.vs2_fetch   = rs2_i.vreg;
-            state_init_d.vd          = vd_i;
-            state_load_d.vd          = vd_i;
-            state_init_d.vs3_fetch   = mode_i.store;
-            state_init_d.vd_store    = 1'b0;
-            state_load_d.vd_store    = 1'b0;
+            state_valid_d       = 1'b1;
+            state_d.first_cycle = 1'b1;
+            state_d.mode        = mode_i;
+            state_d.emul        = emul;
+            state_d.vl          = vl;
+            state_d.vl_0        = vl_0_i;
+            state_d.base_addr   = rs1_val_i[31:0];
+            state_d.rs2         = rs2_i;
+            state_d.vs2_fetch   = rs2_i.vreg;
+            state_d.vs2_shift   = 1'b1;
+            state_d.vd          = vd_i;
+            state_d.vs3_fetch   = mode_i.store;
+            state_d.vs3_shift   = 1'b1;
+            state_d.vd_store    = 1'b0;
         end else begin
             // advance address if load/store has been granted:
-            if (state_init_valid_q & next_init) begin
-                if (state_init_q.mode.stride == LSU_UNITSTRIDE) begin
-                    state_init_d.count.val = state_init_q.count.val + (1 << LSU_STRI_COUNTER_EXT_W);
+            if (state_valid_q & pipeline_ready) begin
+                if (state_q.mode.stride == LSU_UNITSTRIDE) begin
+                    state_d.count.val = state_q.count.val + (1 << LSU_STRI_COUNTER_EXT_W);
                 end else begin
-                    unique case (state_init_q.mode.eew)
-                        VSEW_8:  state_init_d.count.val = state_init_q.count.val + 1;
-                        VSEW_16: state_init_d.count.val = state_init_q.count.val + 2;
-                        VSEW_32: state_init_d.count.val = state_init_q.count.val + 4;
+                    unique case (state_q.mode.eew)
+                        VSEW_8:  state_d.count.val = state_q.count.val + 1;
+                        VSEW_16: state_d.count.val = state_q.count.val + 2;
+                        VSEW_32: state_d.count.val = state_q.count.val + 4;
                         default: ;
                     endcase
                 end
-                state_init_valid_d       = ~init_last_cycle;
-                state_init_d.first_cycle = 1'b0;
-                unique case (state_init_q.mode.stride)
-                    LSU_UNITSTRIDE: state_init_d.base_addr = state_init_q.base_addr + (VMEM_W / 8);
-                    LSU_STRIDED:    state_init_d.base_addr = state_init_q.base_addr + state_init_q.rs2.r.xval;
+                state_valid_d       = ~last_cycle;
+                state_d.first_cycle = 1'b0;
+                unique case (state_q.mode.stride)
+                    LSU_UNITSTRIDE: state_d.base_addr = state_q.base_addr + (VMEM_W / 8);
+                    LSU_STRIDED:    state_d.base_addr = state_q.base_addr + state_q.rs2.r.xval;
                     default: ; // for indexed loads the base address stays the same
                 endcase
-                state_init_d.vs2_fetch = 1'b0;
-                state_init_d.vs3_fetch = 1'b0;
-                if (state_init_q.count.val[LSU_COUNTER_W-4:0] == '1) begin
-                    if (state_init_q.rs2.vreg) begin
-                        state_init_d.rs2.r.vaddr[2:0] = state_init_q.rs2.r.vaddr[2:0] + 3'b1;
-                        state_init_d.vs2_fetch        = state_init_q.rs2.vreg;
+                state_d.vs2_fetch = 1'b0;
+                state_d.vs3_fetch = 1'b0;
+                if (state_q.count.val[LSU_COUNTER_W-4:0] == '1) begin
+                    if (state_q.rs2.vreg) begin
+                        state_d.rs2.r.vaddr[2:0] = state_q.rs2.r.vaddr[2:0] + 3'b1;
+                        state_d.vs2_fetch        = state_q.rs2.vreg;
                     end
-                    state_init_d.vd[2:0]   = state_init_q.vd[2:0] + 3'b1;
-                    state_init_d.vs3_fetch = state_init_q.mode.store;
+                    state_d.vd[2:0]   = state_q.vd[2:0] + 3'b1;
+                    state_d.vs3_fetch = state_q.mode.store;
                 end
-                state_init_d.vs2_shift = (state_init_q.count.part.stri == '1) | (state_init_q.mode.stride == LSU_UNITSTRIDE);
-                state_init_d.vs3_shift = (state_init_q.count.part.stri == '1) | (state_init_q.mode.stride == LSU_UNITSTRIDE);
+                state_d.vs2_shift = (state_q.count.part.stri == '1) | (state_q.mode.stride == LSU_UNITSTRIDE);
+                state_d.vs3_shift = (state_q.count.part.stri == '1) | (state_q.mode.stride == LSU_UNITSTRIDE);
             end
 
             end
@@ -307,12 +307,12 @@ module vproc_lsu #(
     lsu_state state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q,       state_rdata_q,       state_vd_q;
     lsu_state state_rdata_d;
     always_comb begin
-        state_init_valid      = state_init_valid_q;
-        state_init            = state_init_q;
-        state_init.last_cycle = state_init_valid_q & init_last_cycle;
-        state_init.vd_store   = state_init_q.count.val[LSU_COUNTER_W-4:0] == '1;
+        state_init_valid      = state_valid_q;
+        state_init            = state_q;
+        state_init.last_cycle = state_valid_q & last_cycle;
+        state_init.vd_store   = state_q.count.val[LSU_COUNTER_W-4:0] == '1;
     end
-    assign next_init = state_vreg_ready;
+    assign pipeline_ready = state_vreg_ready;
 
     assign pending_load_o  = (state_init_valid   & ~state_init.mode.store  ) |
                              (state_vreg_valid_q & ~state_vreg_q.mode.store) |
