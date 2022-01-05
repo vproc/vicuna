@@ -112,9 +112,9 @@ module vproc_alu #(
         logic                vd_store;
     } alu_state;
 
-    logic     state_valid_q,  state_valid_d;
-    alu_state state_q,        state_d;
-    logic     vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
+    logic        state_valid_q,  state_valid_d;
+    alu_state    state_q,        state_d;
+    logic [31:0] vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_state_valid
         if (~async_rst_ni) begin
             state_valid_q <= 1'b0;
@@ -255,6 +255,7 @@ module vproc_alu #(
                 mask_vs1 = 32'hF << {state_q.rs1.r.vaddr[4:3], 3'b0};
                 mask_vs2 = 32'hF << {state_q.vs2        [4:3], 3'b0};
             end
+            default: ;
         endcase
     end
     assign vreg_pend_rd_o = (

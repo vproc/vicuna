@@ -148,9 +148,9 @@ module vproc_lsu #(
     // Initializing 'data' at the start instead of deriving it from e.g. 'req' allows memory requests
     // to continue while still waiting for read data (for memories that are capable of pipelining loads).
 
-    logic     state_valid_q,  state_valid_d;
-    lsu_state state_q,        state_d;        // addressing state
-    logic     vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
+    logic        state_valid_q,  state_valid_d;
+    lsu_state    state_q,        state_d;        // addressing state
+    logic [31:0] vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_state_valid
         if (~async_rst_ni) begin
             state_valid_q <= 1'b0;
@@ -335,6 +335,7 @@ module vproc_lsu #(
                 mask_vs2 = 32'hF << {state_q.rs2.r.vaddr[4:3], 3'b0};
                 mask_vs3 = 32'hF << {state_q.vd         [4:3], 3'b0};
             end
+            default: ;
         endcase
     end
     assign vreg_pend_rd_o = (
