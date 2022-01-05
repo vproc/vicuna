@@ -9,8 +9,9 @@
 GEN_DEMO_TCL := gen_demo.tcl
 GET_PERF_TCL := get_max_clk.tcl
 
-# core directory
-CORE_DIR ?= ../ibex/
+# select the core to use as main processor (defaults to Ibex)
+CORE     ?= ibex
+CORE_DIR := ../$(CORE)/
 
 # board and associated part, constraints file and clock info
 BOARD  ?= nexysvideo
