@@ -294,7 +294,7 @@ module vproc_sld #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_sld_stage_vreg
-                if (state_vreg_ready) begin
+                if (state_vreg_ready & state_init_valid) begin
                     state_vreg_q <= state_init;
                     vreg_rd_q    <= vreg_rd_d;
                 end
@@ -321,7 +321,7 @@ module vproc_sld #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_sld_stage_vs
-            if (state_vs_ready) begin
+            if (state_vs_ready & state_vreg_valid_q) begin
                 state_vs_q  <= state_vreg_q;
                 vs2_shift_q <= vs2_shift_d;
                 vs2_tmp_q   <= vs2_tmp_d;
@@ -343,7 +343,7 @@ module vproc_sld #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_sld_stage_ex
-                if (state_ex_ready) begin
+                if (state_ex_ready & state_vs_valid_q) begin
                     state_ex_q     <= state_vs_q;
                     operand_low_q  <= operand_low_d;
                     operand_high_q <= operand_high_d;
@@ -375,7 +375,7 @@ module vproc_sld #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_sld_stage_res
-                if (state_res_ready) begin
+                if (state_res_ready & state_ex_valid_q) begin
                     state_res_q   <= state_ex_q;
                     result_q      <= result_d;
                     result_mask_q <= result_mask_d;
@@ -406,7 +406,7 @@ module vproc_sld #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_sld_stage_vd
-            if (state_vd_ready) begin
+            if (state_vd_ready & state_res_valid_q) begin
                 state_vd_q     <= state_res_q;
                 vd_shift_q     <= vd_shift_d;
                 vdmsk_shift_q  <= vdmsk_shift_d;

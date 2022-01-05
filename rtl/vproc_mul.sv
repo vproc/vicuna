@@ -292,7 +292,7 @@ module vproc_mul #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_mul_stage_vreg
-                if (state_vreg_ready) begin
+                if (state_vreg_ready & state_init_valid) begin
                     state_vreg_q <= state_init;
                     vreg_rd_q    <= vreg_rd_d;
                 end
@@ -319,7 +319,7 @@ module vproc_mul #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_mul_stage_vs1
-            if (state_vs1_ready) begin
+            if (state_vs1_ready & state_vreg_valid_q) begin
                 state_vs1_q <= state_vreg_q;
                 vs1_shift_q <= vs1_shift_d;
             end
@@ -338,7 +338,7 @@ module vproc_mul #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_mul_stage_vs2
-            if (state_vs2_ready) begin
+            if (state_vs2_ready & state_vs1_valid_q) begin
                 state_vs2_q   <= state_vs1_q;
                 vs2_shift_q   <= vs2_shift_d;
                 vs3_shift_q   <= vs3_shift_d;
@@ -361,7 +361,7 @@ module vproc_mul #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_mul_stage_ex1
-                if (state_ex1_ready) begin
+                if (state_ex1_ready & state_vs2_valid_q) begin
                     state_ex1_q    <= state_vs2_q;
                     operand1_q     <= operand1_d;
                     operand2_q     <= operand2_d;
@@ -395,7 +395,7 @@ module vproc_mul #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_mul_stage_ex2
-                if (state_ex2_ready) begin
+                if (state_ex2_ready & state_ex1_valid_q) begin
                     state_ex2_q    <= state_ex1_q;
                     accumulator2_q <= accumulator2_d;
                     result_mask1_q <= result_mask1_d;
@@ -425,7 +425,7 @@ module vproc_mul #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_mul_stage_ex3
-                if (state_ex3_ready) begin
+                if (state_ex3_ready & state_ex2_valid_q) begin
                     state_ex3_q    <= state_ex2_q;
                     result_mask2_q <= result_mask2_d;
                 end
@@ -453,7 +453,7 @@ module vproc_mul #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_mul_stage_res
-                if (state_res_ready) begin
+                if (state_res_ready & state_ex3_valid_q) begin
                     state_res_q    <= state_ex3_q;
                     result_q       <= result_d;
                     result_mask3_q <= result_mask3_d;
@@ -482,7 +482,7 @@ module vproc_mul #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_mul_stage_vd
-            if (state_vd_ready) begin
+            if (state_vd_ready & state_res_valid_q) begin
                 state_vd_q    <= state_res_q;
                 vd_shift_q    <= vd_shift_d;
                 vdmsk_shift_q <= vdmsk_shift_d;

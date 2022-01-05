@@ -331,7 +331,7 @@ module vproc_elem #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_elem_stage_vreg
-                if (state_vreg_ready) begin
+                if (state_vreg_ready & state_init_valid) begin
                     state_vreg_q <= state_init;
                     vreg_rd_q    <= vreg_rd_d;
                 end
@@ -358,7 +358,7 @@ module vproc_elem #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_elem_stage_vs1
-            if (state_vs1_ready) begin
+            if (state_vs1_ready & state_vreg_valid_q) begin
                 state_vs1_q <= state_vreg_q;
                 vs1_shift_q <= vs1_shift_d;
             end
@@ -377,7 +377,7 @@ module vproc_elem #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_elem_stage_vsm
-            if (state_vsm_ready) begin
+            if (state_vsm_ready & state_vs1_valid_q) begin
                 state_vsm_q <= state_vs1_q;
                 vs1_tmp_q   <= vs1_tmp_d;
                 vsm_shift_q <= vsm_shift_d;
@@ -398,7 +398,7 @@ module vproc_elem #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_elem_stage_gather
-                if (state_gather_ready) begin
+                if (state_gather_ready & state_vsm_valid_q) begin
                     state_gather_q <= state_vsm_q;
                     elem_tmp_q     <= elem_tmp_d;
                     mask_tmp_q     <= mask_tmp_d;
@@ -429,7 +429,7 @@ module vproc_elem #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_elem_stage_ex
-            if (state_ex_ready) begin
+            if (state_ex_ready & state_gather_valid_q) begin
                 state_ex_q       <= state_gather_q;
                 elem_q           <= elem_d;
                 elem_idx_valid_q <= elem_idx_valid_d;
@@ -454,7 +454,7 @@ module vproc_elem #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_elem_stage_res
-                if (state_res_ready) begin
+                if (state_res_ready & state_ex_valid_q) begin
                     state_res_q    <= state_ex_q;
                     result_q       <= result_d;
                     result_mask_q  <= result_mask_d;
@@ -485,7 +485,7 @@ module vproc_elem #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_elem_stage_vd
-            if (state_vd_ready) begin
+            if (state_vd_ready & state_res_valid_q) begin
                 state_vd_q             <= state_res_q;
                 state_vd_q.count_store <= count_store_d;
                 state_vd_q.vd_store    <= vd_store_d;

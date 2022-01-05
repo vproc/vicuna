@@ -390,7 +390,7 @@ module vproc_lsu #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_vreg
-                if (state_vreg_ready) begin
+                if (state_vreg_ready & state_init_valid) begin
                     state_vreg_q <= state_init;
                     vreg_rd_q    <= vreg_rd_d;
                 end
@@ -417,7 +417,7 @@ module vproc_lsu #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_lsu_stage_vs2
-            if (state_vs2_ready) begin
+            if (state_vs2_ready & state_vreg_valid_q) begin
                 state_vs2_q <= state_vreg_q;
                 vs2_shift_q <= vs2_shift_d;
             end
@@ -436,7 +436,7 @@ module vproc_lsu #(
             end
         end
         always_ff @(posedge clk_i) begin : vproc_lsu_stage_vs3
-            if (state_vs3_ready) begin
+            if (state_vs3_ready & state_vs2_valid_q) begin
                 state_vs3_q   <= state_vs2_q;
                 vs3_shift_q   <= vs3_shift_d;
                 v0msk_shift_q <= v0msk_shift_d;
@@ -458,7 +458,7 @@ module vproc_lsu #(
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_req
-                if (state_req_ready) begin
+                if (state_req_ready & state_vs3_valid_q) begin
                     state_req_q <= state_vs3_q;
                     req_addr_q  <= req_addr_d;
                     wdata_buf_q <= wdata_buf_d;
