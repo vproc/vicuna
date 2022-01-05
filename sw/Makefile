@@ -14,14 +14,16 @@ RISCV_OBCP := riscv32-unknown-elf-objcopy
 
 LD_SCRIPT := $(SW_DIR)/link.ld
 
-CFLAGS = -march=rv32imv -mabi=ilp32 -static -mcmodel=medany                   \
-         -fvisibility=hidden -nostdlib -nostartfiles -Wall
+RISCV_FLAGS := -march=rv32imv -mabi=ilp32 -static -mcmodel=medany             \
+               -fvisibility=hidden -nostdlib -nostartfiles -Wall
+
+CFLAGS := $(CFLAGS) -I$(SW_DIR)/lib/
 
 PROG ?= test
 OBJ  ?= test.o
 
 # add crt0 to object files
-RISCV_OBJ := $(SW_DIR)/crt0.o $(OBJ)
+RISCV_OBJ := $(SW_DIR)/crt0.o $(OBJ) $(SW_DIR)/lib/uart.o
 
 all: $(PROG).vmem
 
@@ -29,13 +31,13 @@ dump: $(PROG).elf
 	$(RISCV_DUMP) -D $<
 
 $(PROG).elf: $(RISCV_OBJ) $(LD_SCRIPT)
-	$(RISCV_CC) $(CFLAGS) -T $(LD_SCRIPT) $(RISCV_OBJ) -o $@
+	$(RISCV_CC) $(RISCV_FLAGS) -T $(LD_SCRIPT) $(LDFLAGS) $(RISCV_OBJ) -o $@
 
 %.o: %.c
-	$(RISCV_CC) $(CFLAGS) -c -o $@ $<
+	$(RISCV_CC) $(RISCV_FLAGS) $(CFLAGS) -c -o $@ $<
 
 %.o: %.S
-	$(RISCV_CC) $(CFLAGS) -c -o $@ $<
+	$(RISCV_CC) $(RISCV_FLAGS) $(ASFLAGS) -c -o $@ $<
 
 # currently unusable due to problems with byte order
 # (see https://github.com/riscv/riscv-tools/issues/168#issuecomment-554973539)
