@@ -121,6 +121,16 @@ module vproc_lsu #(
         logic                vd_store;
     } lsu_state;
 
+    // reduced LSU state for passing through the queue
+    typedef struct packed {
+        lsu_counter          count;
+        op_mode_lsu          mode;
+        logic [CFG_VL_W-1:0] vl;
+        logic                vl_0;
+        logic [4:0]          vd;
+        logic                vd_store;
+    } lsu_state_red;
+
     // LSU STATES:
     // the LSU has 5 states that keep track of the states of the various
     // pipeline stages:
@@ -302,10 +312,10 @@ module vproc_lsu #(
     // LSU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    logic                       state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready;
-    logic     state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_rdata_valid_q, state_vd_valid_q;
-    lsu_state state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q,       state_rdata_q,       state_vd_q;
-    lsu_state state_rdata_d;
+    logic                           state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready;
+    logic         state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_rdata_valid_q, state_vd_valid_q;
+    lsu_state     state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q;
+    lsu_state_red state_rdata_d,    state_rdata_q,      state_vd_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
@@ -710,9 +720,10 @@ module vproc_lsu #(
     end
 
     // queue for storing masks and offsets until the memory system fulfills the request:
-    logic lsu_queue_ready;
+    logic         lsu_queue_ready;
+    lsu_state_red state_req_red;
     vproc_queue #(
-        .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state)                ),
+        .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
         .DEPTH        ( 4                                                             )
     ) lsu_queue (
         .clk_i        ( clk_i                                                         ),
@@ -720,11 +731,20 @@ module vproc_lsu #(
         .sync_rst_ni  ( sync_rst_ni                                                   ),
         .enq_ready_o  ( lsu_queue_ready                                               ),
         .enq_valid_i  ( state_req_valid_q & state_req_ready & ~state_req_q.mode.store ),
-        .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_q}   ),
+        .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
         .deq_ready_i  ( data_rvalid_i                                                 ),
         .deq_valid_o  (                                                               ),
         .deq_data_o   ( {rdata_off_d, rmask_buf_d, state_rdata_d}                     )
     );
+    always_comb begin
+        state_req_red          = DONT_CARE_ZERO ? '0 : 'x;
+        state_req_red.count    = state_req_q.count;
+        state_req_red.mode     = state_req_q.mode;
+        state_req_red.vl       = state_req_q.vl;
+        state_req_red.vl_0     = state_req_q.vl_0;
+        state_req_red.vd       = state_req_q.vd;
+        state_req_red.vd_store = state_req_q.vd_store;
+    end
 
     // memory request:
     assign data_addr_o  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
