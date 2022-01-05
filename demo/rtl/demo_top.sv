@@ -4,12 +4,13 @@
 
 
 module demo_top #(
-        parameter              RAM_FPATH  = "",
-        parameter int unsigned RAM_SIZE   = 262144,
-        parameter bit          DIFF_CLK   = 1'b0,
-        parameter real         SYSCLK_PER = 0.0,
-        parameter int unsigned PLL_MUL    = 10,
-        parameter int unsigned PLL_DIV    = 20
+        parameter              RAM_FPATH      = "",
+        parameter int unsigned RAM_SIZE       = 262144,
+        parameter bit          DIFF_CLK       = 1'b0,
+        parameter real         SYSCLK_PER     = 0.0,
+        parameter int unsigned PLL_MUL        = 10,
+        parameter int unsigned PLL_DIV        = 20,
+        parameter int unsigned UART_BAUD_RATE = 115200
     )
     (
         input  logic sys_clk_pi,
@@ -128,7 +129,7 @@ module demo_top #(
 
     hwreg_iface #(
         .CLK_FREQ       ( CLK_FREQ                                ),
-        .UART_BAUD_RATE ( 115200                                  )
+        .UART_BAUD_RATE ( UART_BAUD_RATE                          )
     ) hwregs (
         .clk_i          ( clk                                     ),
         .rst_ni         ( rst_n                                   ),
