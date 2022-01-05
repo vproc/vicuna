@@ -83,6 +83,9 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	done;                                                                     \
 	retval=0;                                                                 \
 	while IFS= read -ra line; do                                              \
+	    if [[ "$$line" == "" ]] || [[ "$$line" == \#* ]]; then                \
+	        continue;                                                         \
+	    fi;                                                                   \
 	    echo "[CONFIG ] $@ $$line";                                           \
 	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) $$line               \
 	        PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR)                    \
