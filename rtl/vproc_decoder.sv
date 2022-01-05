@@ -1214,6 +1214,9 @@ module vproc_decoder #(
     end
 
 
+    // TODO find a better way to check register addresses that includes checks
+    // for vector loads and stores with EEW != SEW
+
     // address masks (lower bits that must be 0) for registers based on EMUL:
     logic [2:0] regaddr_mask, regaddr_mask_wide;
     always_comb begin
