@@ -61,6 +61,9 @@ verilator:
 	if [[ "$(TRACE_VCD)" != "" ]]; then                                       \
 	    trace="--trace";                                                      \
 	    cflags="-CFLAGS -DTRACE_VCD";                                         \
+	elif [[ "$(TRACE_FST)" != "" ]]; then                                     \
+	    trace="--trace-fst";                                                  \
+	    cflags="-CFLAGS -DTRACE_FST";                                         \
 	fi;                                                                       \
 	version=`verilator --version | awk '{print $$2}'`;                        \
 	if [ `printf '4.210\n%s\n' "$$version" | sort -V | head -n1` = "4.210" ]; \
@@ -99,6 +102,6 @@ verilator:
 	    exit 1;                                                               \
 	fi;                                                                       \
 	make -C $(PROJ_DIR)/obj_dir -f Vvproc_top.mk Vvproc_top;                  \
-	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST))              \
-	    $(MEM_W) $(MEM_SZ) $(MEM_LATENCY)  $$(($(VREG_W) * 2))                \
-	    $(abspath $(TRACE_FILE)) $(abspath $(TRACE_VCD))
+	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST)) $(MEM_W)     \
+	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(abspath $(TRACE_FILE)) \
+	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))

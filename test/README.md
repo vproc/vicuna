@@ -53,10 +53,12 @@ Run the LSU tests using the `xsim` simulator (part of the Xilinx Vivado suite):
 $ make lsu SIMULATOR=vivado
 ```
 
-**Verilator only**:  Run all tests and generate a VCD trace file for each test
-set in the respective subdirectory:
+**Verilator only**:  Run all tests and generate a VCD trace file by using the
+variable `TRACE_VCD` or a FST trace file by using the variable `TRACE_FST` for
+each test set in the respective subdirectory:
 ```
 $ make TRACE_VCD=trace.vcd
+$ make TRACE_FST=trace.fst
 ```
 
 

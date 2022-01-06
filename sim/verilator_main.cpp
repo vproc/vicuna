@@ -7,7 +7,18 @@
 #include <stdint.h>
 #include "Vvproc_top.h"
 #include "verilated.h"
+
+#ifdef TRACE_VCD
 #include "verilated_vcd_c.h"
+typedef VerilatedVcdC VerilatedTrace_t;
+#else
+#ifdef TRACE_FST
+#include "verilated_fst_c.h"
+typedef VerilatedFstC VerilatedTrace_t;
+#else
+typedef int VerilatedTrace_t;
+#endif
+#endif
 
 // Verilator 4.210 or newer inserts extra class for accessing signals
 #ifdef VERILATOR_4_210
@@ -17,7 +28,7 @@
 #define SIGNALS_ROOT top
 #endif
 
-static void log_cycle(Vvproc_top *top, VerilatedVcdC* tfp, FILE *fcsv);
+static void log_cycle(Vvproc_top *top, VerilatedTrace_t *tfp, FILE *fcsv);
 
 int main(int argc, char **argv) {
     if (argc != 7 && argc != 8) {
@@ -76,10 +87,10 @@ int main(int argc, char **argv) {
     int64_t *mem_err_queue    = (int64_t *)malloc(sizeof(int64_t) * mem_latency);
 
     Vvproc_top *top = new Vvproc_top;
-    VerilatedVcdC* tfp = NULL;
-#ifdef TRACE_VCD
+    VerilatedTrace_t *tfp = NULL;
+#if defined(TRACE_VCD) || defined(TRACE_FST)
     if (argc == 8) {
-        tfp = new VerilatedVcdC;
+        tfp = new VerilatedTrace_t;
         top->trace(tfp, 99);  // Trace 99 levels of hierarchy
         tfp->open(argv[7]);
     }
@@ -219,7 +230,7 @@ int main(int argc, char **argv) {
         }
     }
 
-#ifdef TRACE_VCD
+#if defined(TRACE_VCD) || defined(TRACE_FST)
     if (tfp != NULL)
         tfp->close();
 #endif
@@ -242,14 +253,14 @@ double sc_time_stamp() {
     return main_time;
 }
 
-static void log_cycle(Vvproc_top *top, VerilatedVcdC* tfp, FILE *fcsv) {
+static void log_cycle(Vvproc_top *top, VerilatedTrace_t *tfp, FILE *fcsv) {
     fprintf(fcsv, "%d;%d;%08X;%08X;%08X;'{XX,'{X,X,X}},%d,X,'{X,X,X,X,X},X,XX,X,XXXXXXXX,'{X,'{XX,XXXXXXXX}},XX;\n",
             top->rst_ni, top->mem_req_o, top->mem_addr_o,
             SIGNALS_ROOT->vproc_top__DOT__v_core__DOT__vreg_rd_hazard_map_q,
             SIGNALS_ROOT->vproc_top__DOT__v_core__DOT__vreg_wr_hazard_map_q,
             0);
     main_time++;
-#ifdef TRACE_VCD
+#if defined(TRACE_VCD) || defined(TRACE_FST)
     if (tfp != NULL)
         tfp->dump(main_time);
 #endif
