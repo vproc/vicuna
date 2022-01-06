@@ -235,29 +235,6 @@ module vproc_sld #(
         end
     end
 
-    logic [31:0] mask_vs2;
-    always_comb begin
-        mask_vs2 = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_q.emul)
-            EMUL_1: begin
-                mask_vs2 = 32'h1 <<  state_q.vs2;
-            end
-            EMUL_2: begin
-                mask_vs2 = 32'h3 << {state_q.vs2[4:1], 1'b0};
-            end
-            EMUL_4: begin
-                mask_vs2 = 32'h7 << {state_q.vs2[4:2], 2'b0};
-            end
-            EMUL_8: begin
-                mask_vs2 = 32'hF << {state_q.vs2[4:3], 3'b0};
-            end
-            default: ;
-        endcase
-    end
-    assign vreg_pend_rd_o = (
-        (state_valid_q ? mask_vs2 : '0)
-    ) & ~vreg_pend_wr_q;
-
 
     ///////////////////////////////////////////////////////////////////////////
     // SLD PIPELINE BUFFERS:
@@ -522,6 +499,24 @@ module vproc_sld #(
         {31'b0, state_init.mode.masked & state_init.first_cycle}
     ) : 32'b0;
     assign clear_rd_hazards_o = clear_rd_hazards_q;
+
+    // pending vreg reads
+    // Note: The pipeline might stall while reading a vreg, hence a vreg has to
+    // be part of the pending reads until the read is complete.
+    logic [31:0] pend_vs2;
+    always_comb begin
+        pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_init.emul)
+            EMUL_1: pend_vs2 = 32'h01 <<  state_init.vs2;
+            EMUL_2: pend_vs2 = 32'h03 << {state_init.vs2[4:1], 1'b0};
+            EMUL_4: pend_vs2 = 32'h0F << {state_init.vs2[4:2], 2'b0};
+            EMUL_8: pend_vs2 = 32'hFF << {state_init.vs2[4:3], 3'b0};
+            default: ;
+        endcase
+    end
+    assign vreg_pend_rd_o = (
+        (state_init_valid ? pend_vs2 : '0)
+    ) & ~vreg_pend_wr_q;
 
 
     ///////////////////////////////////////////////////////////////////////////

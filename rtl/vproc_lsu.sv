@@ -313,36 +313,6 @@ module vproc_lsu #(
         end
     end
 
-    logic [31:0] mask_vs2, mask_vs3;
-    always_comb begin
-        mask_vs2 = DONT_CARE_ZERO ? '0 : 'x;
-        mask_vs3 = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_q.emul)
-            EMUL_1: begin
-                mask_vs2 = 32'h1 << state_q.rs2.r.vaddr;
-                mask_vs3 = 32'h1 << state_q.vd;
-            end
-            // TODO clear registers that have already been read
-            EMUL_2: begin
-                mask_vs2 = 32'h3 << {state_q.rs2.r.vaddr[4:1], 1'b0};
-                mask_vs3 = 32'h3 << {state_q.vd         [4:1], 1'b0};
-            end
-            EMUL_4: begin
-                mask_vs2 = 32'h7 << {state_q.rs2.r.vaddr[4:2], 2'b0};
-                mask_vs3 = 32'h7 << {state_q.vd         [4:2], 2'b0};
-            end
-            EMUL_8: begin
-                mask_vs2 = 32'hF << {state_q.rs2.r.vaddr[4:3], 3'b0};
-                mask_vs3 = 32'hF << {state_q.vd         [4:3], 3'b0};
-            end
-            default: ;
-        endcase
-    end
-    assign vreg_pend_rd_o = (
-        ((state_valid_q & state_q.rs2.vreg  ) ? mask_vs2 : '0) |
-        ((state_valid_q & state_q.mode.store) ? mask_vs3 : '0)
-    ) & ~vreg_pend_wr_q;
-
 
     ///////////////////////////////////////////////////////////////////////////
     // LSU PIPELINE BUFFERS:
@@ -622,6 +592,36 @@ module vproc_lsu #(
         {31'b0, state_init.mode.masked & state_init.first_cycle}
     ) : 32'b0;
     assign clear_rd_hazards_o = clear_rd_hazards_q;
+
+    // pending vreg reads
+    // Note: The pipeline might stall while reading a vreg, hence a vreg has to
+    // be part of the pending reads until the read is complete.
+    logic [31:0] pend_vs2, pend_vs3;
+    always_comb begin
+        pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_init.emul)
+            EMUL_1: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.rs2.r.vaddr;
+            EMUL_2: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:1], 1'b0};
+            EMUL_4: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:2], 2'b0};
+            EMUL_8: pend_vs2 = (32'hFF & ((32'hFE | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:3], 3'b0};
+            default: ;
+        endcase
+        pend_vs3 = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_init.emul)
+            EMUL_1: pend_vs3 = {31'b0, state_init.vs3_fetch} << state_init.vd;
+            EMUL_2: pend_vs3 = (32'h03 & ((32'h02 | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:1], 1'b0};
+            EMUL_4: pend_vs3 = (32'h0F & ((32'h0E | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:2], 2'b0};
+            EMUL_8: pend_vs3 = (32'hFF & ((32'hFE | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:3], 3'b0};
+            default: ;
+        endcase
+    end
+    // Note: vs3 is read in the second cycle
+    assign vreg_pend_rd_o = (
+        ((            state_init_valid   & state_init.rs2.vreg   ) ? pend_vs2                   : '0) |
+        ((            state_init_valid   & state_init.mode.store ) ? pend_vs3                   : '0) |
+        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs3_fetch) ? (32'h1 << state_vreg_q.vd) : '0) |
+        ((~BUF_VREG & state_vs2_valid_q  & state_vs2_q.vs3_fetch ) ? (32'h1 << state_vs2_q.vd ) : '0)
+    ) & ~vreg_pend_wr_q;
 
 
     ///////////////////////////////////////////////////////////////////////////
