@@ -578,12 +578,21 @@ module vproc_alu #(
             default: ;
         endcase
     end
-    // Note: vs2 is read in the second cycle
+    // Determine whether there is a pending read of v0 as a mask
+    logic state_init_masked, state_vreg_masked, state_vs1_masked;
+    assign state_init_masked = (state_init.mode.masked   | (state_init.mode.op_mask   == ALU_MASK_CARRY) | (state_init.mode.op_mask   == ALU_MASK_SEL));
+    assign state_vreg_masked = (state_vreg_q.mode.masked | (state_vreg_q.mode.op_mask == ALU_MASK_CARRY) | (state_vreg_q.mode.op_mask == ALU_MASK_SEL));
+    assign state_vs1_masked  = (state_vs1_q.mode.masked  | (state_vs1_q.mode.op_mask  == ALU_MASK_CARRY) | (state_vs1_q.mode.op_mask  == ALU_MASK_SEL));
+    // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
+    // and is always read in state_vs1
     assign vreg_pend_rd_o = (
-        ((            state_init_valid   & state_init.rs1.vreg   ) ? pend_vs1                    : '0) |
-        ((            state_init_valid   & state_init.vs2_vreg   ) ? pend_vs2                    : '0) |
-        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs2_fetch) ? (32'h1 << state_vreg_q.vs2) : '0) |
-        ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch ) ? (32'h1 << state_vs1_q.vs2 ) : '0)
+        ((            state_init_valid   & state_init.rs1.vreg     ) ? pend_vs1                    : '0) |
+        ((            state_init_valid   & state_init.vs2_vreg     ) ? pend_vs2                    : '0) |
+        ((            state_init_valid   & state_init.first_cycle  ) ? {31'b0, state_init_masked}  : '0) |
+        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.vs2) : '0) |
+        ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.vs2 ) : '0) |
+        ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_masked}  : '0) |
+        ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_masked }  : '0)
     ) & ~vreg_pend_wr_q;
 
 

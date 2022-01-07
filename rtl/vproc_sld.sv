@@ -514,8 +514,12 @@ module vproc_sld #(
             default: ;
         endcase
     end
+    // Note: the v0 mask has no extra buffer and is always read in state_vs
     assign vreg_pend_rd_o = (
-        (state_init_valid ? pend_vs2 : '0)
+        ( state_init_valid                               ? pend_vs2                          : '0) |
+        ((state_init_valid   & state_init.first_cycle)   ? {31'b0, state_init.mode.masked}   : '0) |
+        ((state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
+        ((state_vs_valid_q   & state_vs_q.first_cycle  ) ? {31'b0, state_vs_q.mode.masked}   : '0)
     ) & ~vreg_pend_wr_q;
 
 

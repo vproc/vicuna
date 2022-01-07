@@ -615,12 +615,16 @@ module vproc_lsu #(
             default: ;
         endcase
     end
-    // Note: vs3 is read in the second cycle
+    // Note: vs3 is read in the second cycle; the v0 mask has no extra buffer
+    // and is always read in state_vs2
     assign vreg_pend_rd_o = (
-        ((            state_init_valid   & state_init.rs2.vreg   ) ? pend_vs2                   : '0) |
-        ((            state_init_valid   & state_init.mode.store ) ? pend_vs3                   : '0) |
-        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs3_fetch) ? (32'h1 << state_vreg_q.vd) : '0) |
-        ((~BUF_VREG & state_vs2_valid_q  & state_vs2_q.vs3_fetch ) ? (32'h1 << state_vs2_q.vd ) : '0)
+        ((            state_init_valid   & state_init.rs2.vreg     ) ? pend_vs2                          : '0) |
+        ((            state_init_valid   & state_init.mode.store   ) ? pend_vs3                          : '0) |
+        ((            state_init_valid   & state_init.first_cycle  ) ? {31'b0, state_init.mode.masked}   : '0) |
+        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vd)        : '0) |
+        ((~BUF_VREG & state_vs2_valid_q  & state_vs2_q.vs3_fetch   ) ? (32'h1 << state_vs2_q.vd )        : '0) |
+        ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
+        ((            state_vs2_valid_q  & state_vs2_q.first_cycle ) ? {31'b0, state_vs2_q.mode.masked}  : '0)
     ) & ~vreg_pend_wr_q;
 
 

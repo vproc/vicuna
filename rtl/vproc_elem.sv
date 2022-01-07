@@ -624,12 +624,18 @@ module vproc_elem #(
             pend_vs2 = state_init.first_cycle ? (32'h01 << state_init.vs2) : '0;
         end
     end
-    // Note: vs2 is read in the second or third cycle
+    // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
+    // and is always read in state_gather/state_vsm
     assign vreg_pend_rd_o = (
-        ((            state_init_valid   & state_init.vs1_vreg                                                                       ) ? pend_vs1                    : '0) |
-        ((            state_init_valid   & state_init.vs2_vreg                                                                       ) ? pend_vs2                    : '0) |
-        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs2_vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op != ELEM_VRGATHER)) ? (32'h1 << state_vreg_q.vs2) : '0) |
-        ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op  != ELEM_VRGATHER)) ? (32'h1 << state_vs1_q.vs2 ) : '0)
+        ((            state_init_valid     & state_init.vs1_vreg                                                                       ) ? pend_vs1                            : '0) |
+        ((            state_init_valid     & state_init.vs2_vreg                                                                       ) ? pend_vs2                            : '0) |
+        ((            state_init_valid     & state_init.first_cycle                                                                    ) ? {31'b0, state_init.mode.masked}     : '0) |
+        (( BUF_VREG & state_vreg_valid_q   & state_vreg_q.vs2_vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op != ELEM_VRGATHER)) ? (32'h1 << state_vreg_q.vs2)         : '0) |
+        ((~BUF_VREG & state_vs1_valid_q    & state_vs1_q.vs2_vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op  != ELEM_VRGATHER)) ? (32'h1 << state_vs1_q.vs2 )         : '0) |
+        ((            state_vreg_valid_q   & state_vreg_q.first_cycle                                                                  ) ? {31'b0, state_vreg_q.mode.masked}   : '0) |
+        ((            state_vs1_valid_q    & state_vs1_q.first_cycle                                                                   ) ? {31'b0, state_vs1_q.mode.masked}    : '0) |
+        ((            state_vsm_valid_q    & state_vsm_q.first_cycle                                                                   ) ? {31'b0, state_vsm_q.mode.masked}    : '0) |
+        ((            state_gather_valid_q & state_gather_q.first_cycle                                                                ) ? {31'b0, state_gather_q.mode.masked} : '0)
         // TODO add gather register group during state_vreg, state_vs1, state_vsm and state_gather
     ) & ~vreg_pend_wr_q;
 
