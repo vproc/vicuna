@@ -464,8 +464,7 @@ module vproc_core #(
 
     // pending hazards of next instruction (in dequeue buffer)
     logic pending_hazards;
-    assign pending_hazards = ((queue_rd_hazard_q & vreg_wr_hazard_map_q) != 32'b0) |
-                             ((queue_wr_hazard_q & vreg_rd_hazard_map_q) != 32'b0) |
+    assign pending_hazards = ((queue_wr_hazard_q & vreg_rd_hazard_map_q) != 32'b0) |
                              ((queue_wr_hazard_q & vreg_wr_hazard_map_q) != 32'b0);
 
     // instruction ready and acknowledge signals for each unit:
