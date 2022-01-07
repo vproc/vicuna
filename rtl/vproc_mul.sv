@@ -39,6 +39,7 @@ module vproc_mul #(
 
         input  logic [31:0]           vreg_pend_wr_i,
         output logic [31:0]           vreg_pend_rd_o,
+        input  logic [31:0]           vreg_pend_rd_i,
 
         output logic [31:0]           clear_rd_hazards_o,
         output logic [31:0]           clear_wr_hazards_o,
@@ -237,7 +238,7 @@ module vproc_mul #(
 
     // pass state information along pipeline:
     logic                       state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_ex3_ready,   state_res_ready,   state_vd_ready;
-    logic     state_init_stall;
+    logic     state_init_stall,                                                                                                                                       state_vd_stall;
     logic     state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_ex3_valid_q, state_res_valid_q, state_vd_valid_q;
     mul_state state_init,       state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_ex3_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -499,7 +500,7 @@ module vproc_mul #(
                 vdmsk_shift_q <= vdmsk_shift_d;
             end
         end
-        assign state_vd_ready = ~state_vd_valid_q | 1'b1;
+        assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_mul_wr_delay
@@ -559,7 +560,7 @@ module vproc_mul #(
     ) : 32'b0;
     assign clear_rd_hazards_o = clear_rd_hazards_q;
 
-    // Stall vreg reads until pending writes are cleared; note that vreg read
+    // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
@@ -567,7 +568,12 @@ module vproc_mul #(
                               (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
+    // Stall vreg writes until pending reads are complete
+    assign state_vd_stall = state_vd_q.vd_store & vreg_pend_rd_i[state_vd_q.vd];
+
     // pending vreg reads
+    // Note: The pipeline might stall while reading a vreg, hence a vreg has to
+    // be part of the pending reads until the read is complete.
     logic [31:0] pend_vs1, pend_vs2, pend_vs3;
     always_comb begin
         pend_vs1 = DONT_CARE_ZERO ? '0 : 'x;
@@ -603,18 +609,18 @@ module vproc_mul #(
     end
     // Note: vs2 and vs3 are read in the second cycle; the v0 mask has no extra
     // buffer and is always read in state_vs1
-    assign vreg_pend_rd_o = (
-        ((            state_init_valid   & state_init.rs1.vreg              ) ? pend_vs1                          : '0) |
-        ((            state_init_valid                                      ) ? pend_vs2                          : '0) |
-        ((            state_init_valid   & (state_init.mode.op == MUL_VMACC)) ? pend_vs3                          : '0) |
-        ((            state_init_valid   & state_init.first_cycle           ) ? {31'b0, state_init.mode.masked}   : '0) |
-        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs2_fetch           ) ? (32'h1 << state_vreg_q.vs2)       : '0) |
-        ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch            ) ? (32'h1 << state_vs1_q.vs2 )       : '0) |
-        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs3_fetch           ) ? (32'h1 << state_vreg_q.vd )       : '0) |
-        ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs3_fetch            ) ? (32'h1 << state_vs1_q.vd  )       : '0) |
-        ((            state_vreg_valid_q & state_vreg_q.first_cycle         ) ? {31'b0, state_vreg_q.mode.masked} : '0) |
-        ((            state_vs1_valid_q  & state_vs1_q.first_cycle          ) ? {31'b0, state_vs1_q.mode.masked}  : '0)
-    ) & ~vreg_pend_wr_q;
+    assign vreg_pend_rd_o = ((
+            ((state_init_valid & state_init.rs1.vreg              ) ? pend_vs1                        : '0) |
+            ((state_init_valid                                    ) ? pend_vs2                        : '0) |
+            ((state_init_valid & (state_init.mode.op == MUL_VMACC)) ? pend_vs3                        : '0) |
+            ((state_init_valid & state_init.first_cycle           ) ? {31'b0, state_init.mode.masked} : '0)
+        ) & ~vreg_pend_wr_q) |
+    ((            state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.vs2)       : '0) |
+    ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.vs2 )       : '0) |
+    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vd )       : '0) |
+    ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs3_fetch   ) ? (32'h1 << state_vs1_q.vd  )       : '0) |
+    ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
+    ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_q.mode.masked}  : '0);
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -680,7 +686,7 @@ module vproc_mul #(
     assign vdmsk_shift_d = {result_mask3_q, vdmsk_shift_q[VMSK_W-1:MUL_OP_W/8]};
 
     //
-    assign vreg_wr_en_d   = state_vd_valid_q & state_vd_q.vd_store;
+    assign vreg_wr_en_d   = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall;
     assign vreg_wr_addr_d = state_vd_q.vd;
     assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d      = vd_shift_q;

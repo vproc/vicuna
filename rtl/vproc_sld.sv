@@ -33,6 +33,7 @@ module vproc_sld #(
 
         input  logic [31:0]           vreg_pend_wr_i,
         output logic [31:0]           vreg_pend_rd_o,
+        input  logic [31:0]           vreg_pend_rd_i,
 
         output logic [31:0]           clear_rd_hazards_o,
         output logic [31:0]           clear_wr_hazards_o,
@@ -241,7 +242,7 @@ module vproc_sld #(
 
     // pass state information along pipeline:
     logic                       state_vreg_ready,   state_vs_ready,   state_ex_ready,   state_res_ready,   state_vd_ready;
-    logic     state_init_stall;
+    logic     state_init_stall,                                                                            state_vd_stall;
     logic     state_init_valid, state_vreg_valid_q, state_vs_valid_q, state_ex_valid_q, state_res_valid_q, state_vd_valid_q;
     sld_state state_init,       state_vreg_q,       state_vs_q,       state_ex_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -424,7 +425,7 @@ module vproc_sld #(
                 vdmsk_static_q <= vdmsk_static_d;
             end
         end
-        assign state_vd_ready = ~state_vd_valid_q | 1'b1;
+        assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_sld_wr_delay
@@ -504,11 +505,14 @@ module vproc_sld #(
     ) : 32'b0;
     assign clear_rd_hazards_o = clear_rd_hazards_q;
 
-    // Stall vreg reads until pending writes are cleared; note that vreg read
+    // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.vs2]) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
+
+    // Stall vreg writes until pending reads are complete
+    assign state_vd_stall = state_vd_q.vd_store & vreg_pend_rd_i[state_vd_q.vd];
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -524,13 +528,13 @@ module vproc_sld #(
             default: ;
         endcase
     end
-    // Note: the v0 mask has no extra buffer and is always read in state_vs
-    assign vreg_pend_rd_o = (
-        ( state_init_valid                               ? pend_vs2                          : '0) |
-        ((state_init_valid   & state_init.first_cycle)   ? {31'b0, state_init.mode.masked}   : '0) |
-        ((state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
-        ((state_vs_valid_q   & state_vs_q.first_cycle  ) ? {31'b0, state_vs_q.mode.masked}   : '0)
-    ) & ~vreg_pend_wr_q;
+    // Note: the v0 mask has no extra buffer and is always read in state_vreg
+    assign vreg_pend_rd_o = ((
+            ( state_init_valid                           ? pend_vs2                        : '0) |
+            ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init.mode.masked} : '0)
+        ) & ~vreg_pend_wr_q) |
+    ((state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
+    ((state_vs_valid_q   & state_vs_q.first_cycle  ) ? {31'b0, state_vs_q.mode.masked}   : '0);
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -622,12 +626,12 @@ module vproc_sld #(
     assign vdmsk_static_d = state_res_q.mode.masked ? write_mask_q : {VMSK_W{1'b1}};
 
     //
-    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store;
+    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall;
     // TODO after finding a better way to clear hazards, simplify the addressing logic
     assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count_store.part.mul[2:0]};
     assign vreg_wr_mask_d  = vreg_wr_en_o ? (vdmsk_shift_q & vdmsk_static_q) : '0;
     assign vreg_wr_d       = vd_shift_q;
-    assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.last_cycle;
+    assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_stall;
     assign vreg_wr_base_d  = state_vd_q.vd_base;
     assign vreg_wr_emul_d  = state_vd_q.emul;
 

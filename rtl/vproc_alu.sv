@@ -38,6 +38,7 @@ module vproc_alu #(
 
         input  logic [31:0]             vreg_pend_wr_i,
         output logic [31:0]             vreg_pend_rd_o,
+        input  logic [31:0]             vreg_pend_rd_i,
 
         output logic [31:0]             clear_rd_hazards_o,
         output logic [31:0]             clear_wr_hazards_o,
@@ -238,7 +239,7 @@ module vproc_alu #(
 
     // pass state information along pipeline:
     logic                       state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_res_ready,   state_vd_ready;
-    logic     state_init_stall;
+    logic     state_init_stall,                                                                                                                    state_vd_stall;
     logic     state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_res_valid_q, state_vd_valid_q;
     alu_state state_init,       state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -491,7 +492,7 @@ module vproc_alu #(
                 vdmsk_cmp_q       <= vdmsk_cmp_d;
             end
         end
-        assign state_vd_ready = ~state_vd_valid_q | 1'b1;
+        assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_alu_wr_delay
@@ -554,12 +555,15 @@ module vproc_alu #(
     ) : 32'b0;
     assign clear_rd_hazards_o = clear_rd_hazards_q;
 
-    // Stall vreg reads until pending writes are cleared; note that vreg read
+    // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
                               (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.vs2        ]) |
                               (state_init.first_cycle & state_init_masked & vreg_pend_wr_q[0]);
+
+    // Stall vreg writes until pending reads are complete
+    assign state_vd_stall = state_vd_q.vd_store & vreg_pend_rd_i[state_vd_q.vd];
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -596,15 +600,15 @@ module vproc_alu #(
     assign state_vs1_masked  = (state_vs1_q.mode.masked  | (state_vs1_q.mode.op_mask  == ALU_MASK_CARRY) | (state_vs1_q.mode.op_mask  == ALU_MASK_SEL));
     // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
     // and is always read in state_vs1
-    assign vreg_pend_rd_o = (
-        ((            state_init_valid   & state_init.rs1.vreg     ) ? pend_vs1                    : '0) |
-        ((            state_init_valid   & state_init.vs2_vreg     ) ? pend_vs2                    : '0) |
-        ((            state_init_valid   & state_init.first_cycle  ) ? {31'b0, state_init_masked}  : '0) |
-        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.vs2) : '0) |
-        ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.vs2 ) : '0) |
-        ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_masked}  : '0) |
-        ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_masked }  : '0)
-    ) & ~vreg_pend_wr_q;
+    assign vreg_pend_rd_o = ((
+            ((state_init_valid & state_init.rs1.vreg   ) ? pend_vs1                   : '0) |
+            ((state_init_valid & state_init.vs2_vreg   ) ? pend_vs2                   : '0) |
+            ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init_masked} : '0)
+        ) & ~vreg_pend_wr_q) |
+    ((            state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.vs2) : '0) |
+    ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.vs2 ) : '0) |
+    ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_masked}  : '0) |
+    ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_masked }  : '0);
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -714,7 +718,7 @@ module vproc_alu #(
     logic [ALU_OP_W  -1:0] vd_alu;
     logic [ALU_OP_W/8-1:0] vdmsk_alu;
     vproc_vregpack #(
-        .OP_W            ( ALU_OP_W             ),
+        .OP_W            ( ALU_OP_W              ),
         .DONT_CARE_ZERO  ( DONT_CARE_ZERO        )
     ) alu_vregpack (
         .vsew_i          ( state_res_q.eew       ),
@@ -780,8 +784,8 @@ module vproc_alu #(
     end
 
     //
-    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store;
-    assign vreg_wr_clear_d = state_vd_valid_q & (state_vd_q.mode.cmp ? state_vd_q.last_cycle : state_vd_q.vd_store);
+    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall;
+    assign vreg_wr_clear_d = state_vd_valid_q & (state_vd_q.mode.cmp ? state_vd_q.last_cycle : state_vd_q.vd_store) & ~state_vd_stall;
     assign vreg_wr_addr_d  = state_vd_q.vd;
     assign vreg_wr_mask_d  = vreg_wr_en_o ? (state_vd_q.mode.cmp ? vdmsk_cmp_q : vdmsk_alu_shift_q) : '0;
     assign vreg_wr_d       = state_vd_q.mode.cmp ? {8{vd_cmp_shift_q}} : vd_alu_shift_q;

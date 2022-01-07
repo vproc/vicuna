@@ -581,6 +581,16 @@ module vproc_core #(
     endgenerate
 
 
+    // Pending reads
+    logic [31:0] vreg_pend_rd_by_lsu, vreg_pend_rd_by_alu, vreg_pend_rd_by_mul, vreg_pend_rd_by_sld, vreg_pend_rd_by_elem;
+    logic [31:0] vreg_pend_rd_to_lsu, vreg_pend_rd_to_alu, vreg_pend_rd_to_mul, vreg_pend_rd_to_sld, vreg_pend_rd_to_elem;
+    assign vreg_pend_rd_to_lsu  = vreg_pend_rd_by_alu | vreg_pend_rd_by_mul | vreg_pend_rd_by_sld | vreg_pend_rd_by_elem;
+    assign vreg_pend_rd_to_alu  = vreg_pend_rd_by_lsu | vreg_pend_rd_by_mul | vreg_pend_rd_by_sld | vreg_pend_rd_by_elem;
+    assign vreg_pend_rd_to_mul  = vreg_pend_rd_by_lsu | vreg_pend_rd_by_alu | vreg_pend_rd_by_sld | vreg_pend_rd_by_elem;
+    assign vreg_pend_rd_to_sld  = vreg_pend_rd_by_lsu | vreg_pend_rd_by_alu | vreg_pend_rd_by_mul | vreg_pend_rd_by_elem;
+    assign vreg_pend_rd_to_elem = vreg_pend_rd_by_lsu | vreg_pend_rd_by_alu | vreg_pend_rd_by_mul | vreg_pend_rd_by_sld;
+
+
     // LSU
     logic              misaligned_lsu;
     logic [VREG_W-1:0] lsu_wr_data;
@@ -610,7 +620,8 @@ module vproc_core #(
         .rs2_i              ( queue_data_q.rs2              ),
         .vd_i               ( queue_data_q.rd.addr          ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q          ),
-        .vreg_pend_rd_o     (                               ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_lsu           ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_lsu           ),
         .pending_load_o     ( pending_load_lsu              ),
         .pending_store_o    ( pending_store_lsu             ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_lsu        ),
@@ -664,7 +675,8 @@ module vproc_core #(
         .vs2_vreg_i         ( queue_data_q.rs2.vreg         ),
         .vd_i               ( queue_data_q.rd.addr          ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q          ),
-        .vreg_pend_rd_o     (                               ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_alu           ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_alu           ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_alu        ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_alu        ),
         .vreg_mask_i        ( vreg_mask                     ),
@@ -706,7 +718,8 @@ module vproc_core #(
         .vs2_i              ( queue_data_q.rs2.r.vaddr               ),
         .vd_i               ( queue_data_q.rd.addr                   ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q                   ),
-        .vreg_pend_rd_o     (                                        ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_mul                    ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_mul                    ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_mul                 ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_mul                 ),
         .vreg_mask_i        ( vreg_mask                              ),
@@ -748,7 +761,8 @@ module vproc_core #(
         .vs2_i              ( queue_data_q.rs2.r.vaddr ),
         .vd_i               ( queue_data_q.rd.addr     ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q     ),
-        .vreg_pend_rd_o     (                          ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_sld      ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_sld      ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_sld   ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_sld   ),
         .vreg_mask_i        ( vreg_mask                ),
@@ -792,7 +806,8 @@ module vproc_core #(
         .vs2_vreg_i         ( queue_data_q.rs2.vreg    ),
         .vd_i               ( queue_data_q.rd.addr     ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q     ),
-        .vreg_pend_rd_o     (                          ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_elem     ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_elem     ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_elem  ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_elem  ),
         .vreg_mask_i        ( vreg_mask                ),

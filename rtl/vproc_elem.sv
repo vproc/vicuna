@@ -36,6 +36,7 @@ module vproc_elem #(
 
         input  logic [31:0]            vreg_pend_wr_i,
         output logic [31:0]            vreg_pend_rd_o,
+        input  logic [31:0]            vreg_pend_rd_i,
 
         output logic [31:0]            clear_rd_hazards_o,
         output logic [31:0]            clear_wr_hazards_o,
@@ -264,7 +265,7 @@ module vproc_elem #(
 
     // pass state information along pipeline:
     logic                        state_vreg_ready,   state_vs1_ready,   state_vsm_ready,   state_gather_ready,   state_ex_ready,   state_res_ready,   state_vd_ready;
-    logic      state_init_stall;
+    logic      state_init_stall,                                                                                                                      state_vd_stall;
     logic      state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vsm_valid_q, state_gather_valid_q, state_ex_valid_q, state_res_valid_q, state_vd_valid_q;
     elem_state state_init,       state_vreg_q,       state_vs1_q,       state_vsm_q,       state_gather_q,       state_ex_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -505,7 +506,7 @@ module vproc_elem #(
                 first_valid_result_q   <= first_valid_result_d;
             end
         end
-        assign state_vd_ready = ~state_vd_valid_q | 1'b1;
+        assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_elem_wr_delay
@@ -609,15 +610,34 @@ module vproc_elem #(
             EMUL_8: state_init_gather_vregs = 32'hFF << {state_init.vs2[4:3], 3'b0};
             default: ;
         endcase
+        state_vsm_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_vsm_q.emul)
+            EMUL_1: state_vsm_gather_vregs = 32'h01 <<  state_vsm_q.vs2;
+            EMUL_2: state_vsm_gather_vregs = 32'h03 << {state_vsm_q.vs2[4:1], 1'b0};
+            EMUL_4: state_vsm_gather_vregs = 32'h0F << {state_vsm_q.vs2[4:2], 2'b0};
+            EMUL_8: state_vsm_gather_vregs = 32'hFF << {state_vsm_q.vs2[4:3], 3'b0};
+            default: ;
+        endcase
+        state_gather_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_gather_q.emul)
+            EMUL_1: state_gather_gather_vregs = 32'h01 <<  state_gather_q.vs2;
+            EMUL_2: state_gather_gather_vregs = 32'h03 << {state_gather_q.vs2[4:1], 1'b0};
+            EMUL_4: state_gather_gather_vregs = 32'h0F << {state_gather_q.vs2[4:2], 2'b0};
+            EMUL_8: state_gather_gather_vregs = 32'hFF << {state_gather_q.vs2[4:3], 3'b0};
+            default: ;
+        endcase
     end
 
-    // Stall vreg reads until pending writes are cleared; note that vreg read
+    // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs1_fetch                                                                 & vreg_pend_wr_q[state_init.vs1]) |
                               (state_init.vs2_vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER) & vreg_pend_wr_q[state_init.vs2]) |
                               ((state_init.mode.op == ELEM_VRGATHER) & ((state_init_gather_vregs & vreg_pend_wr_q) != '0)) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
+
+    // Stall vreg writes until pending reads are complete
+    assign state_vd_stall = state_vd_q.vd_store & vreg_pend_rd_i[state_vd_q.vd];
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -644,18 +664,24 @@ module vproc_elem #(
     end
     // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
     // and is always read in state_gather/state_vsm
-    assign vreg_pend_rd_o = (
-        ((            state_init_valid     & state_init.vs1_vreg                                                                       ) ? pend_vs1                            : '0) |
-        ((            state_init_valid     & state_init.vs2_vreg                                                                       ) ? pend_vs2                            : '0) |
-        ((            state_init_valid     & state_init.first_cycle                                                                    ) ? {31'b0, state_init.mode.masked}     : '0) |
-        (( BUF_VREG & state_vreg_valid_q   & state_vreg_q.vs2_vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op != ELEM_VRGATHER)) ? (32'h1 << state_vreg_q.vs2)         : '0) |
-        ((~BUF_VREG & state_vs1_valid_q    & state_vs1_q.vs2_vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op  != ELEM_VRGATHER)) ? (32'h1 << state_vs1_q.vs2 )         : '0) |
-        ((            state_vreg_valid_q   & state_vreg_q.first_cycle                                                                  ) ? {31'b0, state_vreg_q.mode.masked}   : '0) |
-        ((            state_vs1_valid_q    & state_vs1_q.first_cycle                                                                   ) ? {31'b0, state_vs1_q.mode.masked}    : '0) |
-        ((            state_vsm_valid_q    & state_vsm_q.first_cycle                                                                   ) ? {31'b0, state_vsm_q.mode.masked}    : '0) |
-        ((            state_gather_valid_q & state_gather_q.first_cycle                                                                ) ? {31'b0, state_gather_q.mode.masked} : '0)
-        // TODO add gather register group during state_vreg, state_vs1, state_vsm and state_gather
-    ) & ~vreg_pend_wr_q;
+    assign vreg_pend_rd_o = ((
+            ((state_init_valid & state_init.vs1_vreg   ) ? pend_vs1                        : '0) |
+            ((state_init_valid & state_init.vs2_vreg   ) ? pend_vs2                        : '0) |
+            ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init.mode.masked} : '0)
+        ) & ~vreg_pend_wr_q) |
+    ((            state_vreg_valid_q   & state_vreg_q.vs2_vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op   != ELEM_VRGATHER)) ? (32'h1 << state_vreg_q.vs2)         : '0) |
+    ((~BUF_VREG & state_vs1_valid_q    & state_vs1_q.vs2_vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op    != ELEM_VRGATHER)) ? (32'h1 << state_vs1_q.vs2 )         : '0) |
+    // Note: The gather vreg group is added to the pending reads only from
+    // the init state and from the state right before reading. There is no
+    // need to add it for each intermediate stage, since the gather
+    // operation takes enough cycles that these two stages cover all the
+    // intermediate stages.
+    (( BUF_VREG & state_vsm_valid_q    &                                                    (state_vsm_q.mode.op    == ELEM_VRGATHER)) ? state_vsm_gather_vregs              : '0) |
+    ((~BUF_VREG & state_gather_valid_q &                                                    (state_gather_q.mode.op == ELEM_VRGATHER)) ? state_gather_gather_vregs           : '0) |
+    ((            state_vreg_valid_q   & state_vreg_q.first_cycle                                                                    ) ? {31'b0, state_vreg_q.mode.masked}   : '0) |
+    ((            state_vs1_valid_q    & state_vs1_q.first_cycle                                                                     ) ? {31'b0, state_vs1_q.mode.masked}    : '0) |
+    ((            state_vsm_valid_q    & state_vsm_q.first_cycle                                                                     ) ? {31'b0, state_vsm_q.mode.masked}    : '0) |
+    ((            state_gather_valid_q & state_gather_q.first_cycle                                                                  ) ? {31'b0, state_gather_q.mode.masked} : '0);
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -799,11 +825,11 @@ module vproc_elem #(
     assign vd_store_d = ~state_res_q.mode.xreg & (count_store_d.part.low == '1);
 
     //
-    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store;
+    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall;
     assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count_store.part.mul[2:0]};
     assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d       = vd_shift_q;
-    assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg;
+    assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg & ~state_vd_stall;
     assign vreg_wr_base_d  = state_vd_q.vd;
     assign vreg_wr_emul_d  = state_vd_q.emul;
 

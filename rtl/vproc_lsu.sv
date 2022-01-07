@@ -40,6 +40,7 @@ module vproc_lsu #(
 
         input  logic [31:0]           vreg_pend_wr_i,
         output logic [31:0]           vreg_pend_rd_o,
+        input  logic [31:0]           vreg_pend_rd_i,
 
         output logic [31:0]           clear_rd_hazards_o,
         output logic [31:0]           clear_wr_hazards_o,
@@ -319,7 +320,7 @@ module vproc_lsu #(
 
     // pass state information along pipeline:
     logic                           state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready;
-    logic         state_init_stall;
+    logic         state_init_stall,                                                                                                   state_vd_stall;
     logic         state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_rdata_valid_q, state_vd_valid_q;
     lsu_state     state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q;
     lsu_state_red state_rdata_d,    state_rdata_q,      state_vd_q;
@@ -597,12 +598,16 @@ module vproc_lsu #(
     ) : 32'b0;
     assign clear_rd_hazards_o = clear_rd_hazards_q;
 
-    // Stall vreg reads until pending writes are cleared; note that vreg read
+    // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
+
+    // Stall vreg writes until pending reads are complete; for the LSU stalling
+    // has to happen at the request stage, since later stalling is not possible
+    assign state_req_stall = ~state_req_q.mode.store & state_req_q.vd_store & vreg_pend_rd_i[state_req_q.vd];
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -628,15 +633,15 @@ module vproc_lsu #(
     end
     // Note: vs3 is read in the second cycle; the v0 mask has no extra buffer
     // and is always read in state_vs2
-    assign vreg_pend_rd_o = (
-        ((            state_init_valid   & state_init.rs2.vreg     ) ? pend_vs2                          : '0) |
-        ((            state_init_valid   & state_init.mode.store   ) ? pend_vs3                          : '0) |
-        ((            state_init_valid   & state_init.first_cycle  ) ? {31'b0, state_init.mode.masked}   : '0) |
-        (( BUF_VREG & state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vd)        : '0) |
-        ((~BUF_VREG & state_vs2_valid_q  & state_vs2_q.vs3_fetch   ) ? (32'h1 << state_vs2_q.vd )        : '0) |
-        ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
-        ((            state_vs2_valid_q  & state_vs2_q.first_cycle ) ? {31'b0, state_vs2_q.mode.masked}  : '0)
-    ) & ~vreg_pend_wr_q;
+    assign vreg_pend_rd_o = ((
+            ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                        : '0) |
+            ((state_init_valid & state_init.mode.store ) ? pend_vs3                        : '0) |
+            ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init.mode.masked} : '0)
+        ) & ~vreg_pend_wr_q) |
+    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vd)        : '0) |
+    ((~BUF_VREG & state_vs2_valid_q  & state_vs2_q.vs3_fetch   ) ? (32'h1 << state_vs2_q.vd )        : '0) |
+    ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
+    ((            state_vs2_valid_q  & state_vs2_q.first_cycle ) ? {31'b0, state_vs2_q.mode.masked}  : '0);
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -799,7 +804,7 @@ module vproc_lsu #(
 
     // memory request:
     assign data_addr_o  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
-    assign data_req_o   = state_req_valid_q & lsu_queue_ready; // keep requesting next access while addressing is not complete
+    assign data_req_o   = state_req_valid_q & ~state_req_stall & lsu_queue_ready; // keep requesting next access while addressing is not complete
     assign data_we_o    = state_req_q.mode.store;
     assign data_be_o    = wmask_buf_q;
     assign data_wdata_o = wdata_buf_q;
