@@ -264,6 +264,7 @@ module vproc_elem #(
 
     // pass state information along pipeline:
     logic                        state_vreg_ready,   state_vs1_ready,   state_vsm_ready,   state_gather_ready,   state_ex_ready,   state_res_ready,   state_vd_ready;
+    logic      state_init_stall;
     logic      state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vsm_valid_q, state_gather_valid_q, state_ex_valid_q, state_res_valid_q, state_vd_valid_q;
     elem_state state_init,       state_vreg_q,       state_vs1_q,       state_vsm_q,       state_gather_q,       state_ex_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -272,7 +273,7 @@ module vproc_elem #(
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vl_mask    = ~state_q.vl_0 & (state_q.count.val <= state_q.vl);
     end
-    assign pipeline_ready = state_vreg_ready;
+    assign pipeline_ready = state_vreg_ready & ~state_init_stall;
 
     elem_counter count_store_d;
     logic        vd_store_d;
@@ -334,11 +335,14 @@ module vproc_elem #(
                     state_vreg_valid_q <= 1'b0;
                 end
                 else if (state_vreg_ready) begin
-                    state_vreg_valid_q <= state_init_valid;
+                    state_vreg_valid_q <= state_init_valid & ~state_init_stall;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_elem_stage_vreg
-                if (state_vreg_ready & state_init_valid) begin
+                // Note: state_init_valid is omitted here since vreg buffering
+                // may need to proceed for some extra cycle after the
+                // instruction has left state_init
+                if (state_vreg_ready) begin
                     state_vreg_q <= state_init;
                     vreg_rd_q    <= vreg_rd_d;
                 end
@@ -346,7 +350,7 @@ module vproc_elem #(
             assign state_vreg_ready = ~state_vreg_valid_q | state_vs1_ready;
         end else begin
             always_comb begin
-                state_vreg_valid_q = state_init_valid;
+                state_vreg_valid_q = state_init_valid & ~state_init_stall;
                 state_vreg_q       = state_init;
                 vreg_rd_q          = vreg_rd_d;
             end
@@ -595,6 +599,26 @@ module vproc_elem #(
     );
     assign clear_rd_hazards_o = clear_rd_hazards_q;
 
+    logic [31:0] state_init_gather_vregs, state_vsm_gather_vregs, state_gather_gather_vregs;
+    always_comb begin
+        state_init_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_init.emul)
+            EMUL_1: state_init_gather_vregs = 32'h01 <<  state_init.vs2;
+            EMUL_2: state_init_gather_vregs = 32'h03 << {state_init.vs2[4:1], 1'b0};
+            EMUL_4: state_init_gather_vregs = 32'h0F << {state_init.vs2[4:2], 2'b0};
+            EMUL_8: state_init_gather_vregs = 32'hFF << {state_init.vs2[4:3], 3'b0};
+            default: ;
+        endcase
+    end
+
+    // Stall vreg reads until pending writes are cleared; note that vreg read
+    // stalling always happens in the init stage, since otherwise a substantial
+    // amount of state would have to be forwarded (such as vreg_pend_wr_q)
+    assign state_init_stall = (state_init.vs1_fetch                                                                 & vreg_pend_wr_q[state_init.vs1]) |
+                              (state_init.vs2_vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER) & vreg_pend_wr_q[state_init.vs2]) |
+                              ((state_init.mode.op == ELEM_VRGATHER) & ((state_init_gather_vregs & vreg_pend_wr_q) != '0)) |
+                              (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
+
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
     // be part of the pending reads until the read is complete.
@@ -612,13 +636,7 @@ module vproc_elem #(
         pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
         if (state_init.mode.op == ELEM_VRGATHER) begin
             // entire gather register group remains pending throughout the operation
-            unique case (state_init.emul)
-                EMUL_1: pend_vs2 = 32'h01 <<  state_init.vs2;
-                EMUL_2: pend_vs2 = 32'h03 << {state_init.vs2[4:1], 1'b0};
-                EMUL_4: pend_vs2 = 32'h0F << {state_init.vs2[4:2], 2'b0};
-                EMUL_8: pend_vs2 = 32'hFF << {state_init.vs2[4:3], 3'b0};
-                default: ;
-            endcase
+            pend_vs2 = state_init_gather_vregs;
         end else begin
             // mask register is read right at the beginning
             pend_vs2 = state_init.first_cycle ? (32'h01 << state_init.vs2) : '0;

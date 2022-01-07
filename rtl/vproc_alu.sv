@@ -238,6 +238,7 @@ module vproc_alu #(
 
     // pass state information along pipeline:
     logic                       state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_res_ready,   state_vd_ready;
+    logic     state_init_stall;
     logic     state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_res_valid_q, state_vd_valid_q;
     alu_state state_init,       state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -246,7 +247,7 @@ module vproc_alu #(
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vd_store   = (state_q.count.part.low == '1) & (~state_q.vd_narrow | state_q.count.part.mul[0]);
     end
-    assign pipeline_ready = state_vreg_ready;
+    assign pipeline_ready = state_vreg_ready & ~state_init_stall;
 
     // common vreg read register:
     logic [VREG_W-1:0] vreg_rd_q, vreg_rd_d;
@@ -304,11 +305,14 @@ module vproc_alu #(
                     state_vreg_valid_q <= 1'b0;
                 end
                 else if (state_vreg_ready) begin
-                    state_vreg_valid_q <= state_init_valid;
+                    state_vreg_valid_q <= state_init_valid & ~state_init_stall;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_alu_stage_vreg
-                if (state_vreg_ready & state_init_valid) begin
+                // Note: state_init_valid is omitted here since vreg buffering
+                // may need to proceed for one extra cycle after the
+                // instruction has left state_init
+                if (state_vreg_ready) begin
                     state_vreg_q <= state_init;
                     vreg_rd_q    <= vreg_rd_d;
                 end
@@ -316,7 +320,7 @@ module vproc_alu #(
             assign state_vreg_ready = ~state_vreg_valid_q | state_vs1_ready;
         end else begin
             always_comb begin
-                state_vreg_valid_q = state_init_valid;
+                state_vreg_valid_q = state_init_valid & ~state_init_stall;
                 state_vreg_q       = state_init;
                 vreg_rd_q          = vreg_rd_d;
             end
@@ -549,6 +553,13 @@ module vproc_alu #(
         {31'b0, (state_init.mode.masked | (state_init.mode.op_mask == ALU_MASK_CARRY) | (state_init.mode.op_mask == ALU_MASK_SEL)) & state_init.first_cycle}
     ) : 32'b0;
     assign clear_rd_hazards_o = clear_rd_hazards_q;
+
+    // Stall vreg reads until pending writes are cleared; note that vreg read
+    // stalling always happens in the init stage, since otherwise a substantial
+    // amount of state would have to be forwarded (such as vreg_pend_wr_q)
+    assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
+                              (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.vs2        ]) |
+                              (state_init.first_cycle & state_init_masked & vreg_pend_wr_q[0]);
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to

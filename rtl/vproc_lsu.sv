@@ -319,6 +319,7 @@ module vproc_lsu #(
 
     // pass state information along pipeline:
     logic                           state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready;
+    logic         state_init_stall;
     logic         state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_rdata_valid_q, state_vd_valid_q;
     lsu_state     state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q;
     lsu_state_red state_rdata_d,    state_rdata_q,      state_vd_q;
@@ -328,7 +329,7 @@ module vproc_lsu #(
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vd_store   = state_q.count.val[LSU_COUNTER_W-4:0] == '1;
     end
-    assign pipeline_ready = state_vreg_ready;
+    assign pipeline_ready = state_vreg_ready & ~state_init_stall;
 
     assign pending_load_o  = (state_init_valid   & ~state_init.mode.store  ) |
                              (state_vreg_valid_q & ~state_vreg_q.mode.store) |
@@ -392,11 +393,14 @@ module vproc_lsu #(
                     state_vreg_valid_q <= 1'b0;
                 end
                 else if (state_vreg_ready) begin
-                    state_vreg_valid_q <= state_init_valid;
+                    state_vreg_valid_q <= state_init_valid & ~state_init_stall;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_vreg
-                if (state_vreg_ready & state_init_valid) begin
+                // Note: state_init_valid is omitted here since vreg buffering
+                // may need to proceed for one extra cycle after the
+                // instruction has left state_init
+                if (state_vreg_ready) begin
                     state_vreg_q <= state_init;
                     vreg_rd_q    <= vreg_rd_d;
                 end
@@ -404,7 +408,7 @@ module vproc_lsu #(
             assign state_vreg_ready = ~state_vreg_valid_q | state_vs2_ready;
         end else begin
             always_comb begin
-                state_vreg_valid_q = state_init_valid;
+                state_vreg_valid_q = state_init_valid & ~state_init_stall;
                 state_vreg_q       = state_init;
                 vreg_rd_q          = vreg_rd_d;
             end
@@ -592,6 +596,13 @@ module vproc_lsu #(
         {31'b0, state_init.mode.masked & state_init.first_cycle}
     ) : 32'b0;
     assign clear_rd_hazards_o = clear_rd_hazards_q;
+
+    // Stall vreg reads until pending writes are cleared; note that vreg read
+    // stalling always happens in the init stage, since otherwise a substantial
+    // amount of state would have to be forwarded (such as vreg_pend_wr_q)
+    assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
+                              (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
+                              (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
