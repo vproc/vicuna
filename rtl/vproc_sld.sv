@@ -675,5 +675,10 @@ module vproc_sld #(
         end
     end
 
+
+`ifdef VPROC_SVA
+`include "vproc_sld_sva.svh"
+`endif
+
 endmodule
 

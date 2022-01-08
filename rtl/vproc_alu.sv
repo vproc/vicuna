@@ -1040,4 +1040,9 @@ module vproc_alu #(
         endcase
     end
 
+
+`ifdef VPROC_SVA
+`include "vproc_alu_sva.svh"
+`endif
+
 endmodule

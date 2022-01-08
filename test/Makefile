@@ -88,7 +88,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    fi;                                                                   \
 	    echo "[CONFIG ] $@ $$line";                                           \
 	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) $$line               \
-	        PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR)                    \
+	        PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR) ENABLE_SVA=1       \
 	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" >sim.log 2>&1;     \
 	    if [ "$$?" != "0" ]; then                                             \
 	        echo "[ ERROR ] $@ simulation failed; content of $@/sim.log:";    \

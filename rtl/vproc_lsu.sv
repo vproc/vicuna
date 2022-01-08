@@ -850,4 +850,9 @@ module vproc_lsu #(
     assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d      = vd_shift_q;
 
+
+`ifdef VPROC_SVA
+`include "vproc_lsu_sva.svh"
+`endif
+
 endmodule

@@ -58,14 +58,17 @@ vivado:
 verilator:
 	cp $(SIM_DIR)/verilator_main.cpp $(PROJ_DIR)/
 	cd $(PROJ_DIR);                                                           \
-	trace="";                                                                 \
+	options="";                                                               \
 	cflags="";                                                                \
 	if [[ "$(TRACE_VCD)" != "" ]]; then                                       \
-	    trace="--trace";                                                      \
+	    options="--trace";                                                    \
 	    cflags="-CFLAGS -DTRACE_VCD";                                         \
 	elif [[ "$(TRACE_FST)" != "" ]]; then                                     \
-	    trace="--trace-fst";                                                  \
+	    options="--trace-fst";                                                \
 	    cflags="-CFLAGS -DTRACE_FST";                                         \
+	fi;                                                                       \
+	if [[ "$(ENABLE_SVA)" != "" ]]; then                                      \
+	    options="$$options --assert -DVPROC_SVA";                             \
 	fi;                                                                       \
 	version=`verilator --version | awk '{print $$2}'`;                        \
 	if [ `printf '4.210\n%s\n' "$$version" | sort -V | head -n1` = "4.210" ]; \
@@ -100,7 +103,7 @@ verilator:
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
 	    --cc $$src vproc_pkg.sv vproc_top.sv vproc_hazards.sv                 \
 	    vproc_vregpack.sv vproc_vregunpack.sv --top-module vproc_top          \
-	    --clk clk_i $$trace $$cflags --exe verilator_main.cpp;                \
+	    --clk clk_i $$options $$cflags --exe verilator_main.cpp;              \
 	if [ "$$?" != "0" ]; then                                                 \
 	    exit 1;                                                               \
 	fi;                                                                       \

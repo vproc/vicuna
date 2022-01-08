@@ -1000,4 +1000,9 @@ module vproc_elem #(
         endcase
     end
 
+
+`ifdef VPROC_SVA
+`include "vproc_elem_sva.svh"
+`endif
+
 endmodule

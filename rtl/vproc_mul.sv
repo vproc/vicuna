@@ -930,4 +930,9 @@ module vproc_mul #(
         endcase
     end
 
+
+`ifdef VPROC_SVA
+`include "vproc_mul_sva.svh"
+`endif
+
 endmodule
