@@ -230,7 +230,12 @@ module vproc_sld #(
             state_d.first_cycle     = 1'b0;
             state_d.vs2_fetch       = 1'b0;
             if (state_q.count.part.low == '1) begin
-                state_d.vs2[2:0]  = state_q.vs2[2:0] + 3'b1;
+                unique case (state_q.emul)
+                    EMUL_2: state_d.vs2[  0] = state_q.vs2[  0] + 1'b1;
+                    EMUL_4: state_d.vs2[1:0] = state_q.vs2[1:0] + 2'b1;
+                    EMUL_8: state_d.vs2[2:0] = state_q.vs2[2:0] + 3'b1;
+                    default: ;
+                endcase
                 state_d.vs2_fetch = 1'b1;
             end
         end
