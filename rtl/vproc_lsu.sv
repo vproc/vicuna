@@ -320,7 +320,7 @@ module vproc_lsu #(
 
     // pass state information along pipeline:
     logic                           state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready;
-    logic         state_init_stall,                                                                                                   state_vd_stall;
+    logic         state_init_stall,                                                           state_req_stall;
     logic         state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_rdata_valid_q, state_vd_valid_q;
     lsu_state     state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q;
     lsu_state_red state_rdata_d,    state_rdata_q,      state_vd_q;
