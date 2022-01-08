@@ -16,6 +16,7 @@ module vproc_core #(
         parameter bit                 BUF_DEC        = 1'b1, // buffer decoder outputs
         parameter bit                 BUF_DEQUEUE    = 1'b1, // buffer instruction queue outputs
         parameter bit                 BUF_VREG_WR    = 1'b0,
+        parameter bit                 BUF_VREG_PEND  = 1'b1, // buffer pending vreg reads
         parameter bit                 DONT_CARE_ZERO = 1'b0, // initialize don't care values to zero
         parameter bit                 ASYNC_RESET    = 1'b0  // set if rst_ni is an asynchronous reset
     )(
@@ -564,13 +565,47 @@ module vproc_core #(
 
 
     // Pending reads
-    logic [31:0] vreg_pend_rd_by_lsu, vreg_pend_rd_by_alu, vreg_pend_rd_by_mul, vreg_pend_rd_by_sld, vreg_pend_rd_by_elem;
-    logic [31:0] vreg_pend_rd_to_lsu, vreg_pend_rd_to_alu, vreg_pend_rd_to_mul, vreg_pend_rd_to_sld, vreg_pend_rd_to_elem;
-    assign vreg_pend_rd_to_lsu  = vreg_pend_rd_by_alu | vreg_pend_rd_by_mul | vreg_pend_rd_by_sld | vreg_pend_rd_by_elem;
-    assign vreg_pend_rd_to_alu  = vreg_pend_rd_by_lsu | vreg_pend_rd_by_mul | vreg_pend_rd_by_sld | vreg_pend_rd_by_elem;
-    assign vreg_pend_rd_to_mul  = vreg_pend_rd_by_lsu | vreg_pend_rd_by_alu | vreg_pend_rd_by_sld | vreg_pend_rd_by_elem;
-    assign vreg_pend_rd_to_sld  = vreg_pend_rd_by_lsu | vreg_pend_rd_by_alu | vreg_pend_rd_by_mul | vreg_pend_rd_by_elem;
-    assign vreg_pend_rd_to_elem = vreg_pend_rd_by_lsu | vreg_pend_rd_by_alu | vreg_pend_rd_by_mul | vreg_pend_rd_by_sld;
+    logic [31:0] vreg_pend_rd_by_lsu_q, vreg_pend_rd_by_alu_q, vreg_pend_rd_by_mul_q, vreg_pend_rd_by_sld_q, vreg_pend_rd_by_elem_q;
+    logic [31:0] vreg_pend_rd_by_lsu_d, vreg_pend_rd_by_alu_d, vreg_pend_rd_by_mul_d, vreg_pend_rd_by_sld_d, vreg_pend_rd_by_elem_d;
+    logic [31:0] vreg_pend_rd_to_lsu_q, vreg_pend_rd_to_alu_q, vreg_pend_rd_to_mul_q, vreg_pend_rd_to_sld_q, vreg_pend_rd_to_elem_q;
+    logic [31:0] vreg_pend_rd_to_lsu_d, vreg_pend_rd_to_alu_d, vreg_pend_rd_to_mul_d, vreg_pend_rd_to_sld_d, vreg_pend_rd_to_elem_d;
+    generate
+        if (BUF_VREG_PEND) begin
+            // Note: A vreg write cannot happen within the first two cycles of
+            // an instruction, hence delaying the pending vreg reads signals by
+            // two cycles should cause no issues. This adds two unnecessary
+            // extra stall cycles in case a write is blocked by a pending read
+            // but that should happen rarely anyways.
+            always_ff @(posedge clk_i) begin
+                vreg_pend_rd_by_lsu_q  <= vreg_pend_rd_by_lsu_d;
+                vreg_pend_rd_by_alu_q  <= vreg_pend_rd_by_alu_d;
+                vreg_pend_rd_by_mul_q  <= vreg_pend_rd_by_mul_d;
+                vreg_pend_rd_by_sld_q  <= vreg_pend_rd_by_sld_d;
+                vreg_pend_rd_by_elem_q <= vreg_pend_rd_by_elem_d;
+                vreg_pend_rd_to_lsu_q  <= vreg_pend_rd_to_lsu_d;
+                vreg_pend_rd_to_alu_q  <= vreg_pend_rd_to_alu_d;
+                vreg_pend_rd_to_mul_q  <= vreg_pend_rd_to_mul_d;
+                vreg_pend_rd_to_sld_q  <= vreg_pend_rd_to_sld_d;
+                vreg_pend_rd_to_elem_q <= vreg_pend_rd_to_elem_d;
+            end
+        end else begin
+            assign vreg_pend_rd_by_lsu_q  = vreg_pend_rd_by_lsu_d;
+            assign vreg_pend_rd_by_alu_q  = vreg_pend_rd_by_alu_d;
+            assign vreg_pend_rd_by_mul_q  = vreg_pend_rd_by_mul_d;
+            assign vreg_pend_rd_by_sld_q  = vreg_pend_rd_by_sld_d;
+            assign vreg_pend_rd_by_elem_q = vreg_pend_rd_by_elem_d;
+            assign vreg_pend_rd_to_lsu_q  = vreg_pend_rd_to_lsu_d;
+            assign vreg_pend_rd_to_alu_q  = vreg_pend_rd_to_alu_d;
+            assign vreg_pend_rd_to_mul_q  = vreg_pend_rd_to_mul_d;
+            assign vreg_pend_rd_to_sld_q  = vreg_pend_rd_to_sld_d;
+            assign vreg_pend_rd_to_elem_q = vreg_pend_rd_to_elem_d;
+        end
+    endgenerate
+    assign vreg_pend_rd_to_lsu_d  = vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_sld_q | vreg_pend_rd_by_elem_q;
+    assign vreg_pend_rd_to_alu_d  = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_sld_q | vreg_pend_rd_by_elem_q;
+    assign vreg_pend_rd_to_mul_d  = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_sld_q | vreg_pend_rd_by_elem_q;
+    assign vreg_pend_rd_to_sld_d  = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_elem_q;
+    assign vreg_pend_rd_to_elem_d = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_sld_q;
 
 
     // LSU
@@ -602,8 +637,8 @@ module vproc_core #(
         .rs2_i              ( queue_data_q.rs2              ),
         .vd_i               ( queue_data_q.rd.addr          ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q          ),
-        .vreg_pend_rd_o     ( vreg_pend_rd_by_lsu           ),
-        .vreg_pend_rd_i     ( vreg_pend_rd_to_lsu           ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_lsu_d         ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_lsu_q         ),
         .pending_load_o     ( pending_load_lsu              ),
         .pending_store_o    ( pending_store_lsu             ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_lsu        ),
@@ -657,8 +692,8 @@ module vproc_core #(
         .vs2_vreg_i         ( queue_data_q.rs2.vreg         ),
         .vd_i               ( queue_data_q.rd.addr          ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q          ),
-        .vreg_pend_rd_o     ( vreg_pend_rd_by_alu           ),
-        .vreg_pend_rd_i     ( vreg_pend_rd_to_alu           ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_alu_d         ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_alu_q         ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_alu        ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_alu        ),
         .vreg_mask_i        ( vreg_mask                     ),
@@ -700,8 +735,8 @@ module vproc_core #(
         .vs2_i              ( queue_data_q.rs2.r.vaddr               ),
         .vd_i               ( queue_data_q.rd.addr                   ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q                   ),
-        .vreg_pend_rd_o     ( vreg_pend_rd_by_mul                    ),
-        .vreg_pend_rd_i     ( vreg_pend_rd_to_mul                    ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_mul_d                  ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_mul_q                  ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_mul                 ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_mul                 ),
         .vreg_mask_i        ( vreg_mask                              ),
@@ -743,8 +778,8 @@ module vproc_core #(
         .vs2_i              ( queue_data_q.rs2.r.vaddr ),
         .vd_i               ( queue_data_q.rd.addr     ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q     ),
-        .vreg_pend_rd_o     ( vreg_pend_rd_by_sld      ),
-        .vreg_pend_rd_i     ( vreg_pend_rd_to_sld      ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_sld_d    ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_sld_q    ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_sld   ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_sld   ),
         .vreg_mask_i        ( vreg_mask                ),
@@ -788,8 +823,8 @@ module vproc_core #(
         .vs2_vreg_i         ( queue_data_q.rs2.vreg    ),
         .vd_i               ( queue_data_q.rd.addr     ),
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q     ),
-        .vreg_pend_rd_o     ( vreg_pend_rd_by_elem     ),
-        .vreg_pend_rd_i     ( vreg_pend_rd_to_elem     ),
+        .vreg_pend_rd_o     ( vreg_pend_rd_by_elem_d   ),
+        .vreg_pend_rd_i     ( vreg_pend_rd_to_elem_q   ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_elem  ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_elem  ),
         .vreg_mask_i        ( vreg_mask                ),
