@@ -32,6 +32,8 @@ TRACE_SIGS ?= '*'
 VREG_W ?= 128
 VMEM_W ?= 32
 VMUL_W ?= 64
+VALU_W ?= $(VMUL_W)
+VSLD_W ?= $(if $(filter-out 32,$(VMUL_W)),$(VMUL_W),64)
 
 # set configuration of instruction and data caches (both disabled by default)
 ICACHE_SZ     ?= 0
@@ -46,8 +48,8 @@ MEM_LATENCY ?= 1
 
 vivado:
 	cd $(PROJ_DIR) && vivado -mode batch -source $(VIVADO_TCL)                \
-	    -tclargs $(SIM_DIR)/../ $(CORE_DIR)                                   \
-	    "VREG_W=$(VREG_W) VMEM_W=$(VMEM_W) VMUL_W=$(VMUL_W)                   \
+	    -tclargs $(SIM_DIR)/../ $(CORE_DIR) "VREG_W=$(VREG_W)                 \
+	    VMEM_W=$(VMEM_W) VMUL_W=$(VMUL_W) VALU_W=$(VALU_W) VSLD_W=$(VSLD_W)   \
 	    ICACHE_SZ=$(ICACHE_SZ) ICACHE_LINE_W=$(ICACHE_LINE_W)                 \
 	    DCACHE_SZ=$(DCACHE_SZ) DCACHE_LINE_W=$(DCACHE_LINE_W)                 \
 	    MEM_W=$(MEM_W) MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)"           \
@@ -91,8 +93,9 @@ verilator:
 	verilator --unroll-count 1024 -Wno-WIDTH -Wno-PINMISSING -Wno-UNOPTFLAT   \
 	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
 	    -Wno-SYMRSVDWORD -Wno-BLKANDNBLK -Wno-BLKSEQ -Wno-SYNCASYNCNET        \
-	    -I$(SIM_DIR)/../rtl/ $$inc $$core -GMEM_W=$(MEM_W)                    \
-	    -GVREG_W=$(VREG_W) -GVMEM_W=$(VMEM_W) -GVMUL_W=$(VMUL_W)              \
+	    -I$(SIM_DIR)/../rtl/ -I$(SIM_DIR)/../sva/ $$inc $$core                \
+	    -GMEM_W=$(MEM_W) -GVREG_W=$(VREG_W) -GVMEM_W=$(VMEM_W)                \
+	    -GVMUL_W=$(VMUL_W) -GVALU_W=$(VALU_W) -GVSLD_W=$(VSLD_W)              \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
 	    --cc $$src vproc_pkg.sv vproc_top.sv vproc_hazards.sv                 \

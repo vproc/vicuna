@@ -8,6 +8,8 @@ module vproc_top #(
         parameter int unsigned        VREG_W        = 128, // vector register width in bits
         parameter int unsigned        VMEM_W        = 32,  // vector memory interface width in bits
         parameter int unsigned        VMUL_W        = 64,  // MUL unit operand width in bits
+        parameter int unsigned        VALU_W        = 64,  // ALU unit operand width in bits
+        parameter int unsigned        VSLD_W        = 64,  // SLD unit operand width in bits
         parameter vproc_pkg::ram_type RAM_TYPE      = vproc_pkg::RAM_GENERIC,
         parameter vproc_pkg::mul_type MUL_TYPE      = vproc_pkg::MUL_GENERIC,
         parameter int unsigned        ICACHE_SZ     = 0,   // instruction cache size in bytes
@@ -307,15 +309,15 @@ module vproc_top #(
     logic [VMEM_W-1:0]   vdata_wdata;
 
     vproc_core #(
-        .VREG_W           (  VREG_W                     ),
-        .VMEM_W           (  VMEM_W                     ),
-        .MUL_OP_W         (  VMUL_W                     ),
-        .ALU_OP_W         (  64                         ),
-        .SLD_OP_W         ( (VMUL_W > 64) ? VMUL_W : 64 ),
-        .RAM_TYPE         ( RAM_TYPE                    ),
-        .MUL_TYPE         ( MUL_TYPE                    ),
-        .DONT_CARE_ZERO   ( 1'b0                        ),
-        .ASYNC_RESET      ( 1'b0                        )
+        .VREG_W           ( VREG_W             ),
+        .VMEM_W           ( VMEM_W             ),
+        .MUL_OP_W         ( VMUL_W             ),
+        .ALU_OP_W         ( VALU_W             ),
+        .SLD_OP_W         ( VSLD_W             ),
+        .RAM_TYPE         ( RAM_TYPE           ),
+        .MUL_TYPE         ( MUL_TYPE           ),
+        .DONT_CARE_ZERO   ( 1'b0               ),
+        .ASYNC_RESET      ( 1'b0               )
     ) v_core (
         .clk_i            ( clk_i              ),
         .rst_ni           ( sync_rst_n         ),
