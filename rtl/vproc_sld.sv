@@ -249,7 +249,14 @@ module vproc_sld #(
         state_init_valid      = state_valid_q;
         state_init            = state_q;
         state_init.last_cycle = state_valid_q & last_cycle;
-        state_init.vd_store   = (state_q.count_store.part.low == '1) & ~state_q.count_store.part.mul[3];
+        state_init.vd_store   = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        unique case (state_q.emul)
+            EMUL_1: state_init.vd_store = (state_q.count_store.part.mul[3:0] == '0) & (state_q.count_store.part.low == '1);
+            EMUL_2: state_init.vd_store = (state_q.count_store.part.mul[3:1] == '0) & (state_q.count_store.part.low == '1);
+            EMUL_4: state_init.vd_store = (state_q.count_store.part.mul[3:2] == '0) & (state_q.count_store.part.low == '1);
+            EMUL_8: state_init.vd_store = (state_q.count_store.part.mul[3  ] == '0) & (state_q.count_store.part.low == '1);
+            default: ;
+        endcase
         //state_init.vd[2:0]    = state_q.vd[2:0] | state_q.count_store.part.mul[2:0];
     end
     assign pipeline_ready = state_vreg_ready & ~state_init_stall;
