@@ -353,7 +353,6 @@ module vproc_core #(
     // instruction queue output signals
     logic        queue_valid_q,     queue_valid_d;
     decoder_data queue_data_q,      queue_data_d;
-    logic [31:0] queue_rd_hazard_q, queue_rd_hazard_d; // potential read hazards
     logic [31:0] queue_wr_hazard_q, queue_wr_hazard_d; // potential write hazards
     generate
         // add an extra pipeline stage to calculate the hazards
@@ -374,14 +373,12 @@ module vproc_core #(
                 // or when the current instruction is acknowledged
                 if ((~queue_valid_q) | op_ack) begin
                     queue_data_q      <= queue_data_d;
-                    queue_rd_hazard_q <= queue_rd_hazard_d;
                     queue_wr_hazard_q <= queue_wr_hazard_d;
                 end
             end
         end else begin
             assign queue_valid_q     = queue_valid_d;
             assign queue_data_q      = queue_data_d;
-            assign queue_rd_hazard_q = queue_rd_hazard_d;
             assign queue_wr_hazard_q = queue_wr_hazard_d;
         end
     endgenerate
@@ -422,7 +419,7 @@ module vproc_core #(
         .rs1_i          ( queue_data_d.rs1        ),
         .rs2_i          ( queue_data_d.rs2        ),
         .rd_i           ( queue_data_d.rd         ),
-        .rd_hazards_o   ( queue_rd_hazard_d       ),
+        .rd_hazards_o   (                         ),
         .wr_hazards_o   ( queue_wr_hazard_d       )
     );
 
@@ -440,23 +437,16 @@ module vproc_core #(
     // DISPATCHER
 
     // hazard state
-    logic [31:0] vreg_rd_hazard_map_q;     // active vregs
     logic [31:0] vreg_wr_hazard_map_q;     // active vregs
-    logic [31:0] vreg_rd_hazard_map_set;   // add active regs (via decode)
     logic [31:0] vreg_wr_hazard_map_set;   // add active regs (via decode)
-    logic [31:0] vreg_rd_hazard_map_clr;   // remove active regs (via ex units)
     logic [31:0] vreg_wr_hazard_map_clr;   // remove active regs (via ex units)
     always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_hazard_reg
         if (~async_rst_n) begin
-            vreg_rd_hazard_map_q <= 32'b0;
             vreg_wr_hazard_map_q <= 32'b0;
         end
         else if (~sync_rst_n) begin
-            vreg_rd_hazard_map_q <= 32'b0;
             vreg_wr_hazard_map_q <= 32'b0;
         end else begin
-            vreg_rd_hazard_map_q <= (vreg_rd_hazard_map_q & (~vreg_rd_hazard_map_clr)) |
-                                     vreg_rd_hazard_map_set;
             vreg_wr_hazard_map_q <= (vreg_wr_hazard_map_q & (~vreg_wr_hazard_map_clr)) |
                                      vreg_wr_hazard_map_set;
         end
@@ -464,8 +454,7 @@ module vproc_core #(
 
     // pending hazards of next instruction (in dequeue buffer)
     logic pending_hazards;
-    assign pending_hazards = ((queue_wr_hazard_q & vreg_rd_hazard_map_q) != 32'b0) |
-                             ((queue_wr_hazard_q & vreg_wr_hazard_map_q) != 32'b0);
+    assign pending_hazards = (queue_wr_hazard_q & vreg_wr_hazard_map_q) != 32'b0;
 
     // instruction ready and acknowledge signals for each unit:
     logic op_rdy_lsu,  op_ack_lsu;
@@ -495,7 +484,6 @@ module vproc_core #(
     end
     always_comb begin
         op_ack                 = 1'b0;
-        vreg_rd_hazard_map_set = '0;
         vreg_wr_hazard_map_set = '0;
         if ((op_rdy_lsu  & op_ack_lsu ) |
             (op_rdy_alu  & op_ack_alu ) |
@@ -503,7 +491,6 @@ module vproc_core #(
             (op_rdy_sld  & op_ack_sld ) |
             (op_rdy_elem & op_ack_elem)) begin
             op_ack              = 1'b1;
-            vreg_rd_hazard_map_set = queue_rd_hazard_q;
             vreg_wr_hazard_map_set = queue_wr_hazard_q;
         end
     end
@@ -514,11 +501,6 @@ module vproc_core #(
     logic [31:0] vreg_rd_hazard_clr_mul,  vreg_wr_hazard_clr_mul;
     logic [31:0] vreg_rd_hazard_clr_sld,  vreg_wr_hazard_clr_sld;
     logic [31:0] vreg_rd_hazard_clr_elem, vreg_wr_hazard_clr_elem;
-    assign vreg_rd_hazard_map_clr = vreg_rd_hazard_clr_lsu  |
-                                    vreg_rd_hazard_clr_alu  |
-                                    vreg_rd_hazard_clr_mul  |
-                                    vreg_rd_hazard_clr_sld  |
-                                    vreg_rd_hazard_clr_elem;
     assign vreg_wr_hazard_map_clr = vreg_wr_hazard_clr_lsu  |
                                     vreg_wr_hazard_clr_alu  |
                                     vreg_wr_hazard_clr_mul  |

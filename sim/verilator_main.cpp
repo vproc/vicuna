@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "ERROR: opening `%s': %s\n", argv[6], strerror(errno));
         return 2;
     }
-    fprintf(fcsv, "rst_ni;mem_req;mem_addr;vreg_rd_hazard_map_q;vreg_wr_hazard_map_q;state_init_q;\n");
+    fprintf(fcsv, "rst_ni;mem_req;mem_addr;vreg_wr_hazard_map_q;state_init_q;\n");
 
     unsigned char *mem = (unsigned char *)malloc(mem_sz);
     if (mem == NULL) {
@@ -257,7 +257,6 @@ double sc_time_stamp() {
 static void log_cycle(Vvproc_top *top, VerilatedTrace_t *tfp, FILE *fcsv) {
     fprintf(fcsv, "%d;%d;%08X;%08X;%08X;'{XX,'{X,X,X}},%d,X,'{X,X,X,X,X},X,XX,X,XXXXXXXX,'{X,'{XX,XXXXXXXX}},XX;\n",
             top->rst_ni, top->mem_req_o, top->mem_addr_o,
-            SIGNALS_ROOT->vproc_top__DOT__v_core__DOT__vreg_rd_hazard_map_q,
             SIGNALS_ROOT->vproc_top__DOT__v_core__DOT__vreg_wr_hazard_map_q,
             0);
     main_time++;

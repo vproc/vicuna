@@ -95,21 +95,9 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        cat sim.log;                                                      \
 	        exit 1;                                                           \
 	    fi;                                                                   \
-	    rd_hazard_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |             \
-	                   grep -n vreg_rd_hazard_map_q |                         \
-	                   awk -F ':' '{print $$1}'`;                             \
 	    wr_hazard_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |             \
 	                   grep -n vreg_wr_hazard_map_q |                         \
 	                   awk -F ':' '{print $$1}'`;                             \
-	    if [[ "$$rd_hazard_col" =~ ^[0-9]+$$ ]]; then                         \
-	        hazards=`tail -n 1 sim_trace.csv |                                \
-	                 awk -F ';' -v idx="$$rd_hazard_col" '{print $$idx}'`;    \
-	        if [ "$$hazards" != "00000000" ]; then                            \
-	            echo "[WARNING] $@ uncleared read hazard(s) (0x$${hazards})"; \
-	        fi;                                                               \
-	    else                                                                  \
-	        echo "[WARNING] $@ read hazards are not among traced signals";    \
-	    fi;                                                                   \
 	    if [[ "$$wr_hazard_col" =~ ^[0-9]+$$ ]]; then                         \
 	        hazards=`tail -n 1 sim_trace.csv |                                \
 	                 awk -F ';' -v idx="$$wr_hazard_col" '{print $$idx}'`;    \
