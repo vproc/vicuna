@@ -565,7 +565,7 @@ module vproc_mul #(
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
                               (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.vs2        ]) |
-                              (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
+                              (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vs3        ]) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
     // Stall vreg writes until pending reads are complete
@@ -600,15 +600,15 @@ module vproc_mul #(
         endcase
         pend_vs3 = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_init.emul)
-            EMUL_1: pend_vs3 = {31'b0, state_init.vs3_fetch} << state_init.vd;
-            EMUL_2: pend_vs3 = (32'h03 & ((32'h02 | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:1], 1'b0};
-            EMUL_4: pend_vs3 = (32'h0F & ((32'h0E | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:2], 2'b0};
-            EMUL_8: pend_vs3 = (32'hFF & ((32'hFE | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:3], 3'b0};
+            EMUL_1: pend_vs3 = {31'b0, state_init.vs3_fetch} << state_init.vs3;
+            EMUL_2: pend_vs3 = (32'h03 & ((32'h02 | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs3[4:1], 1'b0};
+            EMUL_4: pend_vs3 = (32'h0F & ((32'h0E | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs3[4:2], 2'b0};
+            EMUL_8: pend_vs3 = (32'hFF & ((32'hFE | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs3[4:3], 3'b0};
             default: ;
         endcase
     end
-    // Note: vs2 and vs3 are read in the second cycle; the v0 mask has no extra
-    // buffer and is always read in state_vs1
+    // Note: vs2 is read in the second cycle; vs3 and the v0 mask have no extra
+    // buffer and are always read in state_vs1
     assign vreg_pend_rd_o = ((
             ((state_init_valid & state_init.rs1.vreg              ) ? pend_vs1                        : '0) |
             ((state_init_valid                                    ) ? pend_vs2                        : '0) |
@@ -617,8 +617,8 @@ module vproc_mul #(
         ) & ~vreg_pend_wr_q) |
     ((            state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.vs2)       : '0) |
     ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.vs2 )       : '0) |
-    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vd )       : '0) |
-    ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs3_fetch   ) ? (32'h1 << state_vs1_q.vd  )       : '0) |
+    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vs3)       : '0) |
+    ((            state_vs1_valid_q  & state_vs1_q.vs3_fetch   ) ? (32'h1 << state_vs1_q.vs3 )       : '0) |
     ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
     ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_q.mode.masked}  : '0);
 
