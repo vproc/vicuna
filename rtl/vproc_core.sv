@@ -23,25 +23,10 @@ module vproc_core #(
         input  logic                  clk_i,
         input  logic                  rst_ni,
 
-        input  logic                  instr_valid_i,
-        input  logic [31:0]           instr_i,
-        input  logic                  x_rs1_valid_i,
-        input  logic [31:0]           x_rs1_i,          // value of x register rs1
-        input  logic                  x_rs2_valid_i,
-        input  logic [31:0]           x_rs2_i,          // value of x register rs2
-
-        output logic                  instr_gnt_o,      // grant instructions
-        output logic                  instr_illegal_o,  // illegal instruction flag
-        output logic                  misaligned_ls_o,  // misaligned load/store
-        output logic                  xreg_wait_o,      // main processor shall wait for result
-
-        input  logic                  instr_commit_i,   // commit the previous instruction
-        input  logic                  instr_kill_i,     // kill the previous instruction
-
-        input  logic                  result_ready_i,   // host is ready to accept the result
-        output logic                  result_valid_o,
-        output logic                  xreg_valid_o,
-        output logic [31:0]           xreg_o,           // value to be written to destination x register
+        // eXtension interface
+        vproc_xif.coproc_issue        xif_issue_if,
+        vproc_xif.coproc_commit       xif_commit_if,
+        vproc_xif.coproc_result       xif_result_if,
 
         output logic                  pending_load_o,
         output logic                  pending_store_o,
@@ -201,32 +186,39 @@ module vproc_core #(
     end
     assign dec_buf_valid_d = (~dec_ready | dec_valid) & ~dec_clear;
 
+    logic instr_illegal;
     vproc_decoder #(
-        .DONT_CARE_ZERO ( DONT_CARE_ZERO        )
+        .DONT_CARE_ZERO ( DONT_CARE_ZERO                 )
     ) dec (
-        .instr_i        ( instr_i               ),
-        .instr_valid_i  ( instr_valid_i         ),
-        .x_rs1_i        ( x_rs1_i               ),
-        .x_rs2_i        ( x_rs2_i               ),
-        .vsew_i         ( vsew_q                ),
-        .lmul_i         ( lmul_q                ),
-        .vxrm_i         ( vxrm_q                ),
-        .illegal_o      ( instr_illegal_o       ),
-        .valid_o        ( dec_valid             ),
-        .lmul_o         ( dec_data_d.lmul       ),
-        .unit_o         ( dec_data_d.unit       ),
-        .mode_o         ( dec_data_d.mode       ),
-        .widenarrow_o   ( dec_data_d.widenarrow ),
-        .rs1_o          ( dec_data_d.rs1        ),
-        .rs2_o          ( dec_data_d.rs2        ),
-        .rd_o           ( dec_data_d.rd         )
+        .instr_i        ( xif_issue_if.issue_req.instr   ),
+        .instr_valid_i  ( xif_issue_if.issue_valid       ),
+        .x_rs1_i        ( xif_issue_if.issue_req.rs[0]   ),
+        .x_rs2_i        ( xif_issue_if.issue_req.rs[1]   ),
+        .vsew_i         ( vsew_q                         ),
+        .lmul_i         ( lmul_q                         ),
+        .vxrm_i         ( vxrm_q                         ),
+        .illegal_o      ( instr_illegal                  ),
+        .valid_o        ( dec_valid                      ),
+        .lmul_o         ( dec_data_d.lmul                ),
+        .unit_o         ( dec_data_d.unit                ),
+        .mode_o         ( dec_data_d.mode                ),
+        .widenarrow_o   ( dec_data_d.widenarrow          ),
+        .rs1_o          ( dec_data_d.rs1                 ),
+        .rs2_o          ( dec_data_d.rs2                 ),
+        .rd_o           ( dec_data_d.rd                  )
     );
     assign dec_data_d.vsew = vsew_q;
     assign dec_data_d.vl_0 = vl_0_q;
     assign dec_data_d.vl   = vl_q;
 
-    assign instr_gnt_o = instr_valid_i & (instr_illegal_o | (dec_valid & dec_ready));
-    assign xreg_wait_o = ((dec_data_d.unit == UNIT_ELEM) & dec_data_d.mode.elem.xreg) | (dec_data_d.unit == UNIT_CFG);
+    //assign xif_issue_if.issue_ready          = instr_valid_i & (instr_illegal | (dec_valid & dec_ready));
+    assign xif_issue_if.issue_ready          = ~dec_valid | dec_ready;
+    assign xif_issue_if.issue_resp.accept    = dec_valid;
+    assign xif_issue_if.issue_resp.writeback = dec_valid & (((dec_data_d.unit == UNIT_ELEM) & dec_data_d.mode.elem.xreg) | (dec_data_d.unit == UNIT_CFG));
+    assign xif_issue_if.issue_resp.dualwrite = 1'b0;
+    assign xif_issue_if.issue_resp.dualread  = 1'b0;
+    assign xif_issue_if.issue_resp.loadstore = dec_valid & (dec_data_d.unit == UNIT_LSU);
+    assign xif_issue_if.issue_resp.exc       = dec_valid & (dec_data_d.unit == UNIT_LSU);
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -253,15 +245,17 @@ module vproc_core #(
     // decode buffer or to the next instruction to enter the decode buffer if the current instr is
     // moving on (dec_ready is asserted); however the latter is only true if the current instr has
     // already been committed/killed or if the buffer is currently empty (i.e., ~dec_buf_valid_q)
-    assign dec_committed_d = dec_ready ? (~dec_buf_valid_q | dec_committed_q) & instr_commit_i : dec_committed_q | instr_commit_i;
-    assign dec_killed_d    = dec_ready ? (~dec_buf_valid_q | dec_killed_q   ) & instr_kill_i   : dec_killed_q    | instr_kill_i  ;
+    assign dec_committed_d = dec_ready ? (~dec_buf_valid_q | dec_committed_q) & xif_commit_if.commit_valid & ~xif_commit_if.commit.commit_kill :
+                                         dec_committed_q | (xif_commit_if.commit_valid & ~xif_commit_if.commit.commit_kill);
+    assign dec_killed_d    = dec_ready ? (~dec_buf_valid_q | dec_killed_q   ) & xif_commit_if.commit_valid &  xif_commit_if.commit.commit_kill :
+                                         dec_killed_q    | (xif_commit_if.commit_valid &  xif_commit_if.commit.commit_kill);
 
     logic queue_ready,  queue_push; // instruction queue ready and push signals (enqueue handshake)
     logic result_empty, result_vl;  // return an empty result or VL as result
     always_comb begin
         queue_push = 1'b0;
         result_vl  = 1'b0;
-        if (dec_buf_valid_q & (dec_committed_q | instr_commit_i)) begin
+        if (dec_buf_valid_q & (dec_committed_q | (xif_commit_if.commit_valid & ~xif_commit_if.commit.commit_kill))) begin
             if (dec_data_q.unit == UNIT_CFG) begin
                 // vset[i]vl[i] instructions are not enqueued, return the result upon commit
                 result_vl  = 1'b1;
@@ -277,7 +271,7 @@ module vproc_core #(
     // decode buffer is vacated either by enqueueing an instruction, upon commit for vset[i]vl[i],
     // or when the instruction is killed; for vset[i]vl[i] it will take an additional cycle until
     // the CSR values are updated, hence the decode buffer is cleared without asserting dec_ready
-    assign dec_ready = ~dec_buf_valid_q | (queue_ready & queue_push) | (dec_killed_q | instr_kill_i);
+    assign dec_ready = ~dec_buf_valid_q | (queue_ready & queue_push) | (dec_killed_q | (xif_commit_if.commit_valid & xif_commit_if.commit.commit_kill));
     assign dec_clear = result_vl;
 
     // temporary variables for calculating new vector length for vset[i]vl[i]
@@ -887,15 +881,19 @@ module vproc_core #(
         result_vl_d    = result_vl_q;
         result_xreg_d  = result_xreg_q;
         result_data_d  = result_data_q;
-        if (~result_valid_q | result_ready_i) begin
+        if (~result_valid_q | xif_result_if.result_ready) begin
             result_valid_d = result_empty | result_vl | elem_xreg_valid;
             result_vl_d    = result_vl;
             result_xreg_d  = elem_xreg_valid;
             result_data_d  = elem_xreg;
         end
     end
-    assign result_valid_o = result_valid_q;
-    assign xreg_valid_o   = result_vl_q | result_xreg_q;
-    assign xreg_o         = result_vl_q ? csr_vl_o : result_data_q;
+    assign xif_result_if.result_valid   = result_valid_q;
+    assign xif_result_if.result.id      = '0;
+    assign xif_result_if.result.data    = result_vl_q ? csr_vl_o : result_data_q;
+    assign xif_result_if.result.rd      = '0;
+    assign xif_result_if.result.we      = result_vl_q | result_xreg_q;
+    assign xif_result_if.result.exc     = '0;
+    assign xif_result_if.result.exccode = '0;
 
 endmodule

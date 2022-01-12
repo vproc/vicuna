@@ -70,20 +70,14 @@ module vproc_top #(
     logic [31:0] sdata_rdata;
 
     // Vector Unit Interface
-    logic        vect_instr_valid;
-    logic [31:0] vect_instr;
-    logic [31:0] vect_x_rs1;
-    logic [31:0] vect_x_rs2;
-    logic        vect_instr_gnt;
-    logic        vect_instr_illegal;
-    logic        vect_misaligned_ls;
-    logic        vect_xreg_wait;
-    logic        vect_instr_commit;
-    logic        vect_instr_kill;
-    logic        vect_result_ready;
-    logic        vect_result_valid;
-    logic        vect_xreg_valid;
-    logic [31:0] vect_xreg;
+    vproc_xif #(
+        .X_NUM_RS    ( 2  ),
+        .X_ID_WIDTH  ( 3  ),
+        .X_MEM_WIDTH ( 32 ),
+        .X_RFR_WIDTH ( 32 ),
+        .X_RFW_WIDTH ( 32 ),
+        .X_MISA      ( '0 )
+    ) vcore_xif ();
     logic        vect_pending_load;
     logic        vect_pending_store;
 
@@ -104,6 +98,18 @@ module vproc_top #(
     };
 
 `ifdef MAIN_CORE_IBEX
+
+    logic        cpi_instr_valid;
+    logic [31:0] cpi_instr;
+    logic [31:0] cpi_x_rs1;
+    logic [31:0] cpi_x_rs2;
+    logic        cpi_instr_gnt;
+    logic        cpi_instr_illegal;
+    logic        cpi_misaligned_ls;
+    logic        cpi_xreg_wait;
+    logic        cpi_result_valid;
+    logic        cpi_xreg_valid;
+    logic [31:0] cpi_xreg;
 
     ibex_top #(
         .DmHaltAddr             ( 32'h00000000                       ),
@@ -139,15 +145,15 @@ module vproc_top #(
         .data_rdata_i           ( sdata_rdata                        ),
         .data_err_i             ( sdata_err                          ),
 
-        .cpi_req_o              ( vect_instr_valid                   ),
-        .cpi_instr_o            ( vect_instr                         ),
-        .cpi_rs1_o              ( vect_x_rs1                         ),
-        .cpi_rs2_o              ( vect_x_rs2                         ),
-        .cpi_gnt_i              ( vect_instr_gnt                     ),
-        .cpi_instr_illegal_i    ( vect_instr_illegal                 ),
-        .cpi_wait_i             ( vect_xreg_wait                     ),
-        .cpi_res_valid_i        ( vect_result_valid & vect_xreg_valid),
-        .cpi_res_i              ( vect_xreg                          ),
+        .cpi_req_o              ( cpi_instr_valid                    ),
+        .cpi_instr_o            ( cpi_instr                          ),
+        .cpi_rs1_o              ( cpi_x_rs1                          ),
+        .cpi_rs2_o              ( cpi_x_rs2                          ),
+        .cpi_gnt_i              ( cpi_instr_gnt                      ),
+        .cpi_instr_illegal_i    ( cpi_instr_illegal                  ),
+        .cpi_wait_i             ( cpi_xreg_wait                      ),
+        .cpi_res_valid_i        ( cpi_result_valid                   ),
+        .cpi_res_i              ( cpi_xreg                           ),
 
         .irq_software_i         ( 1'b0                               ),
         .irq_timer_i            ( 1'b0                               ),
@@ -171,9 +177,46 @@ module vproc_top #(
         .scan_rst_ni            ( 1'b1                               )
     );
 
-    assign vect_instr_commit = 1'b1;
-    assign vect_instr_kill   = 1'b0;
-    assign vect_result_ready = 1'b1;
+    logic [vcore_xif.X_ID_WIDTH-1:0] cpi_instr_id_q, cpi_instr_id_q2, cpi_instr_id_d;
+    logic                            cpi_commit_q,                    cpi_commit_d;
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (~rst_ni) begin
+            cpi_instr_id_q  <= '0;
+            cpi_instr_id_q2 <= '0;
+            cpi_commit_q    <= '0;
+        end else begin
+            cpi_instr_id_q  <= cpi_instr_id_d;
+            cpi_instr_id_q2 <= cpi_instr_id_q;
+            cpi_commit_q    <= cpi_commit_d;
+        end
+    end
+    always_comb begin
+        cpi_instr_id_d = cpi_instr_id_q;
+        if (vcore_xif.issue_ready & vcore_xif.issue_valid) begin
+            cpi_instr_id_d = cpi_instr_id_q + {{vcore_xif.X_ID_WIDTH-1{1'b0}}, 1'b1};
+        end
+    end
+    assign cpi_commit_d = vcore_xif.issue_valid & vcore_xif.issue_resp.accept;
+
+    assign vcore_xif.issue_valid        = cpi_instr_valid;
+    assign vcore_xif.issue_req.instr    = cpi_instr;
+    assign vcore_xif.issue_req.mode     = '0;
+    assign vcore_xif.issue_req.id       = cpi_instr_id_q;
+    assign vcore_xif.issue_req.rs[0]    = cpi_x_rs1;
+    assign vcore_xif.issue_req.rs[1]    = cpi_x_rs2;
+    assign vcore_xif.issue_req.rs_valid = 2'b11;
+
+    assign cpi_instr_gnt     = vcore_xif.issue_ready;
+    assign cpi_instr_illegal = ~vcore_xif.issue_resp.accept;
+    assign cpi_xreg_wait     = vcore_xif.issue_resp.writeback;
+
+    assign vcore_xif.commit_valid       = cpi_commit_q;
+    assign vcore_xif.commit.id          = cpi_instr_id_q2;
+    assign vcore_xif.commit.commit_kill = 1'b0;
+
+    assign vcore_xif.result_ready = 1'b1;
+    assign cpi_result_valid       = vcore_xif.result_valid & vcore_xif.result.we;
+    assign cpi_xreg               = vcore_xif.result.data;
 
 `else
 `ifdef MAIN_CORE_CV32E40X
@@ -185,7 +228,7 @@ module vproc_top #(
         .X_RFR_WIDTH ( 32 ),
         .X_RFW_WIDTH ( 32 ),
         .X_MISA      ( '0 )
-    ) ext_if();
+    ) host_xif();
 
     cv32e40x_core #(
         .X_EXT               ( 1'b1          )
@@ -220,12 +263,12 @@ module vproc_top #(
         .data_err_i          ( sdata_err     ),
         .data_atop_o         (               ),
         .data_exokay_i       ( 1'b0          ),
-        .xif_compressed_if   ( ext_if        ),
-        .xif_issue_if        ( ext_if        ),
-        .xif_commit_if       ( ext_if        ),
-        .xif_mem_if          ( ext_if        ),
-        .xif_mem_result_if   ( ext_if        ),
-        .xif_result_if       ( ext_if        ),
+        .xif_compressed_if   ( host_xif      ),
+        .xif_issue_if        ( host_xif      ),
+        .xif_commit_if       ( host_xif      ),
+        .xif_mem_if          ( host_xif      ),
+        .xif_mem_result_if   ( host_xif      ),
+        .xif_result_if       ( host_xif      ),
         .irq_i               ( '0            ),
         .fencei_flush_req_o  (               ),
         .fencei_flush_ack_i  ( 1'b0          ),
@@ -237,26 +280,32 @@ module vproc_top #(
         .core_sleep_o        (               )
     );
 
-    assign vect_instr_valid            = ext_if.issue_valid;
-    assign vect_instr                  = ext_if.issue_req.instr;
-    assign vect_x_rs1                  = ext_if.issue_req.rs[0];
-    assign vect_x_rs2                  = ext_if.issue_req.rs[1];
-    assign ext_if.issue_ready          = vect_instr_gnt;
-    assign ext_if.issue_resp.accept    = ~vect_instr_illegal;
-    assign ext_if.issue_resp.writeback = vect_xreg_wait;
+    assign vcore_xif.issue_valid         = host_xif.issue_valid;
+    assign host_xif.issue_ready          = vcore_xif.issue_ready;
+    assign vcore_xif.issue_req.instr     = host_xif.issue_req.instr;
+    assign vcore_xif.issue_req.mode      = host_xif.issue_req.mode;
+    assign vcore_xif.issue_req.id        = host_xif.issue_req.id;
+    assign vcore_xif.issue_req.rs        = host_xif.issue_req.rs;
+    assign vcore_xif.issue_req.rs_valid  = host_xif.issue_req.rs_valid;
+    assign host_xif.issue_resp.accept    = vcore_xif.issue_resp.accept;
+    assign host_xif.issue_resp.writeback = vcore_xif.issue_resp.writeback;
+    assign host_xif.issue_resp.dualwrite = vcore_xif.issue_resp.dualwrite;
+    assign host_xif.issue_resp.dualread  = vcore_xif.issue_resp.dualread;
+    assign host_xif.issue_resp.loadstore = vcore_xif.issue_resp.loadstore;
+    assign host_xif.issue_resp.exc       = vcore_xif.issue_resp.exc;
 
-    assign vect_instr_commit = ext_if.commit_valid & ~ext_if.commit.commit_kill;
-    assign vect_instr_kill   = ext_if.commit_valid &  ext_if.commit.commit_kill;
+    assign vcore_xif.commit_valid       = host_xif.commit_valid;
+    assign vcore_xif.commit.id          = host_xif.commit.id;
+    assign vcore_xif.commit.commit_kill = host_xif.commit.commit_kill;
 
-    assign vect_result_ready           = ext_if.result_ready;
-    assign ext_if.result_valid         = vect_result_valid;
-    assign ext_if.result.id            = '0;
-    assign ext_if.result.data          = vect_xreg;
-    assign ext_if.result.rd            = '0;
-    assign ext_if.result.we            = vect_xreg_valid;
-    assign ext_if.result.float         = '0;
-    assign ext_if.result.exc           = '0;
-    assign ext_if.result.exccode       = '0;
+    assign host_xif.result_valid   = vcore_xif.result_valid;
+    assign vcore_xif.result_ready  = host_xif.result_ready;
+    assign host_xif.result.id      = vcore_xif.result.id;
+    assign host_xif.result.data    = vcore_xif.result.data;
+    assign host_xif.result.rd      = vcore_xif.result.rd;
+    assign host_xif.result.we      = vcore_xif.result.we;
+    assign host_xif.result.exc     = vcore_xif.result.exc;
+    assign host_xif.result.exccode = vcore_xif.result.exccode;
 
     assign vect_csr_we    = '{default:'0};
     assign vect_csr_wdata = '{default:'0};
@@ -322,25 +371,9 @@ module vproc_top #(
         .clk_i            ( clk_i              ),
         .rst_ni           ( sync_rst_n         ),
 
-        .instr_valid_i    ( vect_instr_valid   ),
-        .instr_i          ( vect_instr         ),
-        .x_rs1_valid_i    ( 1'b1               ),
-        .x_rs1_i          ( vect_x_rs1         ),
-        .x_rs2_valid_i    ( 1'b1               ),
-        .x_rs2_i          ( vect_x_rs2         ),
-
-        .instr_gnt_o      ( vect_instr_gnt     ),
-        .instr_illegal_o  ( vect_instr_illegal ),
-        .misaligned_ls_o  ( vect_misaligned_ls ),
-        .xreg_wait_o      ( vect_xreg_wait     ),
-
-        .instr_commit_i   ( vect_instr_commit  ),
-        .instr_kill_i     ( vect_instr_kill    ),
-
-        .result_ready_i   ( vect_result_ready  ),
-        .result_valid_o   ( vect_result_valid  ),
-        .xreg_valid_o     ( vect_xreg_valid    ),
-        .xreg_o           ( vect_xreg          ),
+        .xif_issue_if     ( vcore_xif          ),
+        .xif_commit_if    ( vcore_xif          ),
+        .xif_result_if    ( vcore_xif          ),
 
         .pending_load_o   ( vect_pending_load  ),
         .pending_store_o  ( vect_pending_store ),

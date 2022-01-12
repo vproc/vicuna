@@ -32,7 +32,7 @@ all: $(TESTS_ALL)
 
 # TODO find ways to check that:
 # - all parameters are initialized
-lint: lint-verible lint-verilator
+lint: lint-verible
 
 # Verible Linting Rules
 # change rule parameters
@@ -40,12 +40,13 @@ LINT_VERIBLE := typedef-structs-unions=allow_anonymous_nested:true
 LINT_VERIBLE := $(LINT_VERIBLE),parameter-name-style=localparam_style:ALL_CAPS
 LINT_VERIBLE := $(LINT_VERIBLE),line-length=length:200
 # enable rules
-LINT_VERIBLE := $(LINT_VERIBLE),port-name-suffix,proper-parameter-declaration
+LINT_VERIBLE := $(LINT_VERIBLE),proper-parameter-declaration
 LINT_VERIBLE := $(LINT_VERIBLE),signal-name-style
 # disable rules
 LINT_VERIBLE := $(LINT_VERIBLE),-generate-label,-struct-union-name-style
 LINT_VERIBLE := $(LINT_VERIBLE),-explicit-parameter-storage-type
 LINT_VERIBLE := $(LINT_VERIBLE),-undersized-binary-literal
+LINT_VERIBLE := $(LINT_VERIBLE),-interface-name-style
 lint-verible:
 	verible-verilog-lint --rules="$(LINT_VERIBLE)"                            \
 	    `ls $(TEST_DIR)/../rtl/*.sv | grep -v vproc_pkg.sv`
@@ -53,7 +54,7 @@ lint-verible:
 lint-verilator:
 	verilator -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSED -Wno-UNDRIVEN            \
 		-Wno-UNSIGNED -Wno-DECLFILENAME                                       \
-	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_core.sv                 \
+	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_xif.sv vproc_core.sv    \
 	    vproc_hazards.sv vproc_vregpack.sv vproc_vregunpack.sv                \
 	    --top-module vproc_core --clk clk_i --lint-only
 
