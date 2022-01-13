@@ -10,6 +10,8 @@ module vproc_alu #(
         parameter int unsigned          VMSK_W           = 16,   // width of vector register masks (= VREG_W / 8)
         parameter int unsigned          CFG_VL_W         = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned          ALU_OP_W         = 64,   // ALU operand width in bits
+        parameter int unsigned          XIF_ID_W         = 3,    // width in bits of instruction IDs
+        parameter int unsigned          XIF_ID_CNT       = 8,    // total count of instruction IDs
         parameter int unsigned          MAX_WR_ATTEMPTS  = 1,    // max required vregfile write attempts
         parameter bit                   BUF_VREG         = 1'b1, // insert pipeline stage after vreg read
         parameter bit                   BUF_OPERANDS     = 1'b1, // insert pipeline stage after operand extraction
@@ -21,6 +23,7 @@ module vproc_alu #(
         input  logic                    async_rst_ni,
         input  logic                    sync_rst_ni,
 
+        input  logic [XIF_ID_W-1:0]     id_i,
         input  vproc_pkg::cfg_vsew      vsew_i,
         input  vproc_pkg::cfg_lmul      lmul_i,
         input  logic [CFG_VL_W-1:0]     vl_i,
@@ -42,6 +45,11 @@ module vproc_alu #(
 
         output logic [31:0]             clear_rd_hazards_o,
         output logic [31:0]             clear_wr_hazards_o,
+
+        input  logic [XIF_ID_CNT-1:0]   instr_spec_i,
+        input  logic [XIF_ID_CNT-1:0]   instr_killed_i,
+        output logic                    instr_done_valid_o,
+        output logic [XIF_ID_W-1:0]     instr_done_id_o,
 
         // connections to register file:
         input  logic [VREG_W-1:0]       vreg_mask_i,
@@ -92,6 +100,7 @@ module vproc_alu #(
         alu_counter          count;
         logic                first_cycle;
         logic                last_cycle;
+        logic [XIF_ID_W-1:0] id;
         op_mode_alu          mode;
         logic                subtract;   // set if an operand is inverted
         cfg_vsew             eew;        // effective element width
@@ -155,6 +164,7 @@ module vproc_alu #(
             state_d.count.val   = '0;
             state_valid_d       = 1'b1;
             state_d.first_cycle = 1'b1;
+            state_d.id          = id_i;
             state_d.mode        = mode_i;
             state_d.subtract    = mode_i.inv_op1 | mode_i.inv_op2;
             // for widening or narrowing ops, eew and emul are increased to the next higher value,
@@ -562,8 +572,12 @@ module vproc_alu #(
                               (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.vs2        ]) |
                               (state_init.first_cycle & state_init_masked & vreg_pend_wr_q[0]);
 
-    // Stall vreg writes until pending reads are complete
-    assign state_vd_stall = state_vd_q.vd_store & vreg_pend_rd_i[state_vd_q.vd];
+    // Stall vreg writes until pending reads of the destination register are
+    // complete and while the instruction is speculative
+    assign state_vd_stall = state_vd_q.vd_store & (vreg_pend_rd_i[state_vd_q.vd] | instr_spec_i[state_vd_q.id]);
+
+    assign instr_done_valid_o = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_stall;
+    assign instr_done_id_o    = state_vd_q.id;
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -784,7 +798,7 @@ module vproc_alu #(
     end
 
     //
-    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall;
+    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall & ~instr_killed_i[state_vd_q.id];
     assign vreg_wr_clear_d = state_vd_valid_q & (state_vd_q.mode.cmp ? state_vd_q.last_cycle : state_vd_q.vd_store) & ~state_vd_stall;
     assign vreg_wr_addr_d  = state_vd_q.vd;
     assign vreg_wr_mask_d  = vreg_wr_en_o ? (state_vd_q.mode.cmp ? vdmsk_cmp_q : vdmsk_alu_shift_q) : '0;

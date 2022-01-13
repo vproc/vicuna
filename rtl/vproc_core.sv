@@ -153,16 +153,17 @@ module vproc_core #(
     // VECTOR INSTRUCTION DECODER INTERFACE
 
     typedef struct packed {
-        cfg_vsew             vsew;
-        cfg_lmul             lmul;
-        logic                vl_0;
-        logic [CFG_VL_W-1:0] vl;
-        op_unit              unit;
-        op_mode              mode;
-        op_widenarrow        widenarrow;
-        op_regs              rs1;
-        op_regs              rs2;
-        op_regd              rd;
+        logic [xif_issue_if.X_ID_WIDTH-1:0] id;
+        cfg_vsew                            vsew;
+        cfg_lmul                            lmul;
+        logic                               vl_0;
+        logic [CFG_VL_W-1:0]                vl;
+        op_unit                             unit;
+        op_mode                             mode;
+        op_widenarrow                       widenarrow;
+        op_regs                             rs1;
+        op_regs                             rs2;
+        op_regd                             rd;
     } decoder_data;
 
     // signals for decoder and for decoder buffer
@@ -186,33 +187,38 @@ module vproc_core #(
     end
     assign dec_buf_valid_d = (~dec_ready | dec_valid) & ~dec_clear;
 
+    // Stall instruction offloading in case the instruction ID is already used
+    // by another instruction which is not complete
+    logic instr_valid, issue_id_used;
+    assign instr_valid = xif_issue_if.issue_valid & ~issue_id_used;
+
     logic instr_illegal;
     vproc_decoder #(
-        .DONT_CARE_ZERO ( DONT_CARE_ZERO                 )
+        .DONT_CARE_ZERO ( DONT_CARE_ZERO               )
     ) dec (
-        .instr_i        ( xif_issue_if.issue_req.instr   ),
-        .instr_valid_i  ( xif_issue_if.issue_valid       ),
-        .x_rs1_i        ( xif_issue_if.issue_req.rs[0]   ),
-        .x_rs2_i        ( xif_issue_if.issue_req.rs[1]   ),
-        .vsew_i         ( vsew_q                         ),
-        .lmul_i         ( lmul_q                         ),
-        .vxrm_i         ( vxrm_q                         ),
-        .illegal_o      ( instr_illegal                  ),
-        .valid_o        ( dec_valid                      ),
-        .lmul_o         ( dec_data_d.lmul                ),
-        .unit_o         ( dec_data_d.unit                ),
-        .mode_o         ( dec_data_d.mode                ),
-        .widenarrow_o   ( dec_data_d.widenarrow          ),
-        .rs1_o          ( dec_data_d.rs1                 ),
-        .rs2_o          ( dec_data_d.rs2                 ),
-        .rd_o           ( dec_data_d.rd                  )
+        .instr_i        ( xif_issue_if.issue_req.instr ),
+        .instr_valid_i  ( instr_valid                  ),
+        .x_rs1_i        ( xif_issue_if.issue_req.rs[0] ),
+        .x_rs2_i        ( xif_issue_if.issue_req.rs[1] ),
+        .vsew_i         ( vsew_q                       ),
+        .lmul_i         ( lmul_q                       ),
+        .vxrm_i         ( vxrm_q                       ),
+        .illegal_o      ( instr_illegal                ),
+        .valid_o        ( dec_valid                    ),
+        .lmul_o         ( dec_data_d.lmul              ),
+        .unit_o         ( dec_data_d.unit              ),
+        .mode_o         ( dec_data_d.mode              ),
+        .widenarrow_o   ( dec_data_d.widenarrow        ),
+        .rs1_o          ( dec_data_d.rs1               ),
+        .rs2_o          ( dec_data_d.rs2               ),
+        .rd_o           ( dec_data_d.rd                )
     );
+    assign dec_data_d.id   = xif_issue_if.issue_req.id;
     assign dec_data_d.vsew = vsew_q;
     assign dec_data_d.vl_0 = vl_0_q;
     assign dec_data_d.vl   = vl_q;
 
-    //assign xif_issue_if.issue_ready          = instr_valid_i & (instr_illegal | (dec_valid & dec_ready));
-    assign xif_issue_if.issue_ready          = ~dec_valid | dec_ready;
+    assign xif_issue_if.issue_ready          = (~dec_valid | dec_ready) & ~issue_id_used;
     assign xif_issue_if.issue_resp.accept    = dec_valid;
     assign xif_issue_if.issue_resp.writeback = dec_valid & (((dec_data_d.unit == UNIT_ELEM) & dec_data_d.mode.elem.xreg) | (dec_data_d.unit == UNIT_CFG));
     assign xif_issue_if.issue_resp.dualwrite = 1'b0;
@@ -222,57 +228,101 @@ module vproc_core #(
 
 
     ///////////////////////////////////////////////////////////////////////////
-    // INSTRUCTION COMMIT STAGE
+    // VECTOR INSTRUCTION COMMIT STATE
 
-    // track whether the host has commited or killed the instruction in the decode buffer
-    // TODO: assumption: instr_commit_i and instr_kill_i are not asserted simultaneously
-    logic dec_committed_q, dec_committed_d;
-    logic dec_killed_q,    dec_killed_d;
+    localparam int unsigned XIF_ID_CNT = 1 << xif_issue_if.X_ID_WIDTH;
+
+    // The instruction commit state masks track whether a vector instruction is
+    // speculative or not and whether an instruction has been killed.  First,
+    // any instruction ID is speculative (instr_notspec_q[id] == 1'b0), which
+    // indicates that either no instruction with that ID has been offloaded yet
+    // or if there is an instruction with that ID, then it is still speculative
+    // (i.e., it has not been committed yet).  Once an instruction becomes non-
+    // speculative (by being either committed or killed via the XIF commit
+    // interface) the respective bit in instr_notspec_q is set; the bit remains
+    // set until the instruction is complete.  Note that an instruction may be
+    // incomplete despite having been retired (by providing a result to the
+    // host CPU via the XIF result interface).  Hence, the host CPU might
+    // attempt to reuse the ID of an incomplete instruction.  To avoid this,
+    // the decoder stalls in case the instruction ID of a new instruction is
+    // still marked as non-speculative (i.e., the corresponding bit in
+    // instr_notspec_q is set).
+    logic [XIF_ID_CNT-1:0] instr_notspec_q,   instr_notspec_d;   // not speculative mask
+    logic [XIF_ID_CNT-1:0] instr_killed_q,    instr_killed_d;    // killed mask
+    logic [XIF_ID_CNT-1:0] instr_empty_res_q, instr_empty_res_d; // empty result mask
     always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_commit_buf
         if (~async_rst_n) begin
-            dec_committed_q <= 1'b0;
-            dec_killed_q    <= 1'b0;
+            instr_notspec_q <= '0;
         end
         else if (~sync_rst_n) begin
-            dec_committed_q <= 1'b0;
-            dec_killed_q    <= 1'b0;
+            instr_notspec_q <= '0;
         end else begin
-            dec_committed_q <= dec_committed_d;
-            dec_killed_q    <= dec_killed_d;
+            instr_notspec_q <= instr_notspec_d;
         end
     end
-    // instr_commit_i (or instr_kill_i) can either refer to the instruction currently held in the
-    // decode buffer or to the next instruction to enter the decode buffer if the current instr is
-    // moving on (dec_ready is asserted); however the latter is only true if the current instr has
-    // already been committed/killed or if the buffer is currently empty (i.e., ~dec_buf_valid_q)
-    assign dec_committed_d = dec_ready ? (~dec_buf_valid_q | dec_committed_q) & xif_commit_if.commit_valid & ~xif_commit_if.commit.commit_kill :
-                                         dec_committed_q | (xif_commit_if.commit_valid & ~xif_commit_if.commit.commit_kill);
-    assign dec_killed_d    = dec_ready ? (~dec_buf_valid_q | dec_killed_q   ) & xif_commit_if.commit_valid &  xif_commit_if.commit.commit_kill :
-                                         dec_killed_q    | (xif_commit_if.commit_valid &  xif_commit_if.commit.commit_kill);
+    always_ff @(posedge clk_i) begin
+        instr_killed_q    <= instr_killed_d;
+        instr_empty_res_q <= instr_empty_res_d;
+    end
 
-    logic queue_ready,  queue_push; // instruction queue ready and push signals (enqueue handshake)
+    assign issue_id_used = instr_notspec_q[xif_issue_if.issue_req.id];
+
+    logic                               instr_complete_valid[5];
+    logic [xif_issue_if.X_ID_WIDTH-1:0] instr_complete_id   [5];
+
     logic result_empty, result_vl;  // return an empty result or VL as result
+
+    logic queue_ready, queue_push; // instruction queue ready and push signals (enqueue handshake)
+    assign queue_push = dec_buf_valid_q & (dec_data_q.unit != UNIT_CFG);
+
+    // decode buffer is vacated either by enqueueing an instruction or for
+    // vset[i]vl[i] once the instruction has been committed; for vset[i]vl[i]
+    // it will take an additional cycle until the CSR values are updated, hence
+    // the decode buffer is cleared without asserting dec_ready
+    assign dec_ready = ~dec_buf_valid_q | (queue_ready & queue_push);
+
     always_comb begin
-        queue_push = 1'b0;
-        result_vl  = 1'b0;
-        if (dec_buf_valid_q & (dec_committed_q | (xif_commit_if.commit_valid & ~xif_commit_if.commit.commit_kill))) begin
-            if (dec_data_q.unit == UNIT_CFG) begin
-                // vset[i]vl[i] instructions are not enqueued, return the result upon commit
-                result_vl  = 1'b1;
+        instr_notspec_d   = instr_notspec_q;
+        instr_killed_d    = instr_killed_q;
+        instr_empty_res_d = instr_empty_res_q;
+        result_empty      = 1'b0;
+        result_vl         = 1'b0;
+        dec_clear         = 1'b0;
+
+        if (dec_valid) begin
+            instr_empty_res_d[xif_issue_if.issue_req.id] = ~xif_issue_if.issue_resp.writeback;
+        end
+        if (xif_commit_if.commit_valid) begin
+            if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & (dec_data_q.id == xif_commit_if.commit.id)) begin
+                // vset[i]vl[i] instructions are not enqueued.  The instruction
+                // is retired and the result returned as soon as it is
+                // committed.
+                dec_clear = 1'b1;
+                result_vl = ~xif_commit_if.commit.commit_kill;
             end else begin
-                // attempt to enqueue all other instructions once they have been committed
-                queue_push = 1'b1;
+                instr_notspec_d[xif_commit_if.commit.id] = 1'b1;
+            end
+            instr_killed_d[xif_commit_if.commit.id] = xif_commit_if.commit.commit_kill;
+            result_empty                            = instr_empty_res_q[xif_commit_if.commit.id];
+        end
+        if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & instr_notspec_q[dec_data_q.id]) begin
+            // Execute a vset[i]vl[i] instruction that has already been
+            // committed earlier (i.e., while decoding and accepting the
+            // instruction).
+            dec_clear = 1'b1;
+            result_vl = ~instr_killed_q[dec_data_q.id];
+            instr_notspec_d[dec_data_q.id] = 1'b0;
+        end
+        for (int i = 0; i < 5; i++) begin
+            if (instr_complete_valid[i]) begin
+                instr_notspec_d[instr_complete_id[i]] = 1'b0;
             end
         end
     end
-    // return the result for instructions that do not write to an XREG as they are enqueued
-    assign result_empty = queue_ready & queue_push & ((dec_data_q.unit != UNIT_ELEM) | ~dec_data_q.mode.elem.xreg);
 
-    // decode buffer is vacated either by enqueueing an instruction, upon commit for vset[i]vl[i],
-    // or when the instruction is killed; for vset[i]vl[i] it will take an additional cycle until
-    // the CSR values are updated, hence the decode buffer is cleared without asserting dec_ready
-    assign dec_ready = ~dec_buf_valid_q | (queue_ready & queue_push) | (dec_killed_q | (xif_commit_if.commit_valid & xif_commit_if.commit.commit_kill));
-    assign dec_clear = result_vl;
+
+    ///////////////////////////////////////////////////////////////////////////
+    // VSET[I]VL[I] CONFIGURATION UPDATE LOGIC
 
     // temporary variables for calculating new vector length for vset[i]vl[i]
     logic [33:0] cfg_avl;   // AVL * (VSEW / 8) - 1
@@ -287,6 +337,7 @@ module vproc_core #(
     end
 
     // update configuration state for vset[i]vl[i] instructions
+    // TODO avoid configuration changes if the instruction is killed
     always_comb begin
         vsew_d     = vsew_q;
         lmul_d     = lmul_q;
@@ -613,12 +664,15 @@ module vproc_core #(
         .VMSK_W             ( VMSK_W                        ),
         .VMEM_W             ( VMEM_W                        ),
         .CFG_VL_W           ( CFG_VL_W                      ),
+        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH       ),
+        .XIF_ID_CNT         ( XIF_ID_CNT                    ),
         .MAX_WR_ATTEMPTS    ( 1                             ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO                )
     ) lsu (
         .clk_i              ( clk_i                         ),
         .async_rst_ni       ( async_rst_n                   ),
         .sync_rst_ni        ( sync_rst_n                    ),
+        .id_i               ( queue_data_q.id               ),
         .vsew_i             ( queue_data_q.vsew             ),
         .lmul_i             ( queue_data_q.lmul             ),
         .vl_i               ( queue_data_q.vl               ),
@@ -637,6 +691,10 @@ module vproc_core #(
         .pending_store_o    ( pending_store_lsu             ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_lsu        ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_lsu        ),
+        .instr_spec_i       ( ~instr_notspec_q              ),
+        .instr_killed_i     ( instr_killed_q                ),
+        .instr_done_valid_o ( instr_complete_valid[0]       ),
+        .instr_done_id_o    ( instr_complete_id   [0]       ),
         .vreg_mask_i        ( vreg_mask                     ),
         .vreg_rd_i          ( vregfile_rd_data[1]           ),
         .vreg_rd_addr_o     ( vregfile_rd_addr[1]           ),
@@ -667,12 +725,15 @@ module vproc_core #(
         .VMSK_W             ( VMSK_W                        ),
         .CFG_VL_W           ( CFG_VL_W                      ),
         .ALU_OP_W           ( ALU_OP_W                      ),
+        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH       ),
+        .XIF_ID_CNT         ( XIF_ID_CNT                    ),
         .MAX_WR_ATTEMPTS    ( 2                             ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO                )
     ) alu (
         .clk_i              ( clk_i                         ),
         .async_rst_ni       ( async_rst_n                   ),
         .sync_rst_ni        ( sync_rst_n                    ),
+        .id_i               ( queue_data_q.id               ),
         .vsew_i             ( queue_data_q.vsew             ),
         .lmul_i             ( queue_data_q.lmul             ),
         .vl_i               ( queue_data_q.vl               ),
@@ -690,6 +751,10 @@ module vproc_core #(
         .vreg_pend_rd_i     ( vreg_pend_rd_to_alu_q         ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_alu        ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_alu        ),
+        .instr_spec_i       ( ~instr_notspec_q              ),
+        .instr_killed_i     ( instr_killed_q                ),
+        .instr_done_valid_o ( instr_complete_valid[1]       ),
+        .instr_done_id_o    ( instr_complete_id   [1]       ),
         .vreg_mask_i        ( vreg_mask                     ),
         .vreg_rd_i          ( vregfile_rd_data[2]           ),
         .vreg_rd_addr_o     ( vregfile_rd_addr[2]           ),
@@ -710,6 +775,8 @@ module vproc_core #(
         .VMSK_W             ( VMSK_W                                 ),
         .CFG_VL_W           ( CFG_VL_W                               ),
         .MUL_OP_W           ( MUL_OP_W                               ),
+        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH                ),
+        .XIF_ID_CNT         ( XIF_ID_CNT                             ),
         .MAX_WR_ATTEMPTS    ( 1                                      ),
         .MUL_TYPE           ( MUL_TYPE                               ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO                         )
@@ -717,6 +784,7 @@ module vproc_core #(
         .clk_i              ( clk_i                                  ),
         .async_rst_ni       ( async_rst_n                            ),
         .sync_rst_ni        ( sync_rst_n                             ),
+        .id_i               ( queue_data_q.id                        ),
         .vsew_i             ( queue_data_q.vsew                      ),
         .lmul_i             ( queue_data_q.lmul                      ),
         .vl_i               ( queue_data_q.vl                        ),
@@ -733,6 +801,10 @@ module vproc_core #(
         .vreg_pend_rd_i     ( vreg_pend_rd_to_mul_q                  ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_mul                 ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_mul                 ),
+        .instr_spec_i       ( ~instr_notspec_q                       ),
+        .instr_killed_i     ( instr_killed_q                         ),
+        .instr_done_valid_o ( instr_complete_valid[2]                ),
+        .instr_done_id_o    ( instr_complete_id   [2]                ),
         .vreg_mask_i        ( vreg_mask                              ),
         .vreg_rd_i          ( vregfile_rd_data[3]                    ),
         .vreg_rd3_i         ( vregfile_rd_data[4]                    ),
@@ -755,12 +827,15 @@ module vproc_core #(
         .VMSK_W             ( VMSK_W                   ),
         .CFG_VL_W           ( CFG_VL_W                 ),
         .SLD_OP_W           ( SLD_OP_W                 ),
+        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH  ),
+        .XIF_ID_CNT         ( XIF_ID_CNT               ),
         .MAX_WR_ATTEMPTS    ( 2                        ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO           )
     ) sld (
         .clk_i              ( clk_i                    ),
         .async_rst_ni       ( async_rst_n              ),
         .sync_rst_ni        ( sync_rst_n               ),
+        .id_i               ( queue_data_q.id          ),
         .vsew_i             ( queue_data_q.vsew        ),
         .lmul_i             ( queue_data_q.lmul        ),
         .vl_i               ( queue_data_q.vl          ),
@@ -776,6 +851,10 @@ module vproc_core #(
         .vreg_pend_rd_i     ( vreg_pend_rd_to_sld_q    ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_sld   ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_sld   ),
+        .instr_spec_i       ( ~instr_notspec_q         ),
+        .instr_killed_i     ( instr_killed_q           ),
+        .instr_done_valid_o ( instr_complete_valid[3]  ),
+        .instr_done_id_o    ( instr_complete_id   [3]  ),
         .vreg_mask_i        ( vreg_mask                ),
         .vreg_rd_i          ( vregfile_rd_data[5]      ),
         .vreg_rd_addr_o     ( vregfile_rd_addr[5]      ),
@@ -798,12 +877,15 @@ module vproc_core #(
         .VMSK_W             ( VMSK_W                   ),
         .CFG_VL_W           ( CFG_VL_W                 ),
         .GATHER_OP_W        ( GATHER_OP_W              ),
+        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH  ),
+        .XIF_ID_CNT         ( XIF_ID_CNT               ),
         .MAX_WR_ATTEMPTS    ( 3                        ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO           )
     ) elem (
         .clk_i              ( clk_i                    ),
         .async_rst_ni       ( async_rst_n              ),
         .sync_rst_ni        ( sync_rst_n               ),
+        .id_i               ( queue_data_q.id          ),
         .vsew_i             ( queue_data_q.vsew        ),
         .lmul_i             ( queue_data_q.lmul        ),
         .vl_i               ( queue_data_q.vl          ),
@@ -821,6 +903,10 @@ module vproc_core #(
         .vreg_pend_rd_i     ( vreg_pend_rd_to_elem_q   ),
         .clear_rd_hazards_o ( vreg_rd_hazard_clr_elem  ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_elem  ),
+        .instr_spec_i       ( ~instr_notspec_q         ),
+        .instr_killed_i     ( instr_killed_q           ),
+        .instr_done_valid_o ( instr_complete_valid[4]  ),
+        .instr_done_id_o    ( instr_complete_id   [4]  ),
         .vreg_mask_i        ( vreg_mask                ),
         .vreg_rd_i          ( vregfile_rd_data[6]      ),
         .vreg_rd_addr_o     ( vregfile_rd_addr[6]      ),

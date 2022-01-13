@@ -10,6 +10,8 @@ module vproc_lsu #(
         parameter int unsigned        VMSK_W          = 16,   // width of vector register masks (= VREG_W / 8)
         parameter int unsigned        VMEM_W          = 32,   // width in bits of the vector memory interface
         parameter int unsigned        CFG_VL_W        = 7,    // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned        XIF_ID_W        = 3,    // width in bits of instruction IDs
+        parameter int unsigned        XIF_ID_CNT      = 8,    // total count of instruction IDs
         parameter int unsigned        MAX_WR_ATTEMPTS = 1,    // max required vregfile write attempts
         parameter bit                 BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
         parameter bit                 BUF_REQUEST     = 1'b1, // insert pipeline stage before issuing request
@@ -21,6 +23,7 @@ module vproc_lsu #(
         input  logic                  async_rst_ni,
         input  logic                  sync_rst_ni,
 
+        input  logic [XIF_ID_W-1:0]   id_i,
         input  vproc_pkg::cfg_vsew    vsew_i,
         input  vproc_pkg::cfg_lmul    lmul_i,
         input  logic [CFG_VL_W-1:0]   vl_i,
@@ -44,6 +47,11 @@ module vproc_lsu #(
 
         output logic [31:0]           clear_rd_hazards_o,
         output logic [31:0]           clear_wr_hazards_o,
+
+        input  logic [XIF_ID_CNT-1:0] instr_spec_i,
+        input  logic [XIF_ID_CNT-1:0] instr_killed_i,
+        output logic                  instr_done_valid_o,
+        output logic [XIF_ID_W-1:0]   instr_done_id_o,
 
         // connections to register file:
         input  logic [VREG_W-1:0]     vreg_mask_i,      // content of v0, rearranged as a byte mask
@@ -111,6 +119,7 @@ module vproc_lsu #(
         lsu_counter          count;
         logic                first_cycle;
         logic                last_cycle;
+        logic [XIF_ID_W-1:0] id;
         op_mode_lsu          mode;
         cfg_emul             emul;       // effective MUL factor
         logic [CFG_VL_W-1:0] vl;
@@ -265,6 +274,7 @@ module vproc_lsu #(
             end
             state_valid_d       = 1'b1;
             state_d.first_cycle = 1'b1;
+            state_d.id          = id_i;
             state_d.mode        = mode_i;
             state_d.emul        = emul;
             state_d.vl          = vl;
@@ -319,7 +329,7 @@ module vproc_lsu #(
     // LSU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    logic                           state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready;
+    logic                           state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready,   lsu_queue_ready;
     logic         state_init_stall,                                                           state_req_stall;
     logic         state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_rdata_valid_q, state_vd_valid_q;
     lsu_state     state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q;
@@ -477,7 +487,7 @@ module vproc_lsu #(
                     vmsk_tmp_q  <= vmsk_tmp_d;
                 end
             end
-            assign state_req_ready = ~state_req_valid_q | (data_req_o & data_gnt_i);
+            assign state_req_ready = ~state_req_valid_q | (data_req_o & data_gnt_i) | (~state_req_stall & ~data_req_o);
         end else begin
             always_comb begin
                 state_req_valid_q = state_vs3_valid_q;
@@ -487,7 +497,7 @@ module vproc_lsu #(
                 wmask_buf_q       = wmask_buf_d;
                 vmsk_tmp_q        = vmsk_tmp_d;
             end
-            assign state_req_ready = data_req_o & data_gnt_i;
+            assign state_req_ready = (data_req_o & data_gnt_i) | (~state_req_stall & ~data_req_o);
         end
 
         // Note: The stages receiving memory data and writing it to vector
@@ -605,9 +615,13 @@ module vproc_lsu #(
                               (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
-    // Stall vreg writes until pending reads are complete; for the LSU stalling
+    // Stall vreg writes until pending reads of the destination register are
+    // complete and while the instruction is speculative; for the LSU stalling
     // has to happen at the request stage, since later stalling is not possible
-    assign state_req_stall = ~state_req_q.mode.store & state_req_q.vd_store & vreg_pend_rd_i[state_req_q.vd];
+    assign state_req_stall = (~state_req_q.mode.store & state_req_q.vd_store & vreg_pend_rd_i[state_req_q.vd]) | instr_spec_i[state_req_q.id] | ~lsu_queue_ready;
+
+    assign instr_done_valid_o = state_req_valid_q & state_req_q.last_cycle & data_req_o & data_gnt_i;
+    assign instr_done_id_o    = state_req_q.id;
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -776,7 +790,6 @@ module vproc_lsu #(
     end
 
     // queue for storing masks and offsets until the memory system fulfills the request:
-    logic         lsu_queue_ready;
     lsu_state_red state_req_red;
     vproc_queue #(
         .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
@@ -804,7 +817,7 @@ module vproc_lsu #(
 
     // memory request:
     assign data_addr_o  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
-    assign data_req_o   = state_req_valid_q & ~state_req_stall & lsu_queue_ready; // keep requesting next access while addressing is not complete
+    assign data_req_o   = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id]; // keep requesting next access while addressing is not complete
     assign data_we_o    = state_req_q.mode.store;
     assign data_be_o    = wmask_buf_q;
     assign data_wdata_o = wdata_buf_q;

@@ -196,7 +196,7 @@ module vproc_top #(
             cpi_instr_id_d = cpi_instr_id_q + {{vcore_xif.X_ID_WIDTH-1{1'b0}}, 1'b1};
         end
     end
-    assign cpi_commit_d = vcore_xif.issue_valid & vcore_xif.issue_resp.accept;
+    assign cpi_commit_d = vcore_xif.issue_valid & vcore_xif.issue_ready & vcore_xif.issue_resp.accept;
 
     assign vcore_xif.issue_valid        = cpi_instr_valid;
     assign vcore_xif.issue_req.instr    = cpi_instr;

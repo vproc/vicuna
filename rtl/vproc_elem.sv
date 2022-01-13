@@ -10,6 +10,8 @@ module vproc_elem #(
         parameter int unsigned         VMSK_W          = 16,   // width of vector register masks (= VREG_W / 8)
         parameter int unsigned         CFG_VL_W        = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned         GATHER_OP_W     = 32,   // ELEM unit GATHER operand width in bits
+        parameter int unsigned         XIF_ID_W        = 3,    // width in bits of instruction IDs
+        parameter int unsigned         XIF_ID_CNT      = 8,    // total count of instruction IDs
         parameter int unsigned         MAX_WR_ATTEMPTS = 1,    // max required vregfile write attempts
         parameter bit                  BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
         parameter bit                  BUF_RESULTS     = 1'b1, // insert pipeline stage after computing result
@@ -19,6 +21,7 @@ module vproc_elem #(
         input  logic                   async_rst_ni,
         input  logic                   sync_rst_ni,
 
+        input  logic [XIF_ID_W-1:0]    id_i,
         input  vproc_pkg::cfg_vsew     vsew_i,
         input  vproc_pkg::cfg_lmul     lmul_i,
         input  logic [CFG_VL_W-1:0]    vl_i,
@@ -40,6 +43,11 @@ module vproc_elem #(
 
         output logic [31:0]            clear_rd_hazards_o,
         output logic [31:0]            clear_wr_hazards_o,
+
+        input  logic [XIF_ID_CNT-1:0]  instr_spec_i,
+        input  logic [XIF_ID_CNT-1:0]  instr_killed_i,
+        output logic                   instr_done_valid_o,
+        output logic [XIF_ID_W-1:0]    instr_done_id_o,
 
         // connections to register file:
         input  logic [VREG_W-1:0]      vreg_mask_i,
@@ -99,6 +107,7 @@ module vproc_elem #(
         elem_counter                 count_store;
         logic                        first_cycle;
         logic                        last_cycle;
+        logic [XIF_ID_W-1:0]         id;
         logic                        requires_flush;
         op_mode_elem                 mode;
         cfg_vsew                     eew;         // effective element width
@@ -191,6 +200,7 @@ module vproc_elem #(
             state_d.count_gather   = (mode_i.op == ELEM_VRGATHER) ? '0 : '1;
             state_valid_d          = 1'b1;
             state_d.first_cycle    = 1'b1;
+            state_d.id             = id_i;
             state_d.requires_flush = (mode_i.op == ELEM_VCOMPRESS) | op_reduction;
             state_d.mode           = mode_i;
             state_d.eew            = vsew_i;
@@ -265,7 +275,7 @@ module vproc_elem #(
 
     // pass state information along pipeline:
     logic                        state_vreg_ready,   state_vs1_ready,   state_vsm_ready,   state_gather_ready,   state_ex_ready,   state_res_ready,   state_vd_ready;
-    logic      state_init_stall,                                                                                                                      state_vd_stall;
+    logic      state_init_stall,                                                                                                   state_res_stall,   state_vd_stall;
     logic      state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vsm_valid_q, state_gather_valid_q, state_ex_valid_q, state_res_valid_q, state_vd_valid_q;
     elem_state state_init,       state_vreg_q,       state_vs1_q,       state_vsm_q,       state_gather_q,       state_ex_q,       state_res_q,       state_vd_q;
     always_comb begin
@@ -473,7 +483,7 @@ module vproc_elem #(
                     result_valid_q <= result_valid_d;
                 end
             end
-            assign state_res_ready = ~state_res_valid_q | state_vd_ready;
+            assign state_res_ready = ~state_res_valid_q | (state_vd_ready & ~state_res_stall);
         end else begin
             always_comb begin
                 state_res_valid_q = state_ex_valid_q;
@@ -482,7 +492,7 @@ module vproc_elem #(
                 result_mask_q     = result_mask_d;
                 result_valid_q    = result_valid_d;
             end
-            assign state_res_ready = state_vd_ready;
+            assign state_res_ready = state_vd_ready & ~state_res_stall;
         end
 
         always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_stage_vd_valid
@@ -493,7 +503,7 @@ module vproc_elem #(
                 state_vd_valid_q <= 1'b0;
             end
             else if (state_vd_ready) begin
-                state_vd_valid_q <= state_res_valid_q;
+                state_vd_valid_q <= state_res_valid_q & ~state_res_stall;
             end
         end
         always_ff @(posedge clk_i) begin : vproc_elem_stage_vd
@@ -636,8 +646,15 @@ module vproc_elem #(
                               ((state_init.mode.op == ELEM_VRGATHER) & ((state_init_gather_vregs & vreg_pend_wr_q) != '0)) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
-    // Stall vreg writes until pending reads are complete
-    assign state_vd_stall = state_vd_q.vd_store & vreg_pend_rd_i[state_vd_q.vd];
+    // Stall xreg writes while the instruction is speculative
+    assign state_res_stall = state_res_valid_q & state_res_q.mode.xreg & ((state_res_q.mode.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle) & instr_spec_i[state_res_q.id];
+
+    // Stall vreg writes until pending reads of the destination register are
+    // complete and while the instruction is speculative
+    assign state_vd_stall = state_vd_q.vd_store & (vreg_pend_rd_i[state_vd_q.vd] | instr_spec_i[state_vd_q.id]);
+
+    assign instr_done_valid_o = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_stall;
+    assign instr_done_id_o    = state_vd_q.id;
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -790,7 +807,8 @@ module vproc_elem #(
     end
 
     // XREG write-back
-    assign xreg_valid_o = state_res_valid_q & state_res_q.mode.xreg & ((state_res_q.mode.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle);
+    assign xreg_valid_o = state_res_valid_q & state_res_q.mode.xreg & ((state_res_q.mode.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle) &
+                          ~state_res_stall & ~instr_killed_i[state_res_q.id];
     assign xreg_o       = result_q;
 
     //
@@ -825,7 +843,7 @@ module vproc_elem #(
     assign vd_store_d = ~state_res_q.mode.xreg & (count_store_d.part.low == '1);
 
     //
-    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall;
+    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall & ~instr_killed_i[state_vd_q.id];
     assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count_store.part.mul[2:0]};
     assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d       = vd_shift_q;
