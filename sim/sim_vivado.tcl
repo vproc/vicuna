@@ -93,7 +93,7 @@ if {[string first "ibex" $core_dir] != -1} {
         cv32e40x_compressed_decoder.sv  cv32e40x_controller_bypass.sv    cv32e40x_mpu.sv
         cv32e40x_controller_fsm.sv      cv32e40x_instr_obi_interface.sv  cv32e40x_sleep_unit.sv
         cv32e40x_controller.sv          cv32e40x_int_controller.sv       cv32e40x_mult.sv
-        cv32e40x_data_obi_interface.sv
+        cv32e40x_data_obi_interface.sv  cv32e40x_write_buffer.sv
     } {
         lappend src_list "$core_dir/rtl/$file"
     }
