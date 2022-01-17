@@ -21,7 +21,7 @@ index 152715e..29a0a05 100644
      obi_req_t                  s_req;
      obi_gnt_t                  s_gnt;
 diff --git a/rtl/if_xif.sv b/rtl/if_xif.sv
-index a701932..6fd1b45 100644
+index 9ab3ead..4441940 100644
 --- a/rtl/if_xif.sv
 +++ b/rtl/if_xif.sv
 @@ -28,7 +28,7 @@
@@ -32,8 +32,8 @@ index a701932..6fd1b45 100644
 +interface if_xif
  #(
    parameter int          X_NUM_RS        =  2,  // Number of register file read ports that can be used by the eXtension interface
-   parameter int          X_MEM_WIDTH     =  32, // Memory access width for loads/stores via the eXtension interface
-@@ -37,6 +37,8 @@ interface if_xif import cv32e40x_pkg::*;
+   parameter int          X_ID_WIDTH      =  4,  // Width of ID field.
+@@ -38,6 +38,8 @@ interface if_xif import cv32e40x_pkg::*;
    parameter logic [31:0] X_MISA          =  '0  // MISA extensions implemented on the eXtension interface
  );
  
