@@ -808,6 +808,7 @@ module vproc_lsu #(
         state_req_red.vd       = state_req_q.vd;
         state_req_red.vd_store = state_req_q.vd_store;
     end
+    logic deq_valid_unused; // LSU queue dequeue valid signal (only used in SVA)
     vproc_queue #(
         .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
         .DEPTH        ( 4                                                             )
@@ -819,7 +820,7 @@ module vproc_lsu #(
         .enq_valid_i  ( state_req_valid_q & state_req_ready                           ),
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
         .deq_ready_i  ( data_rvalid_i                                                 ),
-        .deq_valid_o  (                                                               ),
+        .deq_valid_o  ( deq_valid_unused                                              ),
         .deq_data_o   ( {rdata_off_d, rmask_buf_d, state_rdata_d}                     )
     );
 

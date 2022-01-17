@@ -70,3 +70,11 @@
     ) else begin
         $error("writing to a vreg for which there are pending reads");
     end
+    
+    // Assert that the LSU queue is not empty when receiving a memory response
+    assert property (
+        @(posedge clk_i)
+        data_rvalid_i |-> deq_valid_unused
+    ) else begin
+        $error("LSU queue is empty when receiving a memory response");
+    end
