@@ -515,7 +515,7 @@ module vproc_lsu #(
                     state_rdata_valid_q <= 1'b0;
                 end
                 else begin
-                    state_rdata_valid_q <= data_rvalid_i;
+                    state_rdata_valid_q <= data_rvalid_i & ~state_rdata_d.mode.store;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_rdata
@@ -528,7 +528,7 @@ module vproc_lsu #(
             end
         end else begin
             always_comb begin
-                state_rdata_valid_q = data_rvalid_i;
+                state_rdata_valid_q = data_rvalid_i & ~state_rdata_d.mode.store;
                 state_rdata_q       = state_rdata_d;
                 rdata_buf_q         = rdata_buf_d;
                 rdata_off_q         = rdata_off_d;
@@ -789,8 +789,25 @@ module vproc_lsu #(
         end
     end
 
+    // memory request:
+    assign data_addr_o  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
+    assign data_req_o   = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id]; // keep requesting next access while addressing is not complete
+    assign data_we_o    = state_req_q.mode.store;
+    assign data_be_o    = wmask_buf_q;
+    assign data_wdata_o = wdata_buf_q;
+
     // queue for storing masks and offsets until the memory system fulfills the request:
     lsu_state_red state_req_red;
+    always_comb begin
+        state_req_red          = DONT_CARE_ZERO ? '0 : 'x;
+        state_req_red.count    = state_req_q.count;
+        state_req_red.id       = state_req_q.id;
+        state_req_red.mode     = state_req_q.mode;
+        state_req_red.vl       = state_req_q.vl;
+        state_req_red.vl_0     = state_req_q.vl_0;
+        state_req_red.vd       = state_req_q.vd;
+        state_req_red.vd_store = state_req_q.vd_store;
+    end
     vproc_queue #(
         .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
         .DEPTH        ( 4                                                             )
@@ -799,28 +816,13 @@ module vproc_lsu #(
         .async_rst_ni ( async_rst_ni                                                  ),
         .sync_rst_ni  ( sync_rst_ni                                                   ),
         .enq_ready_o  ( lsu_queue_ready                                               ),
-        .enq_valid_i  ( state_req_valid_q & state_req_ready & ~state_req_q.mode.store ),
+        .enq_valid_i  ( state_req_valid_q & state_req_ready                           ),
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
         .deq_ready_i  ( data_rvalid_i                                                 ),
         .deq_valid_o  (                                                               ),
         .deq_data_o   ( {rdata_off_d, rmask_buf_d, state_rdata_d}                     )
     );
-    always_comb begin
-        state_req_red          = DONT_CARE_ZERO ? '0 : 'x;
-        state_req_red.count    = state_req_q.count;
-        state_req_red.mode     = state_req_q.mode;
-        state_req_red.vl       = state_req_q.vl;
-        state_req_red.vl_0     = state_req_q.vl_0;
-        state_req_red.vd       = state_req_q.vd;
-        state_req_red.vd_store = state_req_q.vd_store;
-    end
 
-    // memory request:
-    assign data_addr_o  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
-    assign data_req_o   = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id]; // keep requesting next access while addressing is not complete
-    assign data_we_o    = state_req_q.mode.store;
-    assign data_be_o    = wmask_buf_q;
-    assign data_wdata_o = wdata_buf_q;
 
     // load data:
     assign rdata_buf_d = data_rdata_i;

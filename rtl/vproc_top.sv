@@ -448,7 +448,7 @@ module vproc_top #(
                 sdata_waiting <= 1'b0;
             end
             if (vdata_gnt) begin
-                vdata_waiting <= ~vdata_we; // vector processor expects rvalid only for reads
+                vdata_waiting <= 1'b1;
             end
             else if (vdata_rvalid) begin
                 vdata_waiting <= 1'b0;
