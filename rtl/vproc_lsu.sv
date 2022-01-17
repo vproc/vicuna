@@ -801,7 +801,6 @@ module vproc_lsu #(
     always_comb begin
         state_req_red          = DONT_CARE_ZERO ? '0 : 'x;
         state_req_red.count    = state_req_q.count;
-        state_req_red.id       = state_req_q.id;
         state_req_red.mode     = state_req_q.mode;
         state_req_red.vl       = state_req_q.vl;
         state_req_red.vl_0     = state_req_q.vl_0;
