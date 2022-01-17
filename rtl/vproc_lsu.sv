@@ -53,6 +53,11 @@ module vproc_lsu #(
         output logic                  instr_done_valid_o,
         output logic [XIF_ID_W-1:0]   instr_done_id_o,
 
+        output logic                  trans_complete_valid_o,
+        output logic [XIF_ID_W-1:0]   trans_complete_id_o,
+        output logic                  trans_complete_exc_o,
+        output logic                  trans_complete_exccode_o,
+
         // connections to register file:
         input  logic [VREG_W-1:0]     vreg_mask_i,      // content of v0, rearranged as a byte mask
         input  logic [VREG_W-1:0]     vreg_rd_i,
@@ -129,6 +134,8 @@ module vproc_lsu #(
     // reduced LSU state for passing through the queue
     typedef struct packed {
         lsu_counter          count;
+        logic                last_cycle;
+        logic [XIF_ID_W-1:0] id;
         op_mode_lsu          mode;
         logic [CFG_VL_W-1:0] vl;
         logic                vl_0;
@@ -279,7 +286,7 @@ module vproc_lsu #(
             state_d.vs3_fetch   = mode_i.store;
             state_d.vs3_shift   = 1'b1;
             state_d.vd_store    = 1'b0;
-            vreg_pend_wr_d           = vreg_pend_wr_i;
+            vreg_pend_wr_d      = vreg_pend_wr_i;
         end else begin
             // advance address if load/store has been granted:
             if (state_valid_q & pipeline_ready) begin
@@ -795,13 +802,15 @@ module vproc_lsu #(
     // queue for storing masks and offsets until the memory system fulfills the request:
     lsu_state_red state_req_red;
     always_comb begin
-        state_req_red          = DONT_CARE_ZERO ? '0 : 'x;
-        state_req_red.count    = state_req_q.count;
-        state_req_red.mode     = state_req_q.mode;
-        state_req_red.vl       = state_req_q.vl;
-        state_req_red.vl_0     = state_req_q.vl_0;
-        state_req_red.vd       = state_req_q.vd;
-        state_req_red.vd_store = state_req_q.vd_store;
+        state_req_red            = DONT_CARE_ZERO ? '0 : 'x;
+        state_req_red.count      = state_req_q.count;
+        state_req_red.last_cycle = state_req_q.last_cycle;
+        state_req_red.id         = state_req_q.id;
+        state_req_red.mode       = state_req_q.mode;
+        state_req_red.vl         = state_req_q.vl;
+        state_req_red.vl_0       = state_req_q.vl_0;
+        state_req_red.vd         = state_req_q.vd;
+        state_req_red.vd_store   = state_req_q.vd_store;
     end
     logic deq_valid_unused; // LSU queue dequeue valid signal (only used in SVA)
     vproc_queue #(
@@ -819,6 +828,11 @@ module vproc_lsu #(
         .deq_data_o   ( {rdata_off_d, rmask_buf_d, state_rdata_d}                     )
     );
 
+    // LSU result (indicates potential exceptions):
+    assign trans_complete_valid_o   = xif_memres_if.mem_result_valid & state_rdata_d.last_cycle;
+    assign trans_complete_id_o      = state_rdata_d.id;
+    assign trans_complete_exc_o     = '0;
+    assign trans_complete_exccode_o = '0;
 
     // load data:
     assign rdata_buf_d = xif_memres_if.mem_result.rdata;

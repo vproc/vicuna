@@ -76,6 +76,10 @@ module vproc_core #(
     // encoding the top 3 bits of VL are only used when LMUL > 1.
     localparam int unsigned CFG_VL_W = $clog2(VREG_W); // width of the vl config register
 
+    // Width and total count of instruction IDs used by the extension interface
+    localparam int unsigned XIF_ID_W   = xif_issue_if.X_ID_WIDTH;
+    localparam int unsigned XIF_ID_CNT = 1 << XIF_ID_W;
+
     // define asynchronous and synchronous reset signals
     logic async_rst_n, sync_rst_n;
     assign async_rst_n = ASYNC_RESET ? rst_ni : 1'b1  ;
@@ -155,17 +159,17 @@ module vproc_core #(
     // VECTOR INSTRUCTION DECODER INTERFACE
 
     typedef struct packed {
-        logic [xif_issue_if.X_ID_WIDTH-1:0] id;
-        cfg_vsew                            vsew;
-        cfg_lmul                            lmul;
-        logic                               vl_0;
-        logic [CFG_VL_W-1:0]                vl;
-        op_unit                             unit;
-        op_mode                             mode;
-        op_widenarrow                       widenarrow;
-        op_regs                             rs1;
-        op_regs                             rs2;
-        op_regd                             rd;
+        logic [XIF_ID_W-1:0] id;
+        cfg_vsew             vsew;
+        cfg_lmul             lmul;
+        logic                vl_0;
+        logic [CFG_VL_W-1:0] vl;
+        op_unit              unit;
+        op_mode              mode;
+        op_widenarrow        widenarrow;
+        op_regs              rs1;
+        op_regs              rs2;
+        op_regd              rd;
     } decoder_data;
 
     // signals for decoder and for decoder buffer
@@ -232,8 +236,6 @@ module vproc_core #(
     ///////////////////////////////////////////////////////////////////////////
     // VECTOR INSTRUCTION COMMIT STATE
 
-    localparam int unsigned XIF_ID_CNT = 1 << xif_issue_if.X_ID_WIDTH;
-
     // The instruction commit state masks track whether a vector instruction is
     // speculative or not and whether an instruction has been killed.  First,
     // any instruction ID is speculative (instr_notspec_q[id] == 1'b0), which
@@ -269,10 +271,14 @@ module vproc_core #(
 
     assign issue_id_used = instr_notspec_q[xif_issue_if.issue_req.id];
 
-    logic                               instr_complete_valid[5];
-    logic [xif_issue_if.X_ID_WIDTH-1:0] instr_complete_id   [5];
+    logic                instr_complete_valid[5];
+    logic [XIF_ID_W-1:0] instr_complete_id   [5];
 
-    logic result_empty, result_vl;  // return an empty result or VL as result
+    // return an empty result or VL as result
+    logic                result_empty_valid, result_vl_valid;
+    logic                                    result_vl_ready;
+    logic [XIF_ID_W-1:0] result_empty_id,    result_vl_id;
+    logic [4:0]                              result_vl_addr;
 
     logic queue_ready, queue_push; // instruction queue ready and push signals (enqueue handshake)
     assign queue_push = dec_buf_valid_q & (dec_data_q.unit != UNIT_CFG);
@@ -284,35 +290,52 @@ module vproc_core #(
     assign dec_ready = ~dec_buf_valid_q | (queue_ready & queue_push);
 
     always_comb begin
-        instr_notspec_d   = instr_notspec_q;
-        instr_killed_d    = instr_killed_q;
-        instr_empty_res_d = instr_empty_res_q;
-        result_empty      = 1'b0;
-        result_vl         = 1'b0;
-        dec_clear         = 1'b0;
+        instr_notspec_d    = instr_notspec_q;
+        instr_killed_d     = instr_killed_q;
+        instr_empty_res_d  = instr_empty_res_q;
+        result_vl_valid    = 1'b0;
+        result_vl_id       = dec_data_q.id;
+        result_vl_addr     = dec_data_q.rd;
+        result_empty_valid = 1'b0;
+        result_empty_id    = xif_commit_if.commit.id;
+        dec_clear          = 1'b0;
 
-        if (dec_valid) begin
-            instr_empty_res_d[xif_issue_if.issue_req.id] = ~xif_issue_if.issue_resp.writeback;
+        if (xif_issue_if.issue_valid) begin
+            // For each issued instruction, remember whether it will produce an
+            // empty result or not. This must be done for accepted as well as
+            // rejected instructions, since the main core will commit all of
+            // them and rejected instructions must not produce a result.
+            instr_empty_res_d[xif_issue_if.issue_req.id] = xif_issue_if.issue_resp.accept & ~xif_issue_if.issue_resp.writeback & ~xif_issue_if.issue_resp.loadstore;
         end
         if (xif_commit_if.commit_valid) begin
-            if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & (dec_data_q.id == xif_commit_if.commit.id)) begin
+            // Generate an empty result for all instructions except those that
+            // writeback to the main core and for vector loads and stores
+            if (~xif_commit_if.commit.commit_kill) begin
+                if (dec_valid & (xif_issue_if.issue_req.id == xif_commit_if.commit.id)) begin
+                    result_empty_valid = ~xif_issue_if.issue_resp.writeback & ~xif_issue_if.issue_resp.loadstore;
+                end else begin
+                    result_empty_valid = instr_empty_res_q[xif_commit_if.commit.id];
+                end
+            end
+
+            if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & (dec_data_q.id == xif_commit_if.commit.id) & result_vl_ready) begin
                 // vset[i]vl[i] instructions are not enqueued.  The instruction
                 // is retired and the result returned as soon as it is
                 // committed.
-                dec_clear = 1'b1;
-                result_vl = ~xif_commit_if.commit.commit_kill;
+                dec_clear       = 1'b1;
+                result_vl_valid = ~xif_commit_if.commit.commit_kill;
             end else begin
                 instr_notspec_d[xif_commit_if.commit.id] = 1'b1;
             end
+
             instr_killed_d[xif_commit_if.commit.id] = xif_commit_if.commit.commit_kill;
-            result_empty                            = instr_empty_res_q[xif_commit_if.commit.id];
         end
         if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & instr_notspec_q[dec_data_q.id]) begin
             // Execute a vset[i]vl[i] instruction that has already been
             // committed earlier (i.e., while decoding and accepting the
             // instruction).
-            dec_clear = 1'b1;
-            result_vl = ~instr_killed_q[dec_data_q.id];
+            dec_clear                      = result_vl_ready;
+            result_vl_valid                = ~instr_killed_q[dec_data_q.id];
             instr_notspec_d[dec_data_q.id] = 1'b0;
         end
         for (int i = 0; i < 5; i++) begin
@@ -339,7 +362,6 @@ module vproc_core #(
     end
 
     // update configuration state for vset[i]vl[i] instructions
-    // TODO avoid configuration changes if the instruction is killed
     always_comb begin
         vsew_d     = vsew_q;
         lmul_d     = lmul_q;
@@ -347,7 +369,7 @@ module vproc_core #(
         vl_0_d     = vl_0_q;
         vl_d       = vl_q;
         vl_csr_d   = vl_csr_q;
-        if (result_vl) begin
+        if (result_vl_valid) begin
             vsew_d     = dec_data_q.mode.cfg.vsew;
             lmul_d     = dec_data_q.mode.cfg.lmul;
             agnostic_d = dec_data_q.mode.cfg.agnostic;
@@ -661,51 +683,59 @@ module vproc_core #(
     logic [VMSK_W-1:0] lsu_wr_mask;
     logic [4:0]        lsu_wr_addr;
     logic              lsu_wr_en;
+    logic              lsu_trans_complete_valid;
+    logic              lsu_trans_complete_id;
+    logic              lsu_trans_complete_exc;
+    logic              lsu_trans_complete_exccode;
     vproc_lsu #(
-        .VREG_W             ( VREG_W                        ),
-        .VMSK_W             ( VMSK_W                        ),
-        .VMEM_W             ( VMEM_W                        ),
-        .CFG_VL_W           ( CFG_VL_W                      ),
-        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH       ),
-        .XIF_ID_CNT         ( XIF_ID_CNT                    ),
-        .MAX_WR_ATTEMPTS    ( 1                             ),
-        .DONT_CARE_ZERO     ( DONT_CARE_ZERO                )
+        .VREG_W                   ( VREG_W                        ),
+        .VMSK_W                   ( VMSK_W                        ),
+        .VMEM_W                   ( VMEM_W                        ),
+        .CFG_VL_W                 ( CFG_VL_W                      ),
+        .XIF_ID_W                 ( XIF_ID_W                      ),
+        .XIF_ID_CNT               ( XIF_ID_CNT                    ),
+        .MAX_WR_ATTEMPTS          ( 1                             ),
+        .DONT_CARE_ZERO           ( DONT_CARE_ZERO                )
     ) lsu (
-        .clk_i              ( clk_i                         ),
-        .async_rst_ni       ( async_rst_n                   ),
-        .sync_rst_ni        ( sync_rst_n                    ),
-        .id_i               ( queue_data_q.id               ),
-        .vsew_i             ( queue_data_q.vsew             ),
-        .lmul_i             ( queue_data_q.lmul             ),
-        .vl_i               ( queue_data_q.vl               ),
-        .vl_0_i             ( queue_data_q.vl_0             ),
-        .op_rdy_i           ( op_rdy_lsu                    ),
-        .op_ack_o           ( op_ack_lsu                    ),
-        .misaligned_o       ( misaligned_lsu                ),
-        .mode_i             ( queue_data_q.mode.lsu         ),
-        .rs1_val_i          ( queue_data_q.rs1.r.xval       ),
-        .rs2_i              ( queue_data_q.rs2              ),
-        .vd_i               ( queue_data_q.rd.addr          ),
-        .vreg_pend_wr_i     ( vreg_wr_hazard_map_q          ),
-        .vreg_pend_rd_o     ( vreg_pend_rd_by_lsu_d         ),
-        .vreg_pend_rd_i     ( vreg_pend_rd_to_lsu_q         ),
-        .pending_load_o     ( pending_load_lsu              ),
-        .pending_store_o    ( pending_store_lsu             ),
-        .clear_rd_hazards_o ( vreg_rd_hazard_clr_lsu        ),
-        .clear_wr_hazards_o ( vreg_wr_hazard_clr_lsu        ),
-        .instr_spec_i       ( ~instr_notspec_q              ),
-        .instr_killed_i     ( instr_killed_q                ),
-        .instr_done_valid_o ( instr_complete_valid[0]       ),
-        .instr_done_id_o    ( instr_complete_id   [0]       ),
-        .vreg_mask_i        ( vreg_mask                     ),
-        .vreg_rd_i          ( vregfile_rd_data[1]           ),
-        .vreg_rd_addr_o     ( vregfile_rd_addr[1]           ),
-        .vreg_wr_o          ( lsu_wr_data                   ),
-        .vreg_wr_addr_o     ( lsu_wr_addr                   ),
-        .vreg_wr_mask_o     ( lsu_wr_mask                   ),
-        .vreg_wr_en_o       ( lsu_wr_en                     ),
-        .xif_mem_if         ( xif_mem_if                    ),
-        .xif_memres_if      ( xif_memres_if                 )
+        .clk_i                    ( clk_i                         ),
+        .async_rst_ni             ( async_rst_n                   ),
+        .sync_rst_ni              ( sync_rst_n                    ),
+        .id_i                     ( queue_data_q.id               ),
+        .vsew_i                   ( queue_data_q.vsew             ),
+        .lmul_i                   ( queue_data_q.lmul             ),
+        .vl_i                     ( queue_data_q.vl               ),
+        .vl_0_i                   ( queue_data_q.vl_0             ),
+        .op_rdy_i                 ( op_rdy_lsu                    ),
+        .op_ack_o                 ( op_ack_lsu                    ),
+        .misaligned_o             ( misaligned_lsu                ),
+        .mode_i                   ( queue_data_q.mode.lsu         ),
+        .rs1_val_i                ( queue_data_q.rs1.r.xval       ),
+        .rs2_i                    ( queue_data_q.rs2              ),
+        .vd_i                     ( queue_data_q.rd.addr          ),
+        .vreg_pend_wr_i           ( vreg_wr_hazard_map_q          ),
+        .vreg_pend_rd_o           ( vreg_pend_rd_by_lsu_d         ),
+        .vreg_pend_rd_i           ( vreg_pend_rd_to_lsu_q         ),
+        .pending_load_o           ( pending_load_lsu              ),
+        .pending_store_o          ( pending_store_lsu             ),
+        .clear_rd_hazards_o       ( vreg_rd_hazard_clr_lsu        ),
+        .clear_wr_hazards_o       ( vreg_wr_hazard_clr_lsu        ),
+        .instr_spec_i             ( ~instr_notspec_q              ),
+        .instr_killed_i           ( instr_killed_q                ),
+        .instr_done_valid_o       ( instr_complete_valid[0]       ),
+        .instr_done_id_o          ( instr_complete_id   [0]       ),
+        .trans_complete_valid_o   ( lsu_trans_complete_valid      ),
+        .trans_complete_id_o      ( lsu_trans_complete_id         ),
+        .trans_complete_exc_o     ( lsu_trans_complete_exc        ),
+        .trans_complete_exccode_o ( lsu_trans_complete_exccode    ),
+        .vreg_mask_i              ( vreg_mask                     ),
+        .vreg_rd_i                ( vregfile_rd_data[1]           ),
+        .vreg_rd_addr_o           ( vregfile_rd_addr[1]           ),
+        .vreg_wr_o                ( lsu_wr_data                   ),
+        .vreg_wr_addr_o           ( lsu_wr_addr                   ),
+        .vreg_wr_mask_o           ( lsu_wr_mask                   ),
+        .vreg_wr_en_o             ( lsu_wr_en                     ),
+        .xif_mem_if               ( xif_mem_if                    ),
+        .xif_memres_if            ( xif_memres_if                 )
     );
     assign misaligned_ls_o = misaligned_lsu & op_ack_lsu;
 
@@ -720,7 +750,7 @@ module vproc_core #(
         .VMSK_W             ( VMSK_W                        ),
         .CFG_VL_W           ( CFG_VL_W                      ),
         .ALU_OP_W           ( ALU_OP_W                      ),
-        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH       ),
+        .XIF_ID_W           ( XIF_ID_W                      ),
         .XIF_ID_CNT         ( XIF_ID_CNT                    ),
         .MAX_WR_ATTEMPTS    ( 2                             ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO                )
@@ -770,7 +800,7 @@ module vproc_core #(
         .VMSK_W             ( VMSK_W                                 ),
         .CFG_VL_W           ( CFG_VL_W                               ),
         .MUL_OP_W           ( MUL_OP_W                               ),
-        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH                ),
+        .XIF_ID_W           ( XIF_ID_W                               ),
         .XIF_ID_CNT         ( XIF_ID_CNT                             ),
         .MAX_WR_ATTEMPTS    ( 1                                      ),
         .MUL_TYPE           ( MUL_TYPE                               ),
@@ -822,7 +852,7 @@ module vproc_core #(
         .VMSK_W             ( VMSK_W                   ),
         .CFG_VL_W           ( CFG_VL_W                 ),
         .SLD_OP_W           ( SLD_OP_W                 ),
-        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH  ),
+        .XIF_ID_W           ( XIF_ID_W                 ),
         .XIF_ID_CNT         ( XIF_ID_CNT               ),
         .MAX_WR_ATTEMPTS    ( 2                        ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO           )
@@ -861,18 +891,20 @@ module vproc_core #(
 
 
     // ELEM unit
-    logic [VREG_W-1:0] elem_wr_data;
-    logic [VMSK_W-1:0] elem_wr_mask;
-    logic [4:0]        elem_wr_addr;
-    logic              elem_wr_en;
-    logic              elem_xreg_valid;
-    logic [31:0]       elem_xreg;
+    logic [VREG_W-1:0]   elem_wr_data;
+    logic [VMSK_W-1:0]   elem_wr_mask;
+    logic [4:0]          elem_wr_addr;
+    logic                elem_wr_en;
+    logic                elem_xreg_valid;
+    logic [XIF_ID_W-1:0] elem_xreg_id;
+    logic [4:0]          elem_xreg_addr;
+    logic [31:0]         elem_xreg_data;
     vproc_elem #(
         .VREG_W             ( VREG_W                   ),
         .VMSK_W             ( VMSK_W                   ),
         .CFG_VL_W           ( CFG_VL_W                 ),
         .GATHER_OP_W        ( GATHER_OP_W              ),
-        .XIF_ID_W           ( xif_issue_if.X_ID_WIDTH  ),
+        .XIF_ID_W           ( XIF_ID_W                 ),
         .XIF_ID_CNT         ( XIF_ID_CNT               ),
         .MAX_WR_ATTEMPTS    ( 3                        ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO           )
@@ -910,7 +942,9 @@ module vproc_core #(
         .vreg_wr_mask_o     ( elem_wr_mask             ),
         .vreg_wr_en_o       ( elem_wr_en               ),
         .xreg_valid_o       ( elem_xreg_valid          ),
-        .xreg_o             ( elem_xreg                )
+        .xreg_id_o          ( elem_xreg_id             ),
+        .xreg_addr_o        ( elem_xreg_addr           ),
+        .xreg_data_o        ( elem_xreg_data           )
     );
 
 
@@ -935,46 +969,30 @@ module vproc_core #(
     ///////////////////////////////////////////////////////////////////////////
     // RESULT INTERFACE
 
-    // TODO: take care of simultaneous results from commit stage and ELEM unit
-
-    logic        result_valid_q, result_valid_d;
-    logic        result_vl_q,    result_vl_d;
-    logic        result_xreg_q,  result_xreg_d;
-    logic [31:0] result_data_q,  result_data_d;
-    always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_result_valid
-        if (~async_rst_n) begin
-            result_valid_q <= 1'b0;
-        end
-        else if (~sync_rst_n) begin
-            result_valid_q <= 1'b0;
-        end
-        else begin
-            result_valid_q <= result_valid_d;
-        end
-    end
-    always_ff @(posedge clk_i) begin : vproc_result
-        result_vl_q   <= result_vl_d;
-        result_xreg_q <= result_xreg_d;
-        result_data_q <= result_data_d;
-    end
-    always_comb begin
-        result_valid_d = result_valid_q;
-        result_vl_d    = result_vl_q;
-        result_xreg_d  = result_xreg_q;
-        result_data_d  = result_data_q;
-        if (~result_valid_q | xif_result_if.result_ready) begin
-            result_valid_d = result_empty | result_vl | elem_xreg_valid;
-            result_vl_d    = result_vl;
-            result_xreg_d  = elem_xreg_valid;
-            result_data_d  = elem_xreg;
-        end
-    end
-    assign xif_result_if.result_valid   = result_valid_q;
-    assign xif_result_if.result.id      = '0;
-    assign xif_result_if.result.data    = result_vl_q ? csr_vl_o : result_data_q;
-    assign xif_result_if.result.rd      = '0;
-    assign xif_result_if.result.we      = result_vl_q | result_xreg_q;
-    assign xif_result_if.result.exc     = '0;
-    assign xif_result_if.result.exccode = '0;
+    vproc_result #(
+        .XIF_ID_W             ( XIF_ID_W                   ),
+        .DONT_CARE_ZERO       ( DONT_CARE_ZERO             )
+    ) result_if (
+        .clk_i                ( clk_i                      ),
+        .async_rst_ni         ( async_rst_n                ),
+        .sync_rst_ni          ( sync_rst_n                 ),
+        .result_lsu_valid_i   ( lsu_trans_complete_valid   ),
+        .result_lsu_id_i      ( lsu_trans_complete_id      ),
+        .result_lsu_exc_i     ( lsu_trans_complete_exc     ),
+        .result_lsu_exccode_i ( lsu_trans_complete_exccode ),
+        .result_xreg_valid_i  ( elem_xreg_valid            ),
+        .result_xreg_id_i     ( elem_xreg_id               ),
+        .result_xreg_addr_i   ( elem_xreg_addr             ),
+        .result_xreg_data_i   ( elem_xreg_data             ),
+        .result_empty_valid_i ( result_empty_valid         ),
+        .result_empty_ready_o (                            ),
+        .result_empty_id_i    ( result_empty_id            ),
+        .result_vl_valid_i    ( result_vl_valid            ),
+        .result_vl_ready_o    ( result_vl_ready            ),
+        .result_vl_id_i       ( result_vl_id               ),
+        .result_vl_addr_i     ( result_vl_addr             ),
+        .result_vl_data_i     ( csr_vl_o                   ),
+        .xif_result_if        ( xif_result_if              )
+    );
 
 endmodule

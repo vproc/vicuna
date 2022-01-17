@@ -60,7 +60,9 @@ module vproc_elem #(
 
         // main core write-back signals:
         output logic                   xreg_valid_o,
-        output logic [31:0]            xreg_o
+        output logic [XIF_ID_W-1:0]    xreg_id_o,
+        output logic [4:0]             xreg_addr_o,
+        output logic [31:0]            xreg_data_o
     );
 
     import vproc_pkg::*;
@@ -809,7 +811,9 @@ module vproc_elem #(
     // XREG write-back
     assign xreg_valid_o = state_res_valid_q & state_res_q.mode.xreg & ((state_res_q.mode.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle) &
                           ~state_res_stall & ~instr_killed_i[state_res_q.id];
-    assign xreg_o       = result_q;
+    assign xreg_id_o    = state_res_q.id;
+    assign xreg_addr_o  = state_res_q.vd;
+    assign xreg_data_o  = result_q;
 
     //
     always_comb begin
