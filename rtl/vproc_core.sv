@@ -26,6 +26,8 @@ module vproc_core #(
         // eXtension interface
         vproc_xif.coproc_issue        xif_issue_if,
         vproc_xif.coproc_commit       xif_commit_if,
+        vproc_xif.coproc_mem          xif_mem_if,
+        vproc_xif.coproc_mem_result   xif_memres_if,
         vproc_xif.coproc_result       xif_result_if,
 
         output logic                  pending_load_o,
@@ -702,15 +704,8 @@ module vproc_core #(
         .vreg_wr_addr_o     ( lsu_wr_addr                   ),
         .vreg_wr_mask_o     ( lsu_wr_mask                   ),
         .vreg_wr_en_o       ( lsu_wr_en                     ),
-        .data_gnt_i         ( data_gnt_i                    ),
-        .data_rvalid_i      ( data_rvalid_i                 ),
-        .data_err_i         ( data_err_i                    ),
-        .data_rdata_i       ( data_rdata_i                  ),
-        .data_req_o         ( data_req_o                    ),
-        .data_addr_o        ( data_addr_o                   ),
-        .data_we_o          ( data_we_o                     ),
-        .data_be_o          ( data_be_o                     ),
-        .data_wdata_o       ( data_wdata_o                  )
+        .xif_mem_if         ( xif_mem_if                    ),
+        .xif_memres_if      ( xif_memres_if                 )
     );
     assign misaligned_ls_o = misaligned_lsu & op_ack_lsu;
 

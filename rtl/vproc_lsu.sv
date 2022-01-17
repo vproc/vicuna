@@ -62,16 +62,8 @@ module vproc_lsu #(
         output logic [VMSK_W-1:0]     vreg_wr_mask_o,
         output logic                  vreg_wr_en_o,
 
-        // connections to memory:
-        input  logic                  data_gnt_i,
-        input  logic                  data_rvalid_i,
-        input  logic                  data_err_i,
-        input  logic [VMEM_W-1:0]     data_rdata_i,
-        output logic                  data_req_o,
-        output logic [31:0]           data_addr_o,
-        output logic                  data_we_o,        // write enable
-        output logic [(VMEM_W/8)-1:0] data_be_o,        // byte enable
-        output logic [VMEM_W-1:0]     data_wdata_o
+        vproc_xif.coproc_mem          xif_mem_if,
+        vproc_xif.coproc_mem_result   xif_memres_if
     );
 
     import vproc_pkg::*;
@@ -487,7 +479,7 @@ module vproc_lsu #(
                     vmsk_tmp_q  <= vmsk_tmp_d;
                 end
             end
-            assign state_req_ready = ~state_req_valid_q | (data_req_o & data_gnt_i) | (~state_req_stall & ~data_req_o);
+            assign state_req_ready = ~state_req_valid_q | (xif_mem_if.mem_valid & xif_mem_if.mem_ready) | (~state_req_stall & ~xif_mem_if.mem_valid);
         end else begin
             always_comb begin
                 state_req_valid_q = state_vs3_valid_q;
@@ -497,7 +489,7 @@ module vproc_lsu #(
                 wmask_buf_q       = wmask_buf_d;
                 vmsk_tmp_q        = vmsk_tmp_d;
             end
-            assign state_req_ready = (data_req_o & data_gnt_i) | (~state_req_stall & ~data_req_o);
+            assign state_req_ready = (xif_mem_if.mem_valid & xif_mem_if.mem_ready) | (~state_req_stall & ~xif_mem_if.mem_valid);
         end
 
         // Note: The stages receiving memory data and writing it to vector
@@ -515,11 +507,11 @@ module vproc_lsu #(
                     state_rdata_valid_q <= 1'b0;
                 end
                 else begin
-                    state_rdata_valid_q <= data_rvalid_i & ~state_rdata_d.mode.store;
+                    state_rdata_valid_q <= xif_memres_if.mem_result_valid & ~state_rdata_d.mode.store;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_rdata
-                if (data_rvalid_i) begin
+                if (xif_memres_if.mem_result_valid) begin
                     state_rdata_q <= state_rdata_d;
                     rdata_buf_q   <= rdata_buf_d;
                     rdata_off_q   <= rdata_off_d;
@@ -528,7 +520,7 @@ module vproc_lsu #(
             end
         end else begin
             always_comb begin
-                state_rdata_valid_q = data_rvalid_i & ~state_rdata_d.mode.store;
+                state_rdata_valid_q = xif_memres_if.mem_result_valid & ~state_rdata_d.mode.store;
                 state_rdata_q       = state_rdata_d;
                 rdata_buf_q         = rdata_buf_d;
                 rdata_off_q         = rdata_off_d;
@@ -620,7 +612,7 @@ module vproc_lsu #(
     // has to happen at the request stage, since later stalling is not possible
     assign state_req_stall = (~state_req_q.mode.store & state_req_q.vd_store & vreg_pend_rd_i[state_req_q.vd]) | instr_spec_i[state_req_q.id] | ~lsu_queue_ready;
 
-    assign instr_done_valid_o = state_req_valid_q & state_req_q.last_cycle & data_req_o & data_gnt_i;
+    assign instr_done_valid_o = state_req_valid_q & state_req_q.last_cycle & xif_mem_if.mem_valid & xif_mem_if.mem_ready;
     assign instr_done_id_o    = state_req_q.id;
 
     // pending vreg reads
@@ -789,12 +781,16 @@ module vproc_lsu #(
         end
     end
 
-    // memory request:
-    assign data_addr_o  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
-    assign data_req_o   = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id]; // keep requesting next access while addressing is not complete
-    assign data_we_o    = state_req_q.mode.store;
-    assign data_be_o    = wmask_buf_q;
-    assign data_wdata_o = wdata_buf_q;
+    // memory request (keep requesting next access while addressing is not complete)
+    assign xif_mem_if.mem_valid     = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id];
+    assign xif_mem_if.mem_req.id    = state_req_q.id;
+    assign xif_mem_if.mem_req.addr  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
+    assign xif_mem_if.mem_req.mode  = '0;
+    assign xif_mem_if.mem_req.we    = state_req_q.mode.store;
+    assign xif_mem_if.mem_req.be    = wmask_buf_q;
+    assign xif_mem_if.mem_req.wdata = wdata_buf_q;
+    assign xif_mem_if.mem_req.last  = state_req_q.last_cycle;
+    assign xif_mem_if.mem_req.spec  = '0;
 
     // queue for storing masks and offsets until the memory system fulfills the request:
     lsu_state_red state_req_red;
@@ -818,14 +814,14 @@ module vproc_lsu #(
         .enq_ready_o  ( lsu_queue_ready                                               ),
         .enq_valid_i  ( state_req_valid_q & state_req_ready                           ),
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
-        .deq_ready_i  ( data_rvalid_i                                                 ),
+        .deq_ready_i  ( xif_memres_if.mem_result_valid                                ),
         .deq_valid_o  ( deq_valid_unused                                              ),
         .deq_data_o   ( {rdata_off_d, rmask_buf_d, state_rdata_d}                     )
     );
 
 
     // load data:
-    assign rdata_buf_d = data_rdata_i;
+    assign rdata_buf_d = xif_memres_if.mem_result.rdata;
 
     // load data conversion:
     logic [VREG_W  -1:0] rdata_unit_vl_mask;

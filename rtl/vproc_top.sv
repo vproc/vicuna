@@ -71,12 +71,12 @@ module vproc_top #(
 
     // Vector Unit Interface
     vproc_xif #(
-        .X_NUM_RS    ( 2  ),
-        .X_ID_WIDTH  ( 3  ),
-        .X_MEM_WIDTH ( 32 ),
-        .X_RFR_WIDTH ( 32 ),
-        .X_RFW_WIDTH ( 32 ),
-        .X_MISA      ( '0 )
+        .X_NUM_RS    ( 2      ),
+        .X_ID_WIDTH  ( 3      ),
+        .X_MEM_WIDTH ( VMEM_W ),
+        .X_RFR_WIDTH ( 32     ),
+        .X_RFW_WIDTH ( 32     ),
+        .X_MISA      ( '0     )
     ) vcore_xif ();
     logic        vect_pending_load;
     logic        vect_pending_store;
@@ -373,6 +373,8 @@ module vproc_top #(
 
         .xif_issue_if     ( vcore_xif          ),
         .xif_commit_if    ( vcore_xif          ),
+        .xif_mem_if       ( vcore_xif          ),
+        .xif_memres_if    ( vcore_xif          ),
         .xif_result_if    ( vcore_xif          ),
 
         .pending_load_o   ( vect_pending_load  ),
@@ -389,18 +391,24 @@ module vproc_top #(
         .csr_vxrm_set_i   ( csr_vxrm_wren      ),
         .csr_vxsat_o      ( csr_vxsat_rd       ),
         .csr_vxsat_i      ( csr_vxsat_wr       ),
-        .csr_vxsat_set_i  ( csr_vxsat_wren     ),
-
-        .data_req_o       ( vdata_req          ),
-        .data_gnt_i       ( vdata_gnt          ),
-        .data_rvalid_i    ( vdata_rvalid       ),
-        .data_err_i       ( vdata_err          ),
-        .data_rdata_i     ( vdata_rdata        ),
-        .data_addr_o      ( vdata_addr         ),
-        .data_we_o        ( vdata_we           ),
-        .data_be_o        ( vdata_be           ),
-        .data_wdata_o     ( vdata_wdata        )
+        .csr_vxsat_set_i  ( csr_vxsat_wren     )
     );
+
+    // Extract vector unit memory signals from extension interface
+    assign vdata_req                  = vcore_xif.mem_valid;
+    assign vcore_xif.mem_ready        = vdata_gnt;
+    assign vdata_addr                 = vcore_xif.mem_req.addr;
+    assign vdata_we                   = vcore_xif.mem_req.we;
+    assign vdata_be                   = vcore_xif.mem_req.be;
+    assign vdata_wdata                = vcore_xif.mem_req.wdata;
+    assign vcore_xif.mem_resp.exc     = '0;
+    assign vcore_xif.mem_resp.exccode = '0;
+    assign vcore_xif.mem_resp.dbg     = '0;
+    assign vcore_xif.mem_result_valid = vdata_rvalid;
+    assign vcore_xif.mem_result.id    = '0; // TODO supply instruction ID
+    assign vcore_xif.mem_result.rdata = vdata_rdata;
+    assign vcore_xif.mem_result.err   = vdata_err;
+    assign vcore_xif.mem_result.dbg   = '0;
 
     // Data arbiter for main core and vector unit
     logic              sdata_hold;
