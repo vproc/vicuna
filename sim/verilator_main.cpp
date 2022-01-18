@@ -176,14 +176,15 @@ int main(int argc, char **argv) {
             int end_cnt = 0;
             while (end_cnt < extra_cycles) {
                 // read memory request
-                int addr = (top->mem_addr_o % mem_sz) & ~(mem_w/8-1);
-                if (top->mem_req_o && top->mem_we_o) {
+                bool valid =  top->mem_addr_o < mem_sz;
+                int  addr  = (top->mem_addr_o % mem_sz) & ~(mem_w/8-1);
+                if (top->mem_req_o && top->mem_we_o && valid) {
                     for (i = 0; i < mem_w / 8; i++)
                         if ((top->mem_be_o & (1<<i)))
                             mem[addr+i] = top->mem_wdata_o >> (i*8);
                 }
                 mem_rvalid_queue[0] = top->mem_req_o;
-                mem_err_queue   [0] = addr >= mem_sz;
+                mem_err_queue   [0] = !valid;
                 mem_rdata_queue [0] = 0;
                 for (i = 0; i < mem_w / 8; i++)
                     mem_rdata_queue[0] |= ((int64_t)mem[addr+i]) << (i*8);
