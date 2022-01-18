@@ -686,7 +686,7 @@ module vproc_core #(
     logic              lsu_trans_complete_valid;
     logic              lsu_trans_complete_id;
     logic              lsu_trans_complete_exc;
-    logic              lsu_trans_complete_exccode;
+    logic [5:0]        lsu_trans_complete_exccode;
     vproc_lsu #(
         .VREG_W                   ( VREG_W                        ),
         .VMSK_W                   ( VMSK_W                        ),

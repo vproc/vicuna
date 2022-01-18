@@ -56,7 +56,7 @@ module vproc_lsu #(
         output logic                  trans_complete_valid_o,
         output logic [XIF_ID_W-1:0]   trans_complete_id_o,
         output logic                  trans_complete_exc_o,
-        output logic                  trans_complete_exccode_o,
+        output logic [5:0]            trans_complete_exccode_o,
 
         // connections to register file:
         input  logic [VREG_W-1:0]     vreg_mask_i,      // content of v0, rearranged as a byte mask
