@@ -72,13 +72,16 @@ module vproc_cache #(
     logic [LINE_BYTE_W-1:0]   way_wline_be;
     logic [LINE_BYTE_W*8-1:0] way_wline_data;
     logic                     way_wdirty;
+    logic                     way_werr;
     logic [INDEX_BIT_W-1:0]   way_rindex;
     logic [TAG_BIT_W-1:0]     way0_rtag;
     logic [LINE_BYTE_W*8-1:0] way0_rline;
     logic                     way0_rdirty;
+    logic                     way0_rerr;
     logic [TAG_BIT_W-1:0]     way1_rtag;
     logic [LINE_BYTE_W*8-1:0] way1_rline;
     logic                     way1_rdirty;
+    logic                     way1_rerr;
 
     vproc_cache_way #(
         .TAG_BIT_W    ( TAG_BIT_W      ),
@@ -92,10 +95,12 @@ module vproc_cache #(
         .wline_be_i   ( way_wline_be   ),
         .wline_data_i ( way_wline_data ),
         .wdirty_i     ( way_wdirty     ),
+        .werr_i       ( way_werr       ),
         .rindex_i     ( way_rindex     ),
         .rtag_o       ( way0_rtag      ),
         .rline_o      ( way0_rline     ),
-        .rdirty_o     ( way0_rdirty    )
+        .rdirty_o     ( way0_rdirty    ),
+        .rerr_o       ( way0_rerr      )
     );
 
     vproc_cache_way #(
@@ -110,10 +115,12 @@ module vproc_cache #(
         .wline_be_i   ( way_wline_be   ),
         .wline_data_i ( way_wline_data ),
         .wdirty_i     ( way_wdirty     ),
+        .werr_i       ( way_werr       ),
         .rindex_i     ( way_rindex     ),
         .rtag_o       ( way1_rtag      ),
         .rline_o      ( way1_rline     ),
-        .rdirty_o     ( way1_rdirty    )
+        .rdirty_o     ( way1_rdirty    ),
+        .rerr_o       ( way1_rerr      )
     );
 
 
@@ -159,9 +166,11 @@ module vproc_cache #(
 
     logic                     tag_match_way0, tag_match_way1;
     logic [LINE_BYTE_W*8-1:0] tag_match_line;
+    logic                     tag_match_err;
     assign tag_match_way0 = way0_valid_q[cpu_addr_q.part.index] & (way0_rtag == cpu_addr_q.part.tag);
     assign tag_match_way1 = way1_valid_q[cpu_addr_q.part.index] & (way1_rtag == cpu_addr_q.part.tag);
     assign tag_match_line = tag_match_way0 ? way0_rline : way1_rline;
+    assign tag_match_err  = tag_match_way0 ? way0_rerr  : way1_rerr;
 
     logic                     cache_hit, cache_miss, cache_spill;
     logic [TAG_BIT_W-1:0]     spill_tag;
@@ -277,12 +286,13 @@ module vproc_cache #(
                             {{(LINE_BYTE_W - MEM_BYTE_W){1'b0}}, {MEM_BYTE_W{1'b1}}} << (MEM_BYTE_W * mem_data_cnt_q.part.cnt);
     assign way_wline_data = mem_data_cnt_q.part.done ? {(LINE_BYTE_W / CPU_BYTE_W){cpu_wdata_q}} : {(LINE_BYTE_W / MEM_BYTE_W){mem_rdata_i}};
     assign way_wdirty     = mem_data_cnt_q.part.done & cpu_we_q;
+    assign way_werr       = ~mem_data_cnt_q.part.done & mem_err_i;
 
     // CPU interface signals
     assign cpu_gnt_o    = mem_req_cnt_q.part.done & mem_data_cnt_q.part.done & ~cache_miss;
     assign cpu_rvalid_o = cache_hit; // & ~cpu_we_q;
     assign cpu_rdata_o  = tag_match_line[cpu_addr_offset * 8 +: CPU_BYTE_W * 8];
-    assign cpu_err_o    = '0;
+    assign cpu_err_o    = tag_match_err;
 
     // memory interface signals
     assign mem_req_o   = ~mem_req_cnt_q.part.done | cache_miss;
@@ -306,11 +316,13 @@ module vproc_cache_way #(
         input  logic [LINE_BYTE_W-1:0]   wline_be_i,
         input  logic [LINE_BYTE_W*8-1:0] wline_data_i,
         input  logic                     wdirty_i,
+        input  logic                     werr_i,
 
         input  logic [INDEX_BIT_W-1:0]   rindex_i,
         output logic [TAG_BIT_W-1:0]     rtag_o,
         output logic [LINE_BYTE_W*8-1:0] rline_o,
-        output logic                     rdirty_o
+        output logic                     rdirty_o,
+        output logic                     rerr_o
     );
 
     localparam int unsigned WAY_LEN = 2 ** INDEX_BIT_W;
@@ -318,19 +330,23 @@ module vproc_cache_way #(
     logic [TAG_BIT_W-1:0]     tags[WAY_LEN]  = '{default: '1};
     logic [LINE_BYTE_W*8-1:0] lines[WAY_LEN] = '{default: 128'h00112233445566778899AABBCCDDEEFF};
     logic [WAY_LEN-1:0]       dirty          = '0;
+    logic [WAY_LEN-1:0]       err            = '0;
 
     always_ff @(posedge clk_i) begin
-        rtag_o   <= tags[rindex_i];
+        rtag_o   <= tags [rindex_i];
         rline_o  <= lines[rindex_i];
         rdirty_o <= dirty[rindex_i];
+        rerr_o   <= err  [rindex_i];
 
         if (we_i) begin
-            tags[windex_i]  <= wtag_i;
+            tags [windex_i] <= wtag_i;
             dirty[windex_i] <= wdirty_i;
+            err  [windex_i] <= werr_i;
 
             if (rindex_i == windex_i) begin
                 rtag_o   <= wtag_i;
                 rdirty_o <= wdirty_i;
+                rerr_o   <= werr_i;
             end
 
             for (int i = 0; i < LINE_BYTE_W; i++) begin
