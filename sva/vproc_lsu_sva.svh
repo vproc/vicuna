@@ -74,7 +74,7 @@
     // Assert that the LSU queue is not empty when receiving a memory response
     assert property (
         @(posedge clk_i)
-        xif_memres_if.mem_result_valid |-> deq_valid_unused
+        xif_memres_if.mem_result_valid |-> deq_valid
     ) else begin
         $error("LSU queue is empty when receiving a memory response");
     end

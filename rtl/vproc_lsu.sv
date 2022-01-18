@@ -134,6 +134,7 @@ module vproc_lsu #(
     // reduced LSU state for passing through the queue
     typedef struct packed {
         lsu_counter          count;
+        logic                first_cycle;
         logic                last_cycle;
         logic [XIF_ID_W-1:0] id;
         op_mode_lsu          mode;
@@ -141,6 +142,8 @@ module vproc_lsu #(
         logic                vl_0;
         logic [4:0]          vd;
         logic                vd_store;
+        logic                exc;
+        logic [5:0]          exccode;
     } lsu_state_red;
 
     // LSU STATES:
@@ -373,6 +376,13 @@ module vproc_lsu #(
     // temporary buffer for byte mask during request:
     logic [VMEM_W/8-1:0] vmsk_tmp_q, vmsk_tmp_d;
 
+    // memory request caused an exception:
+    logic mem_exc_q, mem_exc_d;
+
+    // memory request caused an error (exception or bus error):
+    logic       mem_err_q,     mem_err_d;
+    logic [5:0] mem_exccode_q, mem_exccode_d;
+
     // load data, offset and mask buffers:
     logic [       VMEM_W   -1:0] rdata_buf_q, rdata_buf_d;
     logic [$clog2(VMEM_W/8)-1:0] rdata_off_q, rdata_off_d;
@@ -485,6 +495,7 @@ module vproc_lsu #(
                     wdata_buf_q <= wdata_buf_d;
                     wmask_buf_q <= wmask_buf_d;
                     vmsk_tmp_q  <= vmsk_tmp_d;
+                    mem_exc_q   <= mem_exc_d;
                 end
             end
             assign state_req_ready = ~state_req_valid_q | (xif_mem_if.mem_valid & xif_mem_if.mem_ready) | (~state_req_stall & ~xif_mem_if.mem_valid);
@@ -496,6 +507,10 @@ module vproc_lsu #(
                 wdata_buf_q       = wdata_buf_d;
                 wmask_buf_q       = wmask_buf_d;
                 vmsk_tmp_q        = vmsk_tmp_d;
+            end
+            always_ff @(posedge clk_i) begin
+                // always need a flip-flop for the exception flag
+                mem_exc_q <= mem_exc_d;
             end
             assign state_req_ready = (xif_mem_if.mem_valid & xif_mem_if.mem_ready) | (~state_req_stall & ~xif_mem_if.mem_valid);
         end
@@ -524,6 +539,8 @@ module vproc_lsu #(
                     rdata_buf_q   <= rdata_buf_d;
                     rdata_off_q   <= rdata_off_d;
                     rmask_buf_q   <= rmask_buf_d;
+                    mem_err_q     <= mem_err_d;
+                    mem_exccode_q <= mem_exccode_d;
                 end
             end
         end else begin
@@ -533,6 +550,11 @@ module vproc_lsu #(
                 rdata_buf_q         = rdata_buf_d;
                 rdata_off_q         = rdata_off_d;
                 rmask_buf_q         = rmask_buf_d;
+            end
+            always_ff @(posedge clk_i) begin
+                // always need a flip-flop for the error flag and exception code
+                mem_err_q     <= mem_err_d;
+                mem_exccode_q <= mem_exccode_d;
             end
         end
 
@@ -792,7 +814,7 @@ module vproc_lsu #(
     end
 
     // memory request (keep requesting next access while addressing is not complete)
-    assign xif_mem_if.mem_valid     = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id];
+    assign xif_mem_if.mem_valid     = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
     assign xif_mem_if.mem_req.id    = state_req_q.id;
     assign xif_mem_if.mem_req.addr  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
     assign xif_mem_if.mem_req.mode  = '0;
@@ -802,20 +824,34 @@ module vproc_lsu #(
     assign xif_mem_if.mem_req.last  = state_req_q.last_cycle;
     assign xif_mem_if.mem_req.spec  = '0;
 
+    // monitor the memory response for exceptions
+    always_comb begin
+        mem_exc_d = mem_exc_q;
+        if (state_req_q.first_cycle | ~mem_exc_q) begin
+            // reset the exception flag in the first cycle, unless there is an
+            // exception
+            mem_exc_d = xif_mem_if.mem_valid & xif_mem_if.mem_ready & xif_mem_if.mem_resp.exc;
+        end
+    end
+
     // queue for storing masks and offsets until the memory system fulfills the request:
     lsu_state_red state_req_red;
     always_comb begin
-        state_req_red            = DONT_CARE_ZERO ? '0 : 'x;
-        state_req_red.count      = state_req_q.count;
-        state_req_red.last_cycle = state_req_q.last_cycle;
-        state_req_red.id         = state_req_q.id;
-        state_req_red.mode       = state_req_q.mode;
-        state_req_red.vl         = state_req_q.vl;
-        state_req_red.vl_0       = state_req_q.vl_0;
-        state_req_red.vd         = state_req_q.vd;
-        state_req_red.vd_store   = state_req_q.vd_store;
+        state_req_red             = DONT_CARE_ZERO ? '0 : 'x;
+        state_req_red.count       = state_req_q.count;
+        state_req_red.first_cycle = state_req_q.first_cycle;
+        state_req_red.last_cycle  = state_req_q.last_cycle;
+        state_req_red.id          = state_req_q.id;
+        state_req_red.mode        = state_req_q.mode;
+        state_req_red.vl          = state_req_q.vl;
+        state_req_red.vl_0        = state_req_q.vl_0;
+        state_req_red.vd          = state_req_q.vd;
+        state_req_red.vd_store    = state_req_q.vd_store;
+        state_req_red.exc         = xif_mem_if.mem_resp.exc;
+        state_req_red.exccode     = xif_mem_if.mem_resp.exccode;
     end
-    logic deq_valid_unused; // LSU queue dequeue valid signal (only used in SVA)
+    logic         deq_valid; // LSU queue dequeue valid signal
+    lsu_state_red deq_state;
     vproc_queue #(
         .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
         .DEPTH        ( 4                                                             )
@@ -826,16 +862,37 @@ module vproc_lsu #(
         .enq_ready_o  ( lsu_queue_ready                                               ),
         .enq_valid_i  ( state_req_valid_q & state_req_ready                           ),
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
-        .deq_ready_i  ( xif_memres_if.mem_result_valid                                ),
-        .deq_valid_o  ( deq_valid_unused                                              ),
-        .deq_data_o   ( {rdata_off_d, rmask_buf_d, state_rdata_d}                     )
+        .deq_ready_i  ( xif_memres_if.mem_result_valid | mem_err_d                    ),
+        .deq_valid_o  ( deq_valid                                                     ),
+        .deq_data_o   ( {rdata_off_d, rmask_buf_d, deq_state}                         )
     );
 
+    // monitor the memory result for bus errors and the queue for exceptions
+    always_comb begin
+        mem_err_d     = mem_err_q;
+        mem_exccode_d = mem_exccode_q;
+        if ((deq_valid & deq_state.first_cycle) | ~mem_err_q) begin
+            // reset the error flag in the first cycle, unless there is a bus
+            // error or an exception occured during the request
+            mem_err_d     = deq_state.exc | (xif_memres_if.mem_result_valid & xif_memres_if.mem_result.err);
+            mem_exccode_d = deq_state.exc ? deq_state.exccode : (
+                // bus error translates to a load/store access fault exception
+                deq_state.mode.store ? 6'h07 : 6'h05
+            );
+        end
+    end
+
     // LSU result (indicates potential exceptions):
-    assign trans_complete_valid_o   = xif_memres_if.mem_result_valid & state_rdata_d.last_cycle;
-    assign trans_complete_id_o      = state_rdata_d.id;
-    assign trans_complete_exc_o     = '0;
-    assign trans_complete_exccode_o = '0;
+    assign trans_complete_valid_o   = (xif_memres_if.mem_result_valid | mem_err_d) & deq_state.last_cycle;
+    assign trans_complete_id_o      = deq_state.id;
+    assign trans_complete_exc_o     = mem_err_d;
+    assign trans_complete_exccode_o = mem_exccode_d;
+
+    // load data state
+    always_comb begin
+        state_rdata_d     = deq_state;
+        state_rdata_d.exc = mem_err_d;
+    end
 
     // load data:
     assign rdata_buf_d = xif_memres_if.mem_result.rdata;
@@ -873,10 +930,10 @@ module vproc_lsu #(
     end
 
     //
-    assign vreg_wr_en_d   = state_vd_valid_q & state_vd_q.vd_store;
-    assign vreg_wr_addr_d = state_vd_q.vd;
-    assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
-    assign vreg_wr_d      = vd_shift_q;
+    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_q.exc;
+    assign vreg_wr_addr_d  = state_vd_q.vd;
+    assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
+    assign vreg_wr_d       = vd_shift_q;
     assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.vd_store;
 
 
