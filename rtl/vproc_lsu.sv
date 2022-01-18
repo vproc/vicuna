@@ -384,10 +384,11 @@ module vproc_lsu #(
 
     // vreg write buffers
     localparam WRITE_BUFFER_SZ = (MAX_WR_DELAY > 0) ? MAX_WR_DELAY : 1;
-    logic              vreg_wr_en_q  [WRITE_BUFFER_SZ], vreg_wr_en_d;
-    logic [4:0]        vreg_wr_addr_q[WRITE_BUFFER_SZ], vreg_wr_addr_d;
-    logic [VMSK_W-1:0] vreg_wr_mask_q[WRITE_BUFFER_SZ], vreg_wr_mask_d;
-    logic [VREG_W-1:0] vreg_wr_q     [WRITE_BUFFER_SZ], vreg_wr_d;
+    logic              vreg_wr_en_q   [WRITE_BUFFER_SZ], vreg_wr_en_d;
+    logic [4:0]        vreg_wr_addr_q [WRITE_BUFFER_SZ], vreg_wr_addr_d;
+    logic [VMSK_W-1:0] vreg_wr_mask_q [WRITE_BUFFER_SZ], vreg_wr_mask_d;
+    logic [VREG_W-1:0] vreg_wr_q      [WRITE_BUFFER_SZ], vreg_wr_d;
+    logic              vreg_wr_clear_q[WRITE_BUFFER_SZ], vreg_wr_clear_d;
 
     // hazard clear registers
     logic [31:0] clear_rd_hazards_q, clear_rd_hazards_d;
@@ -556,15 +557,17 @@ module vproc_lsu #(
 
         if (MAX_WR_DELAY > 0) begin
             always_ff @(posedge clk_i) begin : vproc_lsu_wr_delay
-                vreg_wr_en_q  [0] <= vreg_wr_en_d;
-                vreg_wr_addr_q[0] <= vreg_wr_addr_d;
-                vreg_wr_mask_q[0] <= vreg_wr_mask_d;
-                vreg_wr_q     [0] <= vreg_wr_d;
+                vreg_wr_en_q   [0] <= vreg_wr_en_d;
+                vreg_wr_addr_q [0] <= vreg_wr_addr_d;
+                vreg_wr_mask_q [0] <= vreg_wr_mask_d;
+                vreg_wr_q      [0] <= vreg_wr_d;
+                vreg_wr_clear_q[0] <= vreg_wr_clear_d;
                 for (int i = 1; i < MAX_WR_DELAY; i++) begin
-                    vreg_wr_en_q  [i] <= vreg_wr_en_q  [i-1];
-                    vreg_wr_addr_q[i] <= vreg_wr_addr_q[i-1];
-                    vreg_wr_mask_q[i] <= vreg_wr_mask_q[i-1];
-                    vreg_wr_q     [i] <= vreg_wr_q     [i-1];
+                    vreg_wr_en_q   [i] <= vreg_wr_en_q   [i-1];
+                    vreg_wr_addr_q [i] <= vreg_wr_addr_q [i-1];
+                    vreg_wr_mask_q [i] <= vreg_wr_mask_q [i-1];
+                    vreg_wr_q      [i] <= vreg_wr_q      [i-1];
+                    vreg_wr_clear_q[i] <= vreg_wr_clear_q[i-1];
                 end
             end
         end
@@ -592,9 +595,9 @@ module vproc_lsu #(
 
     // write hazard clearing
     always_comb begin
-        clear_wr_hazards_d     = vreg_wr_en_d                 ? (32'b1 << vreg_wr_addr_d                ) : 32'b0;
+        clear_wr_hazards_d     = vreg_wr_clear_d                 ? (32'b1 << vreg_wr_addr_d                ) : 32'b0;
         if (MAX_WR_DELAY > 0) begin
-            clear_wr_hazards_d = vreg_wr_en_q[MAX_WR_DELAY-1] ? (32'b1 << vreg_wr_addr_q[MAX_WR_DELAY-1]) : 32'b0;
+            clear_wr_hazards_d = vreg_wr_clear_q[MAX_WR_DELAY-1] ? (32'b1 << vreg_wr_addr_q[MAX_WR_DELAY-1]) : 32'b0;
         end
     end
     assign clear_wr_hazards_o = clear_wr_hazards_q;
@@ -874,6 +877,7 @@ module vproc_lsu #(
     assign vreg_wr_addr_d = state_vd_q.vd;
     assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d      = vd_shift_q;
+    assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.vd_store;
 
 
 `ifdef VPROC_SVA
