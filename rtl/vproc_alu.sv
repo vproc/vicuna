@@ -100,7 +100,6 @@ module vproc_alu #(
         logic                last_cycle;
         logic [XIF_ID_W-1:0] id;
         op_mode_alu          mode;
-        logic                subtract;   // set if an operand is inverted
         cfg_vsew             eew;        // effective element width
         cfg_emul             emul;       // effective MUL factor
         logic [CFG_VL_W-1:0] vl;
@@ -163,7 +162,6 @@ module vproc_alu #(
             state_d.first_cycle = 1'b1;
             state_d.id          = id_i;
             state_d.mode        = mode_i;
-            state_d.subtract    = mode_i.inv_op1 | mode_i.inv_op2;
             state_d.emul        = emul_i;
             state_d.eew         = vsew_i;
             state_d.vl          = vl_i;
@@ -638,6 +636,8 @@ module vproc_alu #(
             endcase
         end
     end
+    logic state_vs2_subtract;
+    assign state_vs2_subtract = state_vs2_q.mode.inv_op1 | state_vs2_q.mode.inv_op2;
     always_comb begin
         operand1_d = DONT_CARE_ZERO ? '0 : 'x;
         operand2_d = DONT_CARE_ZERO ? '0 : 'x;
@@ -653,15 +653,15 @@ module vproc_alu #(
             operand2_d[36*i+19 +: 8] = state_vs2_q.mode.inv_op2 ? ~operand2[32*i+16 +: 8] : operand2[32*i+16 +: 8];
             operand2_d[36*i+28 +: 8] = state_vs2_q.mode.inv_op2 ? ~operand2[32*i+24 +: 8] : operand2[32*i+24 +: 8];
             // operand 1 carry logic
-            operand1_d[36*i   ] =                                 ((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4  ]) ^ state_vs2_q.subtract;
-            operand1_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+1]) ^ state_vs2_q.subtract) : 1'b1;
-            operand1_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+2]) ^ state_vs2_q.subtract) : 1'b1;
-            operand1_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+3]) ^ state_vs2_q.subtract) : 1'b1;
+            operand1_d[36*i   ] =                                 ((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4  ]) ^ state_vs2_subtract;
+            operand1_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+1]) ^ state_vs2_subtract) : 1'b1;
+            operand1_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+2]) ^ state_vs2_subtract) : 1'b1;
+            operand1_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+3]) ^ state_vs2_subtract) : 1'b1;
             // operand 2 carry logic
             operand2_d[36*i   ] = 1'b1;
-            operand2_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+1]) ^ state_vs2_q.subtract) : 1'b0;
-            operand2_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+2]) ^ state_vs2_q.subtract) : 1'b0;
-            operand2_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+3]) ^ state_vs2_q.subtract) : 1'b0;
+            operand2_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+1]) ^ state_vs2_subtract) : 1'b0;
+            operand2_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+2]) ^ state_vs2_subtract) : 1'b0;
+            operand2_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+3]) ^ state_vs2_subtract) : 1'b0;
         end
     end
 
@@ -761,6 +761,9 @@ module vproc_alu #(
     ///////////////////////////////////////////////////////////////////////////
     // ALU ARITHMETIC:
 
+    logic state_ex1_subtract;
+    assign state_ex1_subtract = state_ex1_q.mode.inv_op1 | state_ex1_q.mode.inv_op2;
+
     // 37-bit adder (fracturable 32-bit adder with carry-in and carry-out)
     logic [ALU_OP_W*37/32-1:0] sum37;
     always_comb begin
@@ -784,10 +787,10 @@ module vproc_alu #(
             sum_d[36*i+27 +: 8] = sum37[37*i+28 +: 8];
             unique case (state_ex1_q.eew)
                 VSEW_8: begin
-                    sum_d  [36*i+8   ] =  sum37     [37*i+9 ] ^ state_ex1_q.subtract;
-                    sum_d  [36*i+17  ] =  sum37     [37*i+18] ^ state_ex1_q.subtract;
-                    sum_d  [36*i+26  ] =  sum37     [37*i+27] ^ state_ex1_q.subtract;
-                    sum_d  [36*i+35  ] =  sum37     [37*i+36] ^ state_ex1_q.subtract;
+                    sum_d  [36*i+8   ] =  sum37     [37*i+9 ] ^ state_ex1_subtract;
+                    sum_d  [36*i+17  ] =  sum37     [37*i+18] ^ state_ex1_subtract;
+                    sum_d  [36*i+26  ] =  sum37     [37*i+27] ^ state_ex1_subtract;
+                    sum_d  [36*i+35  ] =  sum37     [37*i+36] ^ state_ex1_subtract;
                     carry  [4 *i +: 4] = {sum37     [37*i+36], sum37     [37*i+27], sum37     [37*i+18], sum37     [37*i+9]};
                     sig_op1[4 *i +: 4] = {operand1_q[36*i+35], operand1_q[36*i+26], operand1_q[36*i+17], operand1_q[36*i+8]};
                     sig_op2[4 *i +: 4] = {operand2_q[36*i+35], operand2_q[36*i+26], operand2_q[36*i+17], operand2_q[36*i+8]};
@@ -795,9 +798,9 @@ module vproc_alu #(
                 end
                 VSEW_16: begin
                     sum_d  [36*i+8   ] =     sum37     [37*i+10];
-                    sum_d  [36*i+17  ] =     sum37     [37*i+18] ^ state_ex1_q.subtract;
+                    sum_d  [36*i+17  ] =     sum37     [37*i+18] ^ state_ex1_subtract;
                     sum_d  [36*i+26  ] =     sum37     [37*i+28];
-                    sum_d  [36*i+35  ] =     sum37     [37*i+36] ^ state_ex1_q.subtract;
+                    sum_d  [36*i+35  ] =     sum37     [37*i+36] ^ state_ex1_subtract;
                     carry  [4 *i +: 4] = {{2{sum37     [37*i+36]}}, {2{sum37     [37*i+18]}}};
                     sig_op1[4 *i +: 4] = {{2{operand1_q[36*i+35]}}, {2{operand1_q[36*i+17]}}};
                     sig_op2[4 *i +: 4] = {{2{operand2_q[36*i+35]}}, {2{operand2_q[36*i+17]}}};
@@ -807,7 +810,7 @@ module vproc_alu #(
                     sum_d  [36*i+8   ] =    sum37     [37*i+10];
                     sum_d  [36*i+17  ] =    sum37     [37*i+19];
                     sum_d  [36*i+26  ] =    sum37     [37*i+28];
-                    sum_d  [36*i+35  ] =    sum37     [37*i+36] ^ state_ex1_q.subtract;
+                    sum_d  [36*i+35  ] =    sum37     [37*i+36] ^ state_ex1_subtract;
                     carry  [4 *i +: 4] = {4{sum37     [37*i+36]}};
                     sig_op1[4 *i +: 4] = {4{operand1_q[36*i+35]}};
                     sig_op2[4 *i +: 4] = {4{operand2_q[36*i+35]}};
@@ -827,7 +830,7 @@ module vproc_alu #(
     always_comb begin
         cmp_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex1_q.mode.opx1.sel)
-            ALU_SEL_CARRY: cmp_d = state_ex1_q.subtract ? ~carry : carry;
+            ALU_SEL_CARRY: cmp_d = state_ex1_subtract ? ~carry : carry;
             ALU_SEL_OVFLW: cmp_d = ovflw;
             ALU_SEL_LT:    cmp_d = ovflw ^ sig_res; // minuend is less than subtrahend
             ALU_SEL_MASK: begin
