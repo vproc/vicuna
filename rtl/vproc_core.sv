@@ -422,9 +422,9 @@ module vproc_core #(
     logic op_ack;
 
     // instruction queue output signals
-    logic        queue_valid_q,     queue_valid_d;
-    decoder_data queue_data_q,      queue_data_d;
-    logic [31:0] queue_wr_hazard_q, queue_wr_hazard_d; // potential write hazards
+    logic        queue_valid_q,      queue_valid_d;
+    decoder_data queue_data_q,       queue_data_d;
+    logic [31:0] queue_pending_wr_q, queue_pending_wr_d; // potential write hazards
     generate
         // add an extra pipeline stage to calculate the hazards
         if (BUF_DEQUEUE) begin
@@ -443,14 +443,14 @@ module vproc_core #(
                 // move in next instruction when this buffer stage is empty
                 // or when the current instruction is acknowledged
                 if ((~queue_valid_q) | op_ack) begin
-                    queue_data_q      <= queue_data_d;
-                    queue_wr_hazard_q <= queue_wr_hazard_d;
+                    queue_data_q       <= queue_data_d;
+                    queue_pending_wr_q <= queue_pending_wr_d;
                 end
             end
         end else begin
-            assign queue_valid_q     = queue_valid_d;
-            assign queue_data_q      = queue_data_d;
-            assign queue_wr_hazard_q = queue_wr_hazard_d;
+            assign queue_valid_q      = queue_valid_d;
+            assign queue_data_q       = queue_data_d;
+            assign queue_pending_wr_q = queue_pending_wr_d;
         end
     endgenerate
 
@@ -479,19 +479,16 @@ module vproc_core #(
     endgenerate
 
     // potential vector register hazards of the currently dequeued instruction
-    vproc_hazards #(
+    vproc_pending_wr #(
         .DONT_CARE_ZERO ( DONT_CARE_ZERO          )
-    ) queue_hazards (
+    ) queue_pending_wr (
         .vsew_i         ( queue_data_d.vsew       ),
         .emul_i         ( queue_data_d.emul       ),
         .unit_i         ( queue_data_d.unit       ),
         .mode_i         ( queue_data_d.mode       ),
         .widenarrow_i   ( queue_data_d.widenarrow ),
-        .rs1_i          ( queue_data_d.rs1        ),
-        .rs2_i          ( queue_data_d.rs2        ),
         .rd_i           ( queue_data_d.rd         ),
-        .rd_hazards_o   (                         ),
-        .wr_hazards_o   ( queue_wr_hazard_d       )
+        .pending_wr_o   ( queue_pending_wr_d      )
     );
 
     // keep track of pending loads and stores
@@ -525,7 +522,7 @@ module vproc_core #(
 
     // pending hazards of next instruction (in dequeue buffer)
     logic pending_hazards;
-    assign pending_hazards = (queue_wr_hazard_q & vreg_wr_hazard_map_q) != 32'b0;
+    assign pending_hazards = (queue_pending_wr_q & vreg_wr_hazard_map_q) != 32'b0;
 
     // instruction ready and acknowledge signals for each unit:
     logic op_rdy_lsu,  op_ack_lsu;
@@ -562,7 +559,7 @@ module vproc_core #(
             (op_rdy_sld  & op_ack_sld ) |
             (op_rdy_elem & op_ack_elem)) begin
             op_ack              = 1'b1;
-            vreg_wr_hazard_map_set = queue_wr_hazard_q;
+            vreg_wr_hazard_map_set = queue_pending_wr_q;
         end
     end
 
