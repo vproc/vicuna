@@ -41,7 +41,6 @@ module vproc_elem #(
         output logic [31:0]            vreg_pend_rd_o,
         input  logic [31:0]            vreg_pend_rd_i,
 
-        output logic [31:0]            clear_rd_hazards_o,
         output logic [31:0]            clear_wr_hazards_o,
 
         input  logic [XIF_ID_CNT-1:0]  instr_spec_i,
@@ -335,7 +334,6 @@ module vproc_elem #(
     cfg_emul           vreg_wr_emul_q [WRITE_BUFFER_SZ], vreg_wr_emul_d;
 
     // hazard clear registers
-    logic [31:0] clear_rd_hazards_q, clear_rd_hazards_d;
     logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
@@ -542,7 +540,6 @@ module vproc_elem #(
         end
 
         always_ff @(posedge clk_i) begin
-            clear_rd_hazards_q <= clear_rd_hazards_d;
             clear_wr_hazards_q <= clear_wr_hazards_d;
         end
     endgenerate
@@ -590,27 +587,6 @@ module vproc_elem #(
         end
     end
     assign clear_wr_hazards_o = clear_wr_hazards_q;
-
-    // read hazard clearing
-    logic [31:0] gather_hazard;
-    always_comb begin
-        gather_hazard = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_gather_q.emul)
-            EMUL_1: gather_hazard = (32'h00000001 <<  state_gather_q.vs2              );
-            EMUL_2: gather_hazard = (32'h00000003 << {state_gather_q.vs2[4:1], 1'b0  });
-            EMUL_4: gather_hazard = (32'h0000000F << {state_gather_q.vs2[4:2], 2'b00 });
-            EMUL_8: gather_hazard = (32'h000000FF << {state_gather_q.vs2[4:3], 3'b000});
-            default: ;
-        endcase
-    end
-    // vs2 is either a mask vreg or it is the gather register group, which has to be cleared as a whole in the last cycle
-    assign clear_rd_hazards_d = (
-        ((state_init_valid     & state_init.vs1_fetch                                                                         ) ? (32'b1 << state_init.vs1  ) : 32'b0) |
-        ((state_vreg_valid_q   & state_vreg_q.first_cycle  & state_vreg_q.vs2_vreg & (state_vreg_q.mode.op   != ELEM_VRGATHER)) ? (32'b1 << state_vreg_q.vs2) : 32'b0) |
-        ((state_gather_valid_q & state_gather_q.last_cycle &                         (state_gather_q.mode.op == ELEM_VRGATHER)) ? gather_hazard               : 32'b0) |
-        {31'b0, state_init_valid & state_init.mode.masked & state_init.first_cycle}
-    );
-    assign clear_rd_hazards_o = clear_rd_hazards_q;
 
     logic [31:0] state_init_gather_vregs, state_vsm_gather_vregs, state_gather_gather_vregs;
     always_comb begin

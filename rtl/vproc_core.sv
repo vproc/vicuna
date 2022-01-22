@@ -566,11 +566,11 @@ module vproc_core #(
     end
 
     // vreg hazard clearing:
-    logic [31:0] vreg_rd_hazard_clr_lsu,  vreg_wr_hazard_clr_lsu;
-    logic [31:0] vreg_rd_hazard_clr_alu,  vreg_wr_hazard_clr_alu;
-    logic [31:0] vreg_rd_hazard_clr_mul,  vreg_wr_hazard_clr_mul;
-    logic [31:0] vreg_rd_hazard_clr_sld,  vreg_wr_hazard_clr_sld;
-    logic [31:0] vreg_rd_hazard_clr_elem, vreg_wr_hazard_clr_elem;
+    logic [31:0] vreg_wr_hazard_clr_lsu;
+    logic [31:0] vreg_wr_hazard_clr_alu;
+    logic [31:0] vreg_wr_hazard_clr_mul;
+    logic [31:0] vreg_wr_hazard_clr_sld;
+    logic [31:0] vreg_wr_hazard_clr_elem;
     assign vreg_wr_hazard_map_clr = vreg_wr_hazard_clr_lsu  |
                                     vreg_wr_hazard_clr_alu  |
                                     vreg_wr_hazard_clr_mul  |
@@ -717,7 +717,6 @@ module vproc_core #(
         .vreg_pend_rd_i           ( vreg_pend_rd_to_lsu_q         ),
         .pending_load_o           ( pending_load_lsu              ),
         .pending_store_o          ( pending_store_lsu             ),
-        .clear_rd_hazards_o       ( vreg_rd_hazard_clr_lsu        ),
         .clear_wr_hazards_o       ( vreg_wr_hazard_clr_lsu        ),
         .instr_spec_i             ( ~instr_notspec_q              ),
         .instr_killed_i           ( instr_killed_q                ),
@@ -774,7 +773,6 @@ module vproc_core #(
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q          ),
         .vreg_pend_rd_o     ( vreg_pend_rd_by_alu_d         ),
         .vreg_pend_rd_i     ( vreg_pend_rd_to_alu_q         ),
-        .clear_rd_hazards_o ( vreg_rd_hazard_clr_alu        ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_alu        ),
         .instr_spec_i       ( ~instr_notspec_q              ),
         .instr_killed_i     ( instr_killed_q                ),
@@ -824,7 +822,6 @@ module vproc_core #(
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q                   ),
         .vreg_pend_rd_o     ( vreg_pend_rd_by_mul_d                  ),
         .vreg_pend_rd_i     ( vreg_pend_rd_to_mul_q                  ),
-        .clear_rd_hazards_o ( vreg_rd_hazard_clr_mul                 ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_mul                 ),
         .instr_spec_i       ( ~instr_notspec_q                       ),
         .instr_killed_i     ( instr_killed_q                         ),
@@ -874,7 +871,6 @@ module vproc_core #(
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q     ),
         .vreg_pend_rd_o     ( vreg_pend_rd_by_sld_d    ),
         .vreg_pend_rd_i     ( vreg_pend_rd_to_sld_q    ),
-        .clear_rd_hazards_o ( vreg_rd_hazard_clr_sld   ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_sld   ),
         .instr_spec_i       ( ~instr_notspec_q         ),
         .instr_killed_i     ( instr_killed_q           ),
@@ -928,7 +924,6 @@ module vproc_core #(
         .vreg_pend_wr_i     ( vreg_wr_hazard_map_q     ),
         .vreg_pend_rd_o     ( vreg_pend_rd_by_elem_d   ),
         .vreg_pend_rd_i     ( vreg_pend_rd_to_elem_q   ),
-        .clear_rd_hazards_o ( vreg_rd_hazard_clr_elem  ),
         .clear_wr_hazards_o ( vreg_wr_hazard_clr_elem  ),
         .instr_spec_i       ( ~instr_notspec_q         ),
         .instr_killed_i     ( instr_killed_q           ),

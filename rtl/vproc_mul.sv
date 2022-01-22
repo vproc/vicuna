@@ -44,7 +44,6 @@ module vproc_mul #(
         output logic [31:0]           vreg_pend_rd_o,
         input  logic [31:0]           vreg_pend_rd_i,
 
-        output logic [31:0]           clear_rd_hazards_o,
         output logic [31:0]           clear_wr_hazards_o,
 
         input  logic [XIF_ID_CNT-1:0] instr_spec_i,
@@ -294,7 +293,6 @@ module vproc_mul #(
     logic [VREG_W-1:0] vreg_wr_q     [WRITE_BUFFER_SZ], vreg_wr_d;
 
     // hazard clear registers
-    logic [31:0] clear_rd_hazards_q, clear_rd_hazards_d;
     logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
@@ -528,7 +526,6 @@ module vproc_mul #(
         end
 
         always_ff @(posedge clk_i) begin
-            clear_rd_hazards_q <= clear_rd_hazards_d;
             clear_wr_hazards_q <= clear_wr_hazards_d;
         end
     endgenerate
@@ -556,19 +553,6 @@ module vproc_mul #(
         end
     end
     assign clear_wr_hazards_o = clear_wr_hazards_q;
-
-    // read hazard clearing
-    // note that vs1 and vs2 are always of the same width; vs3 may be wider for
-    // widening multiply-add instructions, but then vs3 == vd and hence vs3
-    // cannot overlap with vs1 and vs2; therefore, if any of vs1, vs2 or vs3
-    // overlap, then they are of the same width and read simultaneously
-    assign clear_rd_hazards_d = state_init_valid ? (
-        (state_init.vs1_fetch ? (32'b1 << state_init.rs1.r.vaddr) : 32'b0) |
-        (state_init.vs2_fetch ? (32'b1 << state_init.vs2        ) : 32'b0) |
-        (state_init.vs3_fetch ? (32'b1 << state_init.vs3        ) : 32'b0) |
-        {31'b0, state_init.mode.masked & state_init.first_cycle}
-    ) : 32'b0;
-    assign clear_rd_hazards_o = clear_rd_hazards_q;
 
     // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial

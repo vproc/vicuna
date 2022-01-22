@@ -38,7 +38,6 @@ module vproc_sld #(
         output logic [31:0]           vreg_pend_rd_o,
         input  logic [31:0]           vreg_pend_rd_i,
 
-        output logic [31:0]           clear_rd_hazards_o,
         output logic [31:0]           clear_wr_hazards_o,
 
         input  logic [XIF_ID_CNT-1:0] instr_spec_i,
@@ -308,7 +307,6 @@ module vproc_sld #(
     cfg_emul           vreg_wr_emul_q [WRITE_BUFFER_SZ], vreg_wr_emul_d;
 
     // hazard clear registers
-    logic [31:0] clear_rd_hazards_q, clear_rd_hazards_d;
     logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
@@ -471,7 +469,6 @@ module vproc_sld #(
         end
 
         always_ff @(posedge clk_i) begin
-            clear_rd_hazards_q <= clear_rd_hazards_d;
             clear_wr_hazards_q <= clear_wr_hazards_d;
         end
     endgenerate
@@ -519,13 +516,6 @@ module vproc_sld #(
         end
     end
     assign clear_wr_hazards_o = clear_wr_hazards_q;
-
-    // read hazard clearing
-    assign clear_rd_hazards_d = state_init_valid ? (
-        ((state_init.vs2_fetch & ~state_init.last_cycle) ? (32'b1 << state_init.vs2) : 32'b0) |
-        {31'b0, state_init.mode.masked & state_init.first_cycle}
-    ) : 32'b0;
-    assign clear_rd_hazards_o = clear_rd_hazards_q;
 
     // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
