@@ -4,7 +4,8 @@
 
 
 module vproc_decoder #(
-        parameter bit                   DONT_CARE_ZERO = 1'b0 // initialize don't care values to zero
+        parameter bit                   DONT_CARE_ZERO = 1'b0, // initialize don't care values to zero
+        parameter int unsigned          CFG_VL_W       = 7     // width of VL reg in bits (= log2(VREG_W))
     )(
         input  logic                    instr_valid_i,
         input  logic [31:0]             instr_i,
@@ -15,11 +16,14 @@ module vproc_decoder #(
         input  vproc_pkg::cfg_vsew      vsew_i,       // current SEW (single element width)
         input  vproc_pkg::cfg_lmul      lmul_i,       // current register size multiplier
         input  vproc_pkg::cfg_vxrm      vxrm_i,       // current rounding mode
+        input  logic [CFG_VL_W-1:0]     vl_i,         // current vector length
 
         output logic                    illegal_o,    // 1 if instr_i is illegal, 0 otherwise
         output logic                    valid_o,
 
-        output vproc_pkg::cfg_lmul      lmul_o,       // LMUL setting for this instruction
+        output vproc_pkg::cfg_vsew      vsew_o,       // VSEW setting for this instruction
+        output vproc_pkg::cfg_lmul      emul_o,       // LMUL setting for this instruction
+        output logic [CFG_VL_W-1:0]     vl_o,         // vector length for this instruction
         output vproc_pkg::op_unit       unit_o,       //
         output vproc_pkg::op_mode       mode_o,
         output vproc_pkg::op_widenarrow widenarrow_o,
@@ -44,11 +48,11 @@ module vproc_decoder #(
     assign instr_masked = ~instr_i[25];
 
     logic instr_illegal;
+    logic emul_1;
 
     always_comb begin
         instr_illegal = 1'b0;
-
-        lmul_o        = lmul_i;
+        emul_1        = 1'b0;
 
         unit_o        = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
         mode_o.unused = DONT_CARE_ZERO ? '0 : 'x;
@@ -98,7 +102,7 @@ module vproc_decoder #(
                             5'b01000,       // whole register load
                             5'b01011: begin // mask load
                                 // TODO whole register loads use nf field
-                                lmul_o = LMUL_1;
+                                emul_1 = 1'b1;
                             end
                             default: begin
                                 instr_illegal = 1'b1;
@@ -165,7 +169,7 @@ module vproc_decoder #(
                             5'b01000,       // whole register store
                             5'b01011: begin // mask store
                                 // TODO whole register stores use nf field
-                                lmul_o = LMUL_1;
+                                emul_1 = 1'b1;
                             end
                             default: begin
                                 instr_illegal = 1'b1;
@@ -586,7 +590,7 @@ module vproc_decoder #(
                             widenarrow_o        = OP_WIDENING;
                         end
                         {6'b011000, 3'b010}: begin  // vmandnot VV
-                            lmul_o              = LMUL_1;
+                            emul_1              = 1'b1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -596,7 +600,7 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011001, 3'b010}: begin  // vmand VV
-                            lmul_o              = LMUL_1;
+                            emul_1              = 1'b1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b0;
@@ -606,7 +610,7 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011010, 3'b010}: begin  // vmor VV
-                            lmul_o              = LMUL_1;
+                            emul_1              = 1'b1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b0;
@@ -616,7 +620,7 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011011, 3'b010}: begin  // vmxor VV
-                            lmul_o              = LMUL_1;
+                            emul_1              = 1'b1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b0;
@@ -626,7 +630,7 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011100, 3'b010}: begin  // vmornot VV
-                            lmul_o              = LMUL_1;
+                            emul_1              = 1'b1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -636,7 +640,7 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011101, 3'b010}: begin  // vmnand VV
-                            lmul_o              = LMUL_1;
+                            emul_1              = 1'b1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -646,7 +650,7 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011110, 3'b010}: begin  // vmnor VV
-                            lmul_o              = LMUL_1;
+                            emul_1              = 1'b1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -656,7 +660,7 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011111, 3'b010}: begin  // vmxnor VV
-                            lmul_o              = LMUL_1;
+                            emul_1              = 1'b1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -1213,36 +1217,120 @@ module vproc_decoder #(
         endcase
     end
 
+    always_comb begin
+        vsew_o = DONT_CARE_ZERO ? cfg_vsew'('0) : cfg_vsew'('x);
+        emul_o = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+        vl_o   = DONT_CARE_ZERO ? '0 : 'x;
 
-    // TODO find a better way to check register addresses that includes checks
-    // for vector loads and stores with EEW != SEW
+        if (unit_o == UNIT_LSU) begin
+
+            unique case ({mode_o.lsu.eew, vsew_i})
+                {VSEW_8 , VSEW_32}: begin   // EEW / SEW = 1 / 4
+                    emul_o = (lmul_i == LMUL_8) ? EMUL_2 : EMUL_1; // use EMUL == 1 for fractional EMUL (LMUL < 4), VL is updated anyways
+                    vl_o   = {2'b00, vl_i[CFG_VL_W-1:2]};
+                end
+                {VSEW_8 , VSEW_16},
+                {VSEW_16, VSEW_32}: begin   // EEW / SEW = 1 / 2
+                    emul_o = (lmul_i == LMUL_8) ? EMUL_4 : ((lmul_i == LMUL_4) ? EMUL_2 : EMUL_1);
+                    vl_o   = {1'b0, vl_i[CFG_VL_W-1:1]};
+                end
+                {VSEW_8 , VSEW_8 },
+                {VSEW_16, VSEW_16},
+                {VSEW_32, VSEW_32}: begin   // EEW / SEW = 1
+                    unique case (lmul_i)
+                        LMUL_F8,
+                        LMUL_F4,
+                        LMUL_F2,
+                        LMUL_1:  emul_o = EMUL_1;
+                        LMUL_2:  emul_o = EMUL_2;
+                        LMUL_4:  emul_o = EMUL_4;
+                        LMUL_8:  emul_o = EMUL_8;
+                        default: ;
+                    endcase
+                    vl_o   = vl_i;
+                end
+                {VSEW_16, VSEW_8 },
+                {VSEW_32, VSEW_16}: begin   // EEW / SEW = 2
+                    unique case (lmul_i)
+                        LMUL_F8,
+                        LMUL_F4,
+                        LMUL_F2: emul_o = EMUL_1;
+                        LMUL_1:  emul_o = EMUL_2;
+                        LMUL_2:  emul_o = EMUL_4;
+                        LMUL_4:  emul_o = EMUL_8;
+                        default: ;
+                    endcase
+                    vl_o   = {vl_i[CFG_VL_W-2:0], 1'b1};
+                end
+                {VSEW_32, VSEW_8 }: begin   // EEW / SEW = 4
+                    unique case (lmul_i)
+                        LMUL_F8,
+                        LMUL_F4: emul_o = EMUL_1;
+                        LMUL_F2: emul_o = EMUL_2;
+                        LMUL_1:  emul_o = EMUL_4;
+                        LMUL_2:  emul_o = EMUL_8;
+                        default: ;
+                    endcase
+                    vl_o   = {vl_i[CFG_VL_W-3:0], 2'b11};
+                end
+                default: ;
+            endcase
+
+        end else begin
+
+            if (widenarrow_o == OP_SINGLEWIDTH) begin
+                vsew_o = vsew_i;
+                unique case (lmul_i)
+                    LMUL_F8,
+                    LMUL_F4,
+                    LMUL_F2,
+                    LMUL_1: emul_o = EMUL_1;
+                    LMUL_2: emul_o = EMUL_2;
+                    LMUL_4: emul_o = EMUL_4;
+                    LMUL_8: emul_o = EMUL_8;
+                    default: ;
+                endcase
+                vl_o = vl_i;
+            end else begin
+                // for widening or narrowing ops, eew and emul are increased to the next higher value,
+                // since those are the eew and emul that are used for the op itself; vl is doubled to
+                // capture the wider byte width of the intermediate result
+                vsew_o = (vsew_i == VSEW_8) ? VSEW_16 : VSEW_32;
+                unique case (lmul_i)
+                    LMUL_F8,
+                    LMUL_F4,
+                    LMUL_F2: emul_o = EMUL_1;
+                    LMUL_1:  emul_o = EMUL_2;
+                    LMUL_2:  emul_o = EMUL_4;
+                    LMUL_4:  emul_o = EMUL_8;
+                    default: ;
+                endcase
+                vl_o = {vl_i[CFG_VL_W-2:0], 1'b1};
+            end
+
+        end
+    end
 
     // address masks (lower bits that must be 0) for registers based on EMUL:
-    logic [2:0] regaddr_mask, regaddr_mask_wide;
+    logic [2:0] regaddr_mask, regaddr_mask_narrow;
     always_comb begin
-        regaddr_mask      = DONT_CARE_ZERO ? '0 : 'x;
-        regaddr_mask_wide = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (lmul_o)
-            LMUL_F8,
-            LMUL_F4,
-            LMUL_F2: begin
-                regaddr_mask      = 3'b000;
-                regaddr_mask_wide = 3'b000;
+        regaddr_mask        = DONT_CARE_ZERO ? '0 : 'x;
+        regaddr_mask_narrow = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (emul_o)
+            EMUL_1: begin
+                regaddr_mask        = 3'b000;
             end
-            LMUL_1: begin
-                regaddr_mask      = 3'b000;
-                regaddr_mask_wide = 3'b001;
+            EMUL_2: begin
+                regaddr_mask        = 3'b001;
+                regaddr_mask_narrow = 3'b000;
             end
-            LMUL_2: begin
-                regaddr_mask      = 3'b001;
-                regaddr_mask_wide = 3'b011;
+            EMUL_4: begin
+                regaddr_mask        = 3'b011;
+                regaddr_mask_narrow = 3'b001;
             end
-            LMUL_4: begin
-                regaddr_mask      = 3'b011;
-                regaddr_mask_wide = 3'b111;
-            end
-            LMUL_8: begin
-                regaddr_mask      = 3'b111;
+            EMUL_8: begin
+                regaddr_mask        = 3'b111;
+                regaddr_mask_narrow = 3'b011;
             end
             default: ;
         endcase
@@ -1258,24 +1346,24 @@ module vproc_decoder #(
         // regular operation:
         unique case (widenarrow_o)
             OP_SINGLEWIDTH: begin
-                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask     }) != 5'b0;
-                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask     }) != 5'b0;
-                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask     }) != 5'b0;
+                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask       }) != 5'b0;
+                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask       }) != 5'b0;
+                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask       }) != 5'b0;
             end
             OP_WIDENING: begin
-                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask     }) != 5'b0;
-                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask     }) != 5'b0;
-                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask_wide}) != 5'b0;
+                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask_narrow}) != 5'b0;
+                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask_narrow}) != 5'b0;
+                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask       }) != 5'b0;
             end
             OP_WIDENING_VS2: begin
-                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask     }) != 5'b0;
-                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask_wide}) != 5'b0;
-                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask_wide}) != 5'b0;
+                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask_narrow}) != 5'b0;
+                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask       }) != 5'b0;
+                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask       }) != 5'b0;
             end
             OP_NARROWING: begin
-                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask_wide}) != 5'b0;
-                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask_wide}) != 5'b0;
-                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask     }) != 5'b0;
+                vs1_invalid = (instr_vs1 & {2'b00, regaddr_mask       }) != 5'b0;
+                vs2_invalid = (instr_vs2 & {2'b00, regaddr_mask       }) != 5'b0;
+                vd_invalid  = (instr_vd  & {2'b00, regaddr_mask_narrow}) != 5'b0;
             end
             default: ;
         endcase
@@ -1296,7 +1384,6 @@ module vproc_decoder #(
             vd_invalid  = 1'b0;
         end
     end
-
 
     logic emul_invalid;
     assign emul_invalid = (lmul_i == LMUL_8) & (widenarrow_o != OP_SINGLEWIDTH);

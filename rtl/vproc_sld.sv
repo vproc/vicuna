@@ -22,7 +22,7 @@ module vproc_sld #(
 
         input  logic [XIF_ID_W-1:0]   id_i,
         input  vproc_pkg::cfg_vsew    vsew_i,
-        input  vproc_pkg::cfg_lmul    lmul_i,
+        input  vproc_pkg::cfg_emul    emul_i,
         input  logic [CFG_VL_W-1:0]   vl_i,
         input  logic                  vl_0_i,
 
@@ -197,17 +197,7 @@ module vproc_sld #(
             state_d.id          = id_i;
             state_d.mode        = mode_i;
             state_d.eew         = vsew_i;
-            state_d.emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
-            unique case (lmul_i)
-                LMUL_F8,
-                LMUL_F4,
-                LMUL_F2,
-                LMUL_1: state_d.emul = EMUL_1;
-                LMUL_2: state_d.emul = EMUL_2;
-                LMUL_4: state_d.emul = EMUL_4;
-                LMUL_8: state_d.emul = EMUL_8;
-                default: ;
-            endcase
+            state_d.emul        = emul_i;
             state_d.vl          = vl_i;
             state_d.vl_0        = vl_0_i;
             state_d.rs1         = rs1_i;

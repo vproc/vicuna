@@ -25,7 +25,7 @@ module vproc_alu #(
 
         input  logic [XIF_ID_W-1:0]     id_i,
         input  vproc_pkg::cfg_vsew      vsew_i,
-        input  vproc_pkg::cfg_lmul      lmul_i,
+        input  vproc_pkg::cfg_emul      emul_i,
         input  logic [CFG_VL_W-1:0]     vl_i,
         input  logic                    vl_0_i,
 
@@ -164,50 +164,23 @@ module vproc_alu #(
             state_d.id          = id_i;
             state_d.mode        = mode_i;
             state_d.subtract    = mode_i.inv_op1 | mode_i.inv_op2;
-            // for widening or narrowing ops, eew and emul are increased to the next higher value,
-            // since those are the eew and emul that are used for the op itself; vl is doubled to
-            // capture the wider byte width of the intermediate result
-            state_d.emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
-            if (widenarrow_i == OP_SINGLEWIDTH) begin
-                state_d.eew = vsew_i;
-                unique case (lmul_i)
-                    LMUL_F8,
-                    LMUL_F4,
-                    LMUL_F2,
-                    LMUL_1: state_d.emul = EMUL_1;
-                    LMUL_2: state_d.emul = EMUL_2;
-                    LMUL_4: state_d.emul = EMUL_4;
-                    LMUL_8: state_d.emul = EMUL_8;
-                    default: ;
-                endcase
-                state_d.vl = vl_i;
-            end else begin
-                state_d.eew = (vsew_i == VSEW_8) ? VSEW_16 : VSEW_32;
-                unique case (lmul_i)
-                    LMUL_F8,
-                    LMUL_F4,
-                    LMUL_F2: state_d.emul = EMUL_1;
-                    LMUL_1:  state_d.emul = EMUL_2;
-                    LMUL_2:  state_d.emul = EMUL_4;
-                    LMUL_4:  state_d.emul = EMUL_8;
-                    default: ;
-                endcase
-                state_d.vl = {vl_i[CFG_VL_W-2:0], 1'b1};
-            end
-            state_d.vl_0       = vl_0_i;
-            state_d.rs1        = rs1_i;
-            state_d.vs1_narrow = widenarrow_i != OP_SINGLEWIDTH;
-            state_d.vs1_fetch  = rs1_i.vreg;
-            state_d.vs1_shift  = 1'b1;
-            state_d.rs2        = rs2_i;
-            state_d.vs2_narrow = widenarrow_i == OP_WIDENING;
-            state_d.vs2_fetch  = rs2_i.vreg;
-            state_d.vs2_shift  = 1'b1;
+            state_d.emul        = emul_i;
+            state_d.eew         = vsew_i;
+            state_d.vl          = vl_i;
+            state_d.vl_0        = vl_0_i;
+            state_d.rs1         = rs1_i;
+            state_d.vs1_narrow  = widenarrow_i != OP_SINGLEWIDTH;
+            state_d.vs1_fetch   = rs1_i.vreg;
+            state_d.vs1_shift   = 1'b1;
+            state_d.rs2         = rs2_i;
+            state_d.vs2_narrow  = widenarrow_i == OP_WIDENING;
+            state_d.vs2_fetch   = rs2_i.vreg;
+            state_d.vs2_shift   = 1'b1;
             state_d.v0msk_shift = 1'b1;
-            state_d.vd         = vd_i;
-            state_d.vd_narrow  = widenarrow_i == OP_NARROWING;
-            state_d.vd_store   = 1'b0;
-            vreg_pend_wr_d     = vreg_pend_wr_i;
+            state_d.vd          = vd_i;
+            state_d.vd_narrow   = widenarrow_i == OP_NARROWING;
+            state_d.vd_store    = 1'b0;
+            vreg_pend_wr_d      = vreg_pend_wr_i;
         end
         else if (state_valid_q & pipeline_ready) begin
             state_d.count.val   = state_q.count.val + 1;

@@ -25,7 +25,7 @@ module vproc_lsu #(
 
         input  logic [XIF_ID_W-1:0]   id_i,
         input  vproc_pkg::cfg_vsew    vsew_i,
-        input  vproc_pkg::cfg_lmul    lmul_i,
+        input  vproc_pkg::cfg_emul    emul_i,
         input  logic [CFG_VL_W-1:0]   vl_i,
         input  logic                  vl_0_i,
 
@@ -189,64 +189,6 @@ module vproc_lsu #(
         endcase
     end
 
-    cfg_emul            emul;
-    logic[CFG_VL_W-1:0] vl;
-    always_comb begin
-        emul = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
-        vl   = DONT_CARE_ZERO ? '0 : 'x;
-        unique case ({mode_i.eew, vsew_i})
-            {VSEW_8 , VSEW_32}: begin   // EEW / SEW = 1 / 4
-                emul = (lmul_i == LMUL_8) ? EMUL_2 : EMUL_1; // use EMUL == 1 for fractional EMUL (LMUL < 4), vl is updated anyways
-                vl   = {2'b00, vl_i[CFG_VL_W-1:2]};
-            end
-            {VSEW_8 , VSEW_16},
-            {VSEW_16, VSEW_32}: begin   // EEW / SEW = 1 / 2
-                emul = (lmul_i == LMUL_8) ? EMUL_4 : ((lmul_i == LMUL_4) ? EMUL_2 : EMUL_1);
-                vl   = {1'b0, vl_i[CFG_VL_W-1:1]};
-            end
-            {VSEW_8 , VSEW_8 },
-            {VSEW_16, VSEW_16},
-            {VSEW_32, VSEW_32}: begin   // EEW / SEW = 1
-                unique case (lmul_i)
-                    LMUL_F8,
-                    LMUL_F4,
-                    LMUL_F2,
-                    LMUL_1:  emul = EMUL_1;
-                    LMUL_2:  emul = EMUL_2;
-                    LMUL_4:  emul = EMUL_4;
-                    LMUL_8:  emul = EMUL_8;
-                    default: ;
-                endcase
-                vl   = vl_i;
-            end
-            {VSEW_16, VSEW_8 },
-            {VSEW_32, VSEW_16}: begin   // EEW / SEW = 2
-                unique case (lmul_i)
-                    LMUL_F8,
-                    LMUL_F4,
-                    LMUL_F2: emul = EMUL_1;
-                    LMUL_1:  emul = EMUL_2;
-                    LMUL_2:  emul = EMUL_4;
-                    LMUL_4:  emul = EMUL_8;
-                    default: ;
-                endcase
-                vl   = {vl_i[CFG_VL_W-2:0], 1'b1};
-            end
-            {VSEW_32, VSEW_8 }: begin   // EEW / SEW = 4
-                unique case (lmul_i)
-                    LMUL_F8,
-                    LMUL_F4: emul = EMUL_1;
-                    LMUL_F2: emul = EMUL_2;
-                    LMUL_1:  emul = EMUL_4;
-                    LMUL_2:  emul = EMUL_8;
-                    default: ;
-                endcase
-                vl   = {vl_i[CFG_VL_W-3:0], 2'b11};
-            end
-            default: ;
-        endcase
-    end
-
     logic pipeline_ready;
     always_comb begin
         op_ack_o       = 1'b0;
@@ -277,8 +219,8 @@ module vproc_lsu #(
             state_d.first_cycle = 1'b1;
             state_d.id          = id_i;
             state_d.mode        = mode_i;
-            state_d.emul        = emul;
-            state_d.vl          = vl;
+            state_d.emul        = emul_i;
+            state_d.vl          = vl_i;
             state_d.vl_0        = vl_0_i;
             state_d.rs1         = rs1_i;
             state_d.rs2         = rs2_i;

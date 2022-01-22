@@ -161,7 +161,7 @@ module vproc_core #(
     typedef struct packed {
         logic [XIF_ID_W-1:0] id;
         cfg_vsew             vsew;
-        cfg_lmul             lmul;
+        cfg_emul             emul;
         logic                vl_0;
         logic [CFG_VL_W-1:0] vl;
         op_unit              unit;
@@ -209,9 +209,12 @@ module vproc_core #(
         .vsew_i         ( vsew_q                       ),
         .lmul_i         ( lmul_q                       ),
         .vxrm_i         ( vxrm_q                       ),
+        .vl_i           ( vl_q                         ),
         .illegal_o      ( instr_illegal                ),
         .valid_o        ( dec_valid                    ),
-        .lmul_o         ( dec_data_d.lmul              ),
+        .vsew_o         ( dec_data_d.vsew              ),
+        .emul_o         ( dec_data_d.emul              ),
+        .vl_o           ( dec_data_d.vl                ),
         .unit_o         ( dec_data_d.unit              ),
         .mode_o         ( dec_data_d.mode              ),
         .widenarrow_o   ( dec_data_d.widenarrow        ),
@@ -220,9 +223,7 @@ module vproc_core #(
         .rd_o           ( dec_data_d.rd                )
     );
     assign dec_data_d.id   = xif_issue_if.issue_req.id;
-    assign dec_data_d.vsew = vsew_q;
     assign dec_data_d.vl_0 = vl_0_q;
-    assign dec_data_d.vl   = vl_q;
 
     assign xif_issue_if.issue_ready          = (~dec_valid | dec_ready) & ~issue_id_used;
     assign xif_issue_if.issue_resp.accept    = dec_valid;
@@ -482,7 +483,7 @@ module vproc_core #(
         .DONT_CARE_ZERO ( DONT_CARE_ZERO          )
     ) queue_hazards (
         .vsew_i         ( queue_data_d.vsew       ),
-        .lmul_i         ( queue_data_d.lmul       ),
+        .emul_i         ( queue_data_d.emul       ),
         .unit_i         ( queue_data_d.unit       ),
         .mode_i         ( queue_data_d.mode       ),
         .widenarrow_i   ( queue_data_d.widenarrow ),
@@ -702,7 +703,7 @@ module vproc_core #(
         .sync_rst_ni              ( sync_rst_n                    ),
         .id_i                     ( queue_data_q.id               ),
         .vsew_i                   ( queue_data_q.vsew             ),
-        .lmul_i                   ( queue_data_q.lmul             ),
+        .emul_i                   ( queue_data_q.emul             ),
         .vl_i                     ( queue_data_q.vl               ),
         .vl_0_i                   ( queue_data_q.vl_0             ),
         .op_rdy_i                 ( op_rdy_lsu                    ),
@@ -759,7 +760,7 @@ module vproc_core #(
         .sync_rst_ni        ( sync_rst_n                    ),
         .id_i               ( queue_data_q.id               ),
         .vsew_i             ( queue_data_q.vsew             ),
-        .lmul_i             ( queue_data_q.lmul             ),
+        .emul_i             ( queue_data_q.emul             ),
         .vl_i               ( queue_data_q.vl               ),
         .vl_0_i             ( queue_data_q.vl_0             ),
         .op_rdy_i           ( op_rdy_alu                    ),
@@ -808,7 +809,7 @@ module vproc_core #(
         .sync_rst_ni        ( sync_rst_n                             ),
         .id_i               ( queue_data_q.id                        ),
         .vsew_i             ( queue_data_q.vsew                      ),
-        .lmul_i             ( queue_data_q.lmul                      ),
+        .emul_i             ( queue_data_q.emul                      ),
         .vl_i               ( queue_data_q.vl                        ),
         .vl_0_i             ( queue_data_q.vl_0                      ),
         .op_rdy_i           ( op_rdy_mul                             ),
@@ -858,7 +859,7 @@ module vproc_core #(
         .sync_rst_ni        ( sync_rst_n               ),
         .id_i               ( queue_data_q.id          ),
         .vsew_i             ( queue_data_q.vsew        ),
-        .lmul_i             ( queue_data_q.lmul        ),
+        .emul_i             ( queue_data_q.emul        ),
         .vl_i               ( queue_data_q.vl          ),
         .vl_0_i             ( queue_data_q.vl_0        ),
         .op_rdy_i           ( op_rdy_sld               ),
@@ -909,7 +910,7 @@ module vproc_core #(
         .sync_rst_ni        ( sync_rst_n               ),
         .id_i               ( queue_data_q.id          ),
         .vsew_i             ( queue_data_q.vsew        ),
-        .lmul_i             ( queue_data_q.lmul        ),
+        .emul_i             ( queue_data_q.emul        ),
         .vl_i               ( queue_data_q.vl          ),
         .vl_0_i             ( queue_data_q.vl_0        ),
         .op_rdy_i           ( op_rdy_elem              ),
