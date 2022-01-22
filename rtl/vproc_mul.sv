@@ -117,7 +117,6 @@ module vproc_mul #(
         logic                vs2_fetch;
         logic                vs2_shift;
         logic                v0msk_shift;
-        logic [4:0]          vs3;
         logic                vs3_fetch;
         logic [4:0]          vd;
         logic                vd_store;
@@ -176,14 +175,10 @@ module vproc_mul #(
             state_d.vs1_fetch  = rs1_i.vreg;
             state_d.vs1_shift  = 1'b1;
             state_d.rs2        = rs2_i;
-            if (mode_i.op2_is_vd) begin
-                state_d.rs2.r.vaddr = vd_i;
-            end
             state_d.vs2_narrow = widening_i;
             state_d.vs2_fetch  = 1'b1;
             state_d.vs2_shift  = 1'b1;
             state_d.v0msk_shift = 1'b1;
-            state_d.vs3        = mode_i.op2_is_vd ? rs2_i.r.vaddr : vd_i;
             state_d.vs3_fetch  = mode_i.op == MUL_VMACC;
             state_d.vd         = vd_i;
             state_d.vd_store   = 1'b0;
@@ -205,7 +200,6 @@ module vproc_mul #(
                     state_d.rs2.r.vaddr[2:0] = state_q.rs2.r.vaddr[2:0] + 3'b1;
                     state_d.vs2_fetch        = 1'b1;
                 end
-                state_d.vs3[2:0]  = state_q.vs3[2:0] + 3'b1;
                 state_d.vs3_fetch = state_q.mode.op == MUL_VMACC;
                 state_d.vd[2:0]   = state_q.vd[2:0] + 3'b1;
             end
@@ -538,7 +532,7 @@ module vproc_mul #(
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
                               (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
-                              (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vs3        ]) |
+                              (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
     // Stall vreg writes until pending reads of the destination register are
@@ -577,10 +571,10 @@ module vproc_mul #(
         endcase
         pend_vs3 = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_init.emul)
-            EMUL_1: pend_vs3 = {31'b0, state_init.vs3_fetch} << state_init.vs3;
-            EMUL_2: pend_vs3 = (32'h03 & ((32'h02 | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs3[4:1], 1'b0};
-            EMUL_4: pend_vs3 = (32'h0F & ((32'h0E | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs3[4:2], 2'b0};
-            EMUL_8: pend_vs3 = (32'hFF & ((32'hFE | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs3[4:3], 3'b0};
+            EMUL_1: pend_vs3 = {31'b0, state_init.vs3_fetch} << state_init.vd;
+            EMUL_2: pend_vs3 = (32'h03 & ((32'h02 | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:1], 1'b0};
+            EMUL_4: pend_vs3 = (32'h0F & ((32'h0E | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:2], 2'b0};
+            EMUL_8: pend_vs3 = (32'hFF & ((32'hFE | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:3], 3'b0};
             default: ;
         endcase
     end
@@ -594,8 +588,8 @@ module vproc_mul #(
         ) & ~vreg_pend_wr_q) |
     ((            state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.rs2.r.vaddr) : '0) |
     ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.rs2.r.vaddr ) : '0) |
-    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vs3)         : '0) |
-    ((            state_vs1_valid_q  & state_vs1_q.vs3_fetch   ) ? (32'h1 << state_vs1_q.vs3 )         : '0) |
+    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vd)          : '0) |
+    ((            state_vs1_valid_q  & state_vs1_q.vs3_fetch   ) ? (32'h1 << state_vs1_q.vd )          : '0) |
     ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked}   : '0) |
     ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_q.mode.masked}    : '0);
 
@@ -604,10 +598,10 @@ module vproc_mul #(
     // MUL REGISTER READ/WRITE:
 
     // source register addressing and read:
-    assign vreg_rd_addr_o = (state_init.count.part.low[0] == 1'b0) ? state_init.rs1.r.vaddr : state_init.rs2.r.vaddr;
+    assign vreg_rd_addr_o = (state_init.count.part.low[0] == 1'b0) ? state_init.rs1.r.vaddr : (state_init.mode.op2_is_vd ? state_init.vd : state_init.rs2.r.vaddr);
     assign vreg_rd_d      = vreg_rd_i;
 
-    assign vreg_rd3_addr_o = state_vs1_q.vs3;
+    assign vreg_rd3_addr_o = state_vs1_q.mode.op2_is_vd ? state_vs1_q.rs2.r.vaddr : state_vs1_q.vd;
 
     // operand shift registers assignment:
     fetch_info vs1_info, vs2_info, v0msk_info;

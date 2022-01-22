@@ -11,14 +11,16 @@
     end
     assert property (
         @(posedge clk_i)
-        (BUF_VREG ? (state_vreg_valid_q & state_vreg_q.vs2_fetch) : (state_vs1_valid_q & state_vs1_q.vs2_fetch)) |->
-        (vreg_rd_addr_o == (BUF_VREG ? state_vreg_q.rs2.r.vaddr : state_vs1_q.rs2.r.vaddr))
+        (BUF_VREG ? (state_vreg_valid_q & state_vreg_q.vs2_fetch) : (state_vs1_valid_q & state_vs1_q.vs2_fetch)) |-> (
+            (vreg_rd_addr_o == (BUF_VREG ? state_vreg_q.rs2.r.vaddr : state_vs1_q.rs2.r.vaddr)) |
+            (vreg_rd_addr_o == (BUF_VREG ? state_vreg_q.vd          : state_vs1_q.vd         ))
+        )
     ) else begin
         $error("vreg_rd_addr_o incorrect while fetching vs2");
     end
     assert property (
         @(posedge clk_i)
-        (state_vs1_valid_q & state_vs1_q.vs3_fetch) |-> (vreg_rd3_addr_o == state_vs1_q.vs3)
+        (state_vs1_valid_q & state_vs1_q.vs3_fetch) |-> ((vreg_rd3_addr_o == state_vs1_q.rs2.r.vaddr) | (vreg_rd3_addr_o == state_vs1_q.vd))
     ) else begin
         $error("vreg_rd3_addr_o incorrect while fetching vs3");
     end
@@ -39,7 +41,7 @@
     end
     assert property (
         @(posedge clk_i)
-        (state_vs1_valid_q & state_vs1_q.vs3_fetch) |-> vreg_pend_rd_o[state_vs1_q.vs3]
+        (state_vs1_valid_q & state_vs1_q.vs3_fetch) |-> vreg_pend_rd_o[state_vs1_q.vd]
     ) else begin
         $error("vs3 not in vreg_pend_rd_o while fetching");
     end
