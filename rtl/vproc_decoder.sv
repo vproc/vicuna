@@ -22,7 +22,7 @@ module vproc_decoder #(
         output logic                    valid_o,
 
         output vproc_pkg::cfg_vsew      vsew_o,       // VSEW setting for this instruction
-        output vproc_pkg::cfg_lmul      emul_o,       // LMUL setting for this instruction
+        output vproc_pkg::cfg_emul      emul_o,       // LMUL setting for this instruction
         output logic [CFG_VL_W-1:0]     vl_o,         // vector length for this instruction
         output vproc_pkg::op_unit       unit_o,       //
         output vproc_pkg::op_mode       mode_o,
