@@ -103,7 +103,6 @@ module vproc_elem #(
     typedef struct packed {
         elem_counter                 count;
         logic [GATHER_COUNTER_W-1:0] count_gather;
-        elem_counter                 count_store;
         logic                        first_cycle;
         logic                        last_cycle;
         logic [XIF_ID_W-1:0]         id;
@@ -273,7 +272,7 @@ module vproc_elem #(
     end
     assign pipeline_ready = state_vreg_ready & ~state_init_stall;
 
-    elem_counter count_store_d;
+    elem_counter vd_count_d;
     logic        vd_store_d;
 
     // vreg read register:
@@ -494,12 +493,12 @@ module vproc_elem #(
         end
         always_ff @(posedge clk_i) begin : vproc_elem_stage_vd
             if (state_vd_ready & state_res_valid_q) begin
-                state_vd_q             <= state_res_q;
-                state_vd_q.count_store <= count_store_d;
-                state_vd_q.vd_store    <= vd_store_d;
-                vd_shift_q             <= vd_shift_d;
-                vdmsk_shift_q          <= vdmsk_shift_d;
-                first_valid_result_q   <= first_valid_result_d;
+                state_vd_q           <= state_res_q;
+                state_vd_q.count     <= vd_count_d;
+                state_vd_q.vd_store  <= vd_store_d;
+                vd_shift_q           <= vd_shift_d;
+                vdmsk_shift_q        <= vdmsk_shift_d;
+                first_valid_result_q <= first_valid_result_d;
             end
         end
         assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
@@ -788,29 +787,29 @@ module vproc_elem #(
         end
     end
     always_comb begin
-        count_store_d.val = DONT_CARE_ZERO ? '0 : 'x;
+        vd_count_d.val = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_res_q.eew)
-            VSEW_8:  count_store_d.val = state_vd_q.count_store.val + {{(ELEM_COUNTER_W-1){1'b0}}, result_valid_q      };
-            VSEW_16: count_store_d.val = state_vd_q.count_store.val + {{(ELEM_COUNTER_W-2){1'b0}}, result_valid_q, 1'b0};
-            VSEW_32: count_store_d.val = state_vd_q.count_store.val + {{(ELEM_COUNTER_W-3){1'b0}}, result_valid_q, 2'b0};
+            VSEW_8:  vd_count_d.val = state_vd_q.count.val + {{(ELEM_COUNTER_W-1){1'b0}}, result_valid_q      };
+            VSEW_16: vd_count_d.val = state_vd_q.count.val + {{(ELEM_COUNTER_W-2){1'b0}}, result_valid_q, 1'b0};
+            VSEW_32: vd_count_d.val = state_vd_q.count.val + {{(ELEM_COUNTER_W-3){1'b0}}, result_valid_q, 2'b0};
             default: ;
         endcase
         if (state_res_q.first_cycle | first_valid_result_q) begin
-            count_store_d.val      = '0;
-            count_store_d.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
+            vd_count_d.val      = '0;
+            vd_count_d.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_res_q.eew)
-                VSEW_8:  count_store_d.val[1:0] = 2'b00;
-                VSEW_16: count_store_d.val[1:0] = 2'b01;
-                VSEW_32: count_store_d.val[1:0] = 2'b11;
+                VSEW_8:  vd_count_d.val[1:0] = 2'b00;
+                VSEW_16: vd_count_d.val[1:0] = 2'b01;
+                VSEW_32: vd_count_d.val[1:0] = 2'b11;
                 default: ;
             endcase
         end
     end
-    assign vd_store_d = ~state_res_q.mode.xreg & (count_store_d.part.low == '1);
+    assign vd_store_d = ~state_res_q.mode.xreg & (vd_count_d.part.low == '1);
 
     //
     assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall & ~instr_killed_i[state_vd_q.id];
-    assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count_store.part.mul[2:0]};
+    assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count.part.mul[2:0]};
     assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d       = vd_shift_q;
     assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg & ~state_vd_stall;
