@@ -5,7 +5,7 @@
     // Assert that the vreg read address corresponds to the register being fetched
     assert property (
         @(posedge clk_i)
-        (state_init_valid & state_init.vs2_fetch) |-> (vreg_rd_addr_o == state_init.vs2)
+        (state_init_valid & state_init.vs2_fetch) |-> (vreg_rd_addr_o == state_init.rs2.r.vaddr)
     ) else begin
         $error("vreg_rd_addr_o incorrect while fetching vs2");
     end
@@ -13,7 +13,7 @@
     // Assert that a vreg is still in the pending reads while being fetched
     assert property (
         @(posedge clk_i)
-        (state_init_valid & ~state_init_stall & state_init.vs2_fetch) |-> vreg_pend_rd_o[state_init.vs2]
+        (state_init_valid & ~state_init_stall & state_init.vs2_fetch) |-> vreg_pend_rd_o[state_init.rs2.r.vaddr]
     ) else begin
         $error("vs2 not in vreg_pend_rd_o while fetching");
     end

@@ -31,10 +31,8 @@ module vproc_elem #(
         output logic                   op_ack_o,
 
         input  vproc_pkg::op_mode_elem mode_i,
-        input  logic [4:0]             vs1_i,
-        input  logic                   vs1_vreg_i,
-        input  logic [4:0]             vs2_i,
-        input  logic                   vs2_vreg_i,
+        input  vproc_pkg::op_regs      rs1_i,
+        input  vproc_pkg::op_regs      rs2_i,
         input  logic [4:0]             vd_i,
 
         input  logic [31:0]            vreg_pend_wr_i,
@@ -116,12 +114,10 @@ module vproc_elem #(
         logic [CFG_VL_W-1:0]         vl;
         logic                        vl_0;
         logic                        vl_mask;
-        logic [4:0]                  vs1;
-        logic                        vs1_vreg;
+        op_regs                      rs1;
         logic                        vs1_fetch;
         logic                        vs1_shift;
-        logic [4:0]                  vs2;
-        logic                        vs2_vreg;
+        op_regs                      rs2;
         logic                        gather_fetch;
         logic [4:0]                  vd;
         logic                        vd_store;
@@ -219,12 +215,12 @@ module vproc_elem #(
             state_d.vl             = vl_i;
             state_d.vl_0           = vl_0_i;
             state_d.vl_mask        = ~vl_0_i;
-            state_d.vs1            = ((mode_i.op == ELEM_XMV) | op_reduction) ? vs2_i : vs1_i;
-            state_d.vs1_vreg       = ((mode_i.op == ELEM_XMV) | op_reduction) | vs1_vreg_i;
-            state_d.vs1_fetch      = ((mode_i.op == ELEM_XMV) | op_reduction) | vs1_vreg_i;
+            state_d.rs1            = ((mode_i.op == ELEM_XMV) | op_reduction) ? rs2_i : rs1_i;
+            state_d.rs1.vreg       = ((mode_i.op == ELEM_XMV) | op_reduction) | rs1_i.vreg;
+            state_d.vs1_fetch      = ((mode_i.op == ELEM_XMV) | op_reduction) | rs1_i.vreg;
             state_d.vs1_shift      = 1'b1;
-            state_d.vs2            = op_reduction ? vs1_i : vs2_i;
-            state_d.vs2_vreg       = vs2_vreg_i | op_reduction;
+            state_d.rs2            = op_reduction ? rs1_i : rs2_i;
+            state_d.rs2.vreg       = rs2_i.vreg | op_reduction;
             state_d.gather_fetch   = 1'b1;
             state_d.vd             = vd_i;
             vreg_pend_wr_d         = vreg_pend_wr_i;
@@ -253,7 +249,7 @@ module vproc_elem #(
                 state_d.count.part.mul = '1; // flush only one vreg
                 state_d.mode.op        = ELEM_FLUSH;
                 state_d.requires_flush = 1'b0;
-                state_d.vs1_vreg       = 1'b0;
+                state_d.rs1.vreg       = 1'b0;
             end
             state_valid_d        = ~last_cycle | state_q.requires_flush;
             state_d.first_cycle  = 1'b0;
@@ -261,8 +257,8 @@ module vproc_elem #(
             state_d.gather_fetch = 1'b0;
             if (state_q.count_gather == '1) begin
                 if (state_q.count.part.low == '1) begin
-                    state_d.vs1[2:0]  = state_q.vs1[2:0] + 3'b1;
-                    state_d.vs1_fetch = state_q.vs1_vreg & ~last_cycle;
+                    state_d.rs1.r.vaddr[2:0] = state_q.rs1.r.vaddr[2:0] + 3'b1;
+                    state_d.vs1_fetch        = state_q.rs1.vreg & ~last_cycle;
                 end
                 state_d.gather_fetch = 1'b1;
             end
@@ -592,26 +588,26 @@ module vproc_elem #(
     always_comb begin
         state_init_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_init.emul)
-            EMUL_1: state_init_gather_vregs = 32'h01 <<  state_init.vs2;
-            EMUL_2: state_init_gather_vregs = 32'h03 << {state_init.vs2[4:1], 1'b0};
-            EMUL_4: state_init_gather_vregs = 32'h0F << {state_init.vs2[4:2], 2'b0};
-            EMUL_8: state_init_gather_vregs = 32'hFF << {state_init.vs2[4:3], 3'b0};
+            EMUL_1: state_init_gather_vregs = 32'h01 <<  state_init.rs2.r.vaddr;
+            EMUL_2: state_init_gather_vregs = 32'h03 << {state_init.rs2.r.vaddr[4:1], 1'b0};
+            EMUL_4: state_init_gather_vregs = 32'h0F << {state_init.rs2.r.vaddr[4:2], 2'b0};
+            EMUL_8: state_init_gather_vregs = 32'hFF << {state_init.rs2.r.vaddr[4:3], 3'b0};
             default: ;
         endcase
         state_vsm_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_vsm_q.emul)
-            EMUL_1: state_vsm_gather_vregs = 32'h01 <<  state_vsm_q.vs2;
-            EMUL_2: state_vsm_gather_vregs = 32'h03 << {state_vsm_q.vs2[4:1], 1'b0};
-            EMUL_4: state_vsm_gather_vregs = 32'h0F << {state_vsm_q.vs2[4:2], 2'b0};
-            EMUL_8: state_vsm_gather_vregs = 32'hFF << {state_vsm_q.vs2[4:3], 3'b0};
+            EMUL_1: state_vsm_gather_vregs = 32'h01 <<  state_vsm_q.rs2.r.vaddr;
+            EMUL_2: state_vsm_gather_vregs = 32'h03 << {state_vsm_q.rs2.r.vaddr[4:1], 1'b0};
+            EMUL_4: state_vsm_gather_vregs = 32'h0F << {state_vsm_q.rs2.r.vaddr[4:2], 2'b0};
+            EMUL_8: state_vsm_gather_vregs = 32'hFF << {state_vsm_q.rs2.r.vaddr[4:3], 3'b0};
             default: ;
         endcase
         state_gather_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_gather_q.emul)
-            EMUL_1: state_gather_gather_vregs = 32'h01 <<  state_gather_q.vs2;
-            EMUL_2: state_gather_gather_vregs = 32'h03 << {state_gather_q.vs2[4:1], 1'b0};
-            EMUL_4: state_gather_gather_vregs = 32'h0F << {state_gather_q.vs2[4:2], 2'b0};
-            EMUL_8: state_gather_gather_vregs = 32'hFF << {state_gather_q.vs2[4:3], 3'b0};
+            EMUL_1: state_gather_gather_vregs = 32'h01 <<  state_gather_q.rs2.r.vaddr;
+            EMUL_2: state_gather_gather_vregs = 32'h03 << {state_gather_q.rs2.r.vaddr[4:1], 1'b0};
+            EMUL_4: state_gather_gather_vregs = 32'h0F << {state_gather_q.rs2.r.vaddr[4:2], 2'b0};
+            EMUL_8: state_gather_gather_vregs = 32'hFF << {state_gather_q.rs2.r.vaddr[4:3], 3'b0};
             default: ;
         endcase
     end
@@ -619,8 +615,8 @@ module vproc_elem #(
     // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
-    assign state_init_stall = (state_init.vs1_fetch                                                                 & vreg_pend_wr_q[state_init.vs1]) |
-                              (state_init.vs2_vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER) & vreg_pend_wr_q[state_init.vs2]) |
+    assign state_init_stall = (state_init.vs1_fetch                                                                 & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
+                              (state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER) & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               ((state_init.mode.op == ELEM_VRGATHER) & ((state_init_gather_vregs & vreg_pend_wr_q) != '0)) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
@@ -641,10 +637,10 @@ module vproc_elem #(
     always_comb begin
         pend_vs1 = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_init.emul)
-            EMUL_1: pend_vs1 = 32'h01 <<  state_init.vs1;
-            EMUL_2: pend_vs1 = 32'h03 << {state_init.vs1[4:1], 1'b0};
-            EMUL_4: pend_vs1 = 32'h0F << {state_init.vs1[4:2], 2'b0};
-            EMUL_8: pend_vs1 = 32'hFF << {state_init.vs1[4:3], 3'b0};
+            EMUL_1: pend_vs1 = 32'h01 <<  state_init.rs1.r.vaddr;
+            EMUL_2: pend_vs1 = 32'h03 << {state_init.rs1.r.vaddr[4:1], 1'b0};
+            EMUL_4: pend_vs1 = 32'h0F << {state_init.rs1.r.vaddr[4:2], 2'b0};
+            EMUL_8: pend_vs1 = 32'hFF << {state_init.rs1.r.vaddr[4:3], 3'b0};
             default: ;
         endcase
         // vs2 is either a mask vreg or it is the gather register group
@@ -654,18 +650,18 @@ module vproc_elem #(
             pend_vs2 = state_init_gather_vregs;
         end else begin
             // mask register is read right at the beginning
-            pend_vs2 = state_init.first_cycle ? (32'h01 << state_init.vs2) : '0;
+            pend_vs2 = state_init.first_cycle ? (32'h01 << state_init.rs2.r.vaddr) : '0;
         end
     end
     // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
     // and is always read in state_gather/state_vsm
     assign vreg_pend_rd_o = ((
-            ((state_init_valid & state_init.vs1_vreg   ) ? pend_vs1                        : '0) |
-            ((state_init_valid & state_init.vs2_vreg   ) ? pend_vs2                        : '0) |
+            ((state_init_valid & state_init.rs1.vreg   ) ? pend_vs1                        : '0) |
+            ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                        : '0) |
             ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init.mode.masked} : '0)
         ) & ~vreg_pend_wr_q) |
-    ((            state_vreg_valid_q   & state_vreg_q.vs2_vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op   != ELEM_VRGATHER)) ? (32'h1 << state_vreg_q.vs2)         : '0) |
-    ((~BUF_VREG & state_vs1_valid_q    & state_vs1_q.vs2_vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op    != ELEM_VRGATHER)) ? (32'h1 << state_vs1_q.vs2 )         : '0) |
+    ((            state_vreg_valid_q   & state_vreg_q.rs2.vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op   != ELEM_VRGATHER)) ? (32'h1 << state_vreg_q.rs2.r.vaddr) : '0) |
+    ((~BUF_VREG & state_vs1_valid_q    & state_vs1_q.rs2.vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op    != ELEM_VRGATHER)) ? (32'h1 << state_vs1_q.rs2.r.vaddr ) : '0) |
     // Note: The gather vreg group is added to the pending reads only from
     // the init state and from the state right before reading. There is no
     // need to add it for each intermediate stage, since the gather
@@ -683,21 +679,21 @@ module vproc_elem #(
     // ELEM REGISTER READ/WRITE:
 
     // source register addressing and read:
-    //assign vreg_rd_addr_o = state_init.vs1_fetch ? state_init.vs1 : state_init.vs2;
+    //assign vreg_rd_addr_o = state_init.vs1_fetch ? state_init.rs1.r.vaddr : state_init.rs2.r.vaddr;
     always_comb begin
         vreg_rd_addr_o = DONT_CARE_ZERO ? '0 : 'x;
         // fetch vs1 when the corresponding flag is set
         if (state_init.vs1_fetch) begin
-            vreg_rd_addr_o = state_init.vs1;
+            vreg_rd_addr_o = state_init.rs1.r.vaddr;
         end
         // fetch vs2 in the cycle following vs1 (used as mask for mask and
         // permutation instructions and as initalization element in reductions)
         else if (state_vreg_q.mode.op != ELEM_VRGATHER) begin
-            vreg_rd_addr_o = BUF_VREG ? state_vreg_q.vs2 : state_vs1_q.vs2;
+            vreg_rd_addr_o = BUF_VREG ? state_vreg_q.rs2.r.vaddr : state_vs1_q.rs2.r.vaddr;
         end
         // otherwise fetch the register corresponding to the gather index
         else begin
-            vreg_rd_addr_o = state_vsm_q.vs2 | {2'b0, vs1_tmp_q[$clog2(VREG_W/8)+2:$clog2(VREG_W/8)]};
+            vreg_rd_addr_o = state_vsm_q.rs2.r.vaddr | {2'b0, vs1_tmp_q[$clog2(VREG_W/8)+2:$clog2(VREG_W/8)]};
         end
     end
     assign vreg_rd_d = vreg_rd_i;

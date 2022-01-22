@@ -30,8 +30,8 @@ module vproc_sld #(
         output logic                  op_ack_o,
 
         input  vproc_pkg::op_mode_sld mode_i,
-        input  logic [31:0]           rs1_i,
-        input  logic [4:0]            vs2_i,
+        input  vproc_pkg::op_regs     rs1_i,
+        input  vproc_pkg::op_regs     rs2_i,
         input  logic [4:0]            vd_i,
 
         input  logic [31:0]           vreg_pend_wr_i,
@@ -107,8 +107,8 @@ module vproc_sld #(
         cfg_emul                  emul;       // effective MUL factor
         logic [CFG_VL_W-1:0]      vl;
         logic                     vl_0;
-        logic [31:0]              rs1;
-        logic [4:0]               vs2;
+        op_regs                   rs1;
+        op_regs                   rs2;
         logic                     vs2_fetch;
         logic [4:0]               vd_base;
         logic [4:0]               vd;
@@ -155,16 +155,16 @@ module vproc_sld #(
             SLD_UP, SLD_DOWN: begin
                 unique case (vsew_i)
                     VSEW_8: begin
-                        byte_slide =  rs1_i[$clog2(VREG_W)-1:0];
-                        sld_valid  =  rs1_i[31:$clog2(VREG_W)] == '0;
+                        byte_slide =  rs1_i.r.xval[$clog2(VREG_W)-1:0];
+                        sld_valid  =  rs1_i.r.xval[31:$clog2(VREG_W)] == '0;
                     end
                     VSEW_16: begin
-                        byte_slide = {rs1_i[$clog2(VREG_W)-2:0], 1'b0};
-                        sld_valid  =  rs1_i[31:$clog2(VREG_W)-1] == '0;
+                        byte_slide = {rs1_i.r.xval[$clog2(VREG_W)-2:0], 1'b0};
+                        sld_valid  =  rs1_i.r.xval[31:$clog2(VREG_W)-1] == '0;
                     end
                     VSEW_32: begin
-                        byte_slide = {rs1_i[$clog2(VREG_W)-3:0], 2'b00};
-                        sld_valid  =  rs1_i[31:$clog2(VREG_W)-2] == '0;
+                        byte_slide = {rs1_i.r.xval[$clog2(VREG_W)-3:0], 2'b00};
+                        sld_valid  =  rs1_i.r.xval[31:$clog2(VREG_W)-2] == '0;
                     end
                     default: ;
                 endcase
@@ -211,7 +211,7 @@ module vproc_sld #(
             state_d.vl          = vl_i;
             state_d.vl_0        = vl_0_i;
             state_d.rs1         = rs1_i;
-            state_d.vs2         = vs2_i;
+            state_d.rs2         = rs2_i;
             state_d.vs2_fetch   = 1'b1;
             state_d.vd_base     = vd_i;
             state_d.vd          = vd_i;
@@ -240,9 +240,9 @@ module vproc_sld #(
             state_d.vs2_fetch       = 1'b0;
             if (state_q.count.part.low == '1) begin
                 unique case (state_q.emul)
-                    EMUL_2: state_d.vs2[  0] = state_q.vs2[  0] + 1'b1;
-                    EMUL_4: state_d.vs2[1:0] = state_q.vs2[1:0] + 2'b1;
-                    EMUL_8: state_d.vs2[2:0] = state_q.vs2[2:0] + 3'b1;
+                    EMUL_2: state_d.rs2.r.vaddr[  0] = state_q.rs2.r.vaddr[  0] + 1'b1;
+                    EMUL_4: state_d.rs2.r.vaddr[1:0] = state_q.rs2.r.vaddr[1:0] + 2'b1;
+                    EMUL_8: state_d.rs2.r.vaddr[2:0] = state_q.rs2.r.vaddr[2:0] + 3'b1;
                     default: ;
                 endcase
                 state_d.vs2_fetch = 1'b1;
@@ -520,7 +520,7 @@ module vproc_sld #(
     // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
-    assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.vs2]) |
+    assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
     // Stall vreg writes until pending reads of the destination register are
@@ -537,10 +537,10 @@ module vproc_sld #(
     always_comb begin
         pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_init.emul)
-            EMUL_1: pend_vs2 = 32'h01 <<  state_init.vs2;
-            EMUL_2: pend_vs2 = 32'h03 << {state_init.vs2[4:1], 1'b0};
-            EMUL_4: pend_vs2 = 32'h0F << {state_init.vs2[4:2], 2'b0};
-            EMUL_8: pend_vs2 = 32'hFF << {state_init.vs2[4:3], 3'b0};
+            EMUL_1: pend_vs2 = 32'h01 <<  state_init.rs2.r.vaddr;
+            EMUL_2: pend_vs2 = 32'h03 << {state_init.rs2.r.vaddr[4:1], 1'b0};
+            EMUL_4: pend_vs2 = 32'h0F << {state_init.rs2.r.vaddr[4:2], 2'b0};
+            EMUL_8: pend_vs2 = 32'hFF << {state_init.rs2.r.vaddr[4:3], 3'b0};
             default: ;
         endcase
     end
@@ -557,7 +557,7 @@ module vproc_sld #(
     // SLD REGISTER READ/WRITE:
 
     // source register addressing and read:
-    assign vreg_rd_addr_o = state_init.vs2;
+    assign vreg_rd_addr_o = state_init.rs2.r.vaddr;
     assign vreg_rd_d      = vreg_rd_i;
 
     // operand shift register assignment:
@@ -584,16 +584,16 @@ module vproc_sld #(
         operand_high_d = vs2_shift_q[SLD_OP_W-1:0];
         if (state_vs_q.first_cycle) begin
             unique case (state_vs_q.eew)
-                VSEW_8:  operand_low_d[SLD_OP_W-1:SLD_OP_W-8 ] = state_vs_q.rs1[7 :0];
-                VSEW_16: operand_low_d[SLD_OP_W-1:SLD_OP_W-16] = state_vs_q.rs1[15:0];
-                VSEW_32: operand_low_d[SLD_OP_W-1:SLD_OP_W-32] = state_vs_q.rs1      ;
+                VSEW_8:  operand_low_d[SLD_OP_W-1:SLD_OP_W-8 ] = state_vs_q.rs1.r.xval[7 :0];
+                VSEW_16: operand_low_d[SLD_OP_W-1:SLD_OP_W-16] = state_vs_q.rs1.r.xval[15:0];
+                VSEW_32: operand_low_d[SLD_OP_W-1:SLD_OP_W-32] = state_vs_q.rs1.r.xval      ;
                 default: ;
             endcase
         end
         if ((state_vs_q.mode.op == SLD_1UP) | (state_vs_q.mode.op == SLD_1DOWN)) begin
             if (state_vs_q.count.val == vl_cnt) begin
                 // TODO move this to the appropriate position depending on VL
-                operand_high_d[31:0] = state_vs_q.rs1;
+                operand_high_d[31:0] = state_vs_q.rs1.r.xval;
             end
         end else begin
             // for vslidedown the source elements beyond VLMAX are 0

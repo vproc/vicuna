@@ -34,7 +34,7 @@ module vproc_lsu #(
         output logic                  misaligned_o,
 
         input  vproc_pkg::op_mode_lsu mode_i,
-        input  logic [31:0]           rs1_val_i,
+        input  vproc_pkg::op_regs     rs1_i,
         input  vproc_pkg::op_regs     rs2_i,
         input  logic [4:0]            vd_i,
 
@@ -120,7 +120,7 @@ module vproc_lsu #(
         cfg_emul             emul;       // effective MUL factor
         logic [CFG_VL_W-1:0] vl;
         logic                vl_0;
-        logic [31:0]         base_addr;
+        op_regs              rs1;
         op_regs              rs2;
         logic                vs2_fetch;
         logic                vs2_shift;
@@ -257,7 +257,7 @@ module vproc_lsu #(
 
         if (((~state_valid_q) | (last_cycle & pipeline_ready)) & op_rdy_i) begin
             op_ack_o     = 1'b1;
-            misaligned_o = (rs1_val_i[$clog2(VMEM_W/8)-1:0] != '0); // |
+            misaligned_o = (rs1_i.r.xval[$clog2(VMEM_W/8)-1:0] != '0); // |
                            //((mode_q.stride == LSU_STRIDED) & (rs2_i.r.xval[]));
             state_d.count.val = '0;
             if (mode_i.stride == LSU_UNITSTRIDE) begin
@@ -280,7 +280,7 @@ module vproc_lsu #(
             state_d.emul        = emul;
             state_d.vl          = vl;
             state_d.vl_0        = vl_0_i;
-            state_d.base_addr   = rs1_val_i[31:0];
+            state_d.rs1         = rs1_i;
             state_d.rs2         = rs2_i;
             state_d.vs2_fetch   = rs2_i.vreg;
             state_d.vs2_shift   = 1'b1;
@@ -305,8 +305,8 @@ module vproc_lsu #(
                 state_valid_d       = ~last_cycle;
                 state_d.first_cycle = 1'b0;
                 unique case (state_q.mode.stride)
-                    LSU_UNITSTRIDE: state_d.base_addr = state_q.base_addr + (VMEM_W / 8);
-                    LSU_STRIDED:    state_d.base_addr = state_q.base_addr + state_q.rs2.r.xval;
+                    LSU_UNITSTRIDE: state_d.rs1.r.xval = state_q.rs1.r.xval + (VMEM_W / 8);
+                    LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.rs2.r.xval;
                     default: ; // for indexed loads the base address stays the same
                 endcase
                 state_d.vs2_fetch = 1'b0;
@@ -740,7 +740,7 @@ module vproc_lsu #(
     end
 
     // compose memory address:
-    assign req_addr_d = (state_vs3_q.mode.stride == LSU_INDEXED) ? state_vs3_q.base_addr + vs2_tmp_q : state_vs3_q.base_addr;
+    assign req_addr_d = (state_vs3_q.mode.stride == LSU_INDEXED) ? state_vs3_q.rs1.r.xval + vs2_tmp_q : state_vs3_q.rs1.r.xval;
 
     // convert element mask to byte mask
     logic [VMEM_W/8-1:0] byte_mask;

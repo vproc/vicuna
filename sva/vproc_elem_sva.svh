@@ -5,18 +5,18 @@
     // Assert that the vreg read address corresponds to the register being fetched
     assert property (
         @(posedge clk_i)
-        (state_init_valid & state_init.vs1_fetch) |-> (vreg_rd_addr_o == state_init.vs1)
+        (state_init_valid & state_init.vs1_fetch) |-> (vreg_rd_addr_o == state_init.rs1.r.vaddr)
     ) else begin
         $error("vreg_rd_addr_o incorrect while fetching vs1");
     end
     assert property (
         @(posedge clk_i)
         (BUF_VREG ? (
-            state_vreg_valid_q & state_vreg_q.vs2_vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op != ELEM_VRGATHER)
+            state_vreg_valid_q & state_vreg_q.rs2.vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op != ELEM_VRGATHER)
         ) : (
-            state_vs1_valid_q  & state_vs1_q.vs2_vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op  != ELEM_VRGATHER)
+            state_vs1_valid_q  & state_vs1_q.rs2.vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op  != ELEM_VRGATHER)
         )) |->
-        (vreg_rd_addr_o == (BUF_VREG ? state_vreg_q.vs2 : state_vs1_q.vs2))
+        (vreg_rd_addr_o == (BUF_VREG ? state_vreg_q.rs2.r.vaddr : state_vs1_q.rs2.r.vaddr))
     ) else begin
         $error("vreg_rd_addr_o incorrect while fetching vs2");
     end
@@ -25,18 +25,18 @@
     // Assert that a vreg is still in the pending reads while being fetched
     assert property (
         @(posedge clk_i)
-        (state_init_valid & ~state_init_stall & state_init.vs1_fetch) |-> vreg_pend_rd_o[state_init.vs1]
+        (state_init_valid & ~state_init_stall & state_init.vs1_fetch) |-> vreg_pend_rd_o[state_init.rs1.r.vaddr]
     ) else begin
         $error("vs1 not in vreg_pend_rd_o while fetching");
     end
     assert property (
         @(posedge clk_i)
         (BUF_VREG ? (
-            state_vreg_valid_q & state_vreg_q.vs2_vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op != ELEM_VRGATHER)
+            state_vreg_valid_q & state_vreg_q.rs2.vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op != ELEM_VRGATHER)
         ) : (
-            state_vs1_valid_q  & state_vs1_q.vs2_vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op  != ELEM_VRGATHER)
+            state_vs1_valid_q  & state_vs1_q.rs2.vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op  != ELEM_VRGATHER)
         )) |->
-        vreg_pend_rd_o[BUF_VREG ? state_vreg_q.vs2 : state_vs1_q.vs2]
+        vreg_pend_rd_o[BUF_VREG ? state_vreg_q.rs2.r.vaddr : state_vs1_q.rs2.r.vaddr]
     ) else begin
         $error("vs2 not in vreg_pend_rd_o while fetching");
     end

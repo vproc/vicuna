@@ -37,7 +37,7 @@ module vproc_mul #(
         input  vproc_pkg::op_mode_mul mode_i,
         input                         widening_i,
         input  vproc_pkg::op_regs     rs1_i,
-        input  logic [4:0]            vs2_i,
+        input  vproc_pkg::op_regs     rs2_i,
         input  logic [4:0]            vd_i,
 
         input  logic [31:0]           vreg_pend_wr_i,
@@ -108,11 +108,11 @@ module vproc_mul #(
         cfg_emul             emul;       // effective MUL factor
         logic [CFG_VL_W-1:0] vl;
         logic                vl_0;
-        vproc_pkg::op_regs   rs1;
+        op_regs              rs1;
         logic                vs1_narrow;
         logic                vs1_fetch;
         logic                vs1_shift;
-        logic [4:0]          vs2;
+        op_regs              rs2;
         logic                vs2_narrow;
         logic                vs2_fetch;
         logic                vs2_shift;
@@ -199,12 +199,15 @@ module vproc_mul #(
             state_d.vs1_narrow = widening_i;
             state_d.vs1_fetch  = rs1_i.vreg;
             state_d.vs1_shift  = 1'b1;
-            state_d.vs2        = mode_i.op2_is_vd ? vd_i : vs2_i;
+            state_d.rs2        = rs2_i;
+            if (mode_i.op2_is_vd) begin
+                state_d.rs2.r.vaddr = vd_i;
+            end
             state_d.vs2_narrow = widening_i;
             state_d.vs2_fetch  = 1'b1;
             state_d.vs2_shift  = 1'b1;
             state_d.v0msk_shift = 1'b1;
-            state_d.vs3        = mode_i.op2_is_vd ? vs2_i : vd_i;
+            state_d.vs3        = mode_i.op2_is_vd ? rs2_i.r.vaddr : vd_i;
             state_d.vs3_fetch  = mode_i.op == MUL_VMACC;
             state_d.vd         = vd_i;
             state_d.vd_store   = 1'b0;
@@ -223,8 +226,8 @@ module vproc_mul #(
                     state_d.vs1_fetch        = state_q.rs1.vreg;
                 end
                 if (~state_q.vs2_narrow | state_q.count.part.mul[0]) begin
-                    state_d.vs2[2:0]  = state_q.vs2[2:0] + 3'b1;
-                    state_d.vs2_fetch = 1'b1;
+                    state_d.rs2.r.vaddr[2:0] = state_q.rs2.r.vaddr[2:0] + 3'b1;
+                    state_d.vs2_fetch        = 1'b1;
                 end
                 state_d.vs3[2:0]  = state_q.vs3[2:0] + 3'b1;
                 state_d.vs3_fetch = state_q.mode.op == MUL_VMACC;
@@ -558,7 +561,7 @@ module vproc_mul #(
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
-                              (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.vs2        ]) |
+                              (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vs3        ]) |
                               (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
 
@@ -587,13 +590,13 @@ module vproc_mul #(
         endcase
         pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
         unique case ({state_init.emul, state_init.vs2_narrow})
-            {EMUL_1, 1'b0}: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.vs2;
-            {EMUL_2, 1'b1}: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.vs2;
-            {EMUL_2, 1'b0}: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs2[4:1], 1'b0};
-            {EMUL_4, 1'b1}: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:1])) << {state_init.vs2[4:1], 1'b0};
-            {EMUL_4, 1'b0}: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs2[4:2], 2'b0};
-            {EMUL_8, 1'b1}: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:1])) << {state_init.vs2[4:2], 2'b0};
-            {EMUL_8, 1'b0}: pend_vs2 = (32'hFF & ((32'hFE | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vs2[4:3], 3'b0};
+            {EMUL_1, 1'b0}: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.rs2.r.vaddr;
+            {EMUL_2, 1'b1}: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.rs2.r.vaddr;
+            {EMUL_2, 1'b0}: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:1], 1'b0};
+            {EMUL_4, 1'b1}: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:1])) << {state_init.rs2.r.vaddr[4:1], 1'b0};
+            {EMUL_4, 1'b0}: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:2], 2'b0};
+            {EMUL_8, 1'b1}: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:1])) << {state_init.rs2.r.vaddr[4:2], 2'b0};
+            {EMUL_8, 1'b0}: pend_vs2 = (32'hFF & ((32'hFE | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:3], 3'b0};
             default: ;
         endcase
         pend_vs3 = DONT_CARE_ZERO ? '0 : 'x;
@@ -613,19 +616,19 @@ module vproc_mul #(
             ((state_init_valid & (state_init.mode.op == MUL_VMACC)) ? pend_vs3                        : '0) |
             ((state_init_valid & state_init.first_cycle           ) ? {31'b0, state_init.mode.masked} : '0)
         ) & ~vreg_pend_wr_q) |
-    ((            state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.vs2)       : '0) |
-    ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.vs2 )       : '0) |
-    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vs3)       : '0) |
-    ((            state_vs1_valid_q  & state_vs1_q.vs3_fetch   ) ? (32'h1 << state_vs1_q.vs3 )       : '0) |
-    ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
-    ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_q.mode.masked}  : '0);
+    ((            state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.rs2.r.vaddr) : '0) |
+    ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.rs2.r.vaddr ) : '0) |
+    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vs3)         : '0) |
+    ((            state_vs1_valid_q  & state_vs1_q.vs3_fetch   ) ? (32'h1 << state_vs1_q.vs3 )         : '0) |
+    ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked}   : '0) |
+    ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_q.mode.masked}    : '0);
 
 
     ///////////////////////////////////////////////////////////////////////////
     // MUL REGISTER READ/WRITE:
 
     // source register addressing and read:
-    assign vreg_rd_addr_o = (state_init.count.part.low[0] == 1'b0) ? state_init.rs1.r.vaddr : state_init.vs2;
+    assign vreg_rd_addr_o = (state_init.count.part.low[0] == 1'b0) ? state_init.rs1.r.vaddr : state_init.rs2.r.vaddr;
     assign vreg_rd_d      = vreg_rd_i;
 
     assign vreg_rd3_addr_o = state_vs1_q.vs3;
