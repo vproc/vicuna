@@ -62,7 +62,7 @@ lappend src_list "$vproc_dir/demo/rtl/uart_tx.sv"
 foreach file {
     vproc_top.sv vproc_pkg.sv vproc_xif.sv vproc_core.sv vproc_decoder.sv vproc_lsu.sv vproc_alu.sv
     vproc_mul.sv vproc_mul_block.sv vproc_sld.sv vproc_elem.sv vproc_pending_wr.sv vproc_vregfile.sv
-    vproc_vregpack.sv vproc_vregunpack.sv vproc_queue.sv
+    vproc_vregpack.sv vproc_vregunpack.sv vproc_queue.sv vproc_result.sv
 } {
     lappend src_list "$vproc_dir/rtl/$file"
 }
