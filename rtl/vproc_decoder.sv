@@ -1385,11 +1385,13 @@ module vproc_decoder #(
         end
     end
 
-    logic emul_invalid;
-    assign emul_invalid = (lmul_i == LMUL_8) & (widenarrow_o != OP_SINGLEWIDTH);
+    logic vtype_invalid, emul_invalid;
+    assign vtype_invalid = vsew_i == VSEW_INVALID;
+    assign emul_invalid  = (lmul_i == LMUL_8) & (widenarrow_o != OP_SINGLEWIDTH);
 
-    logic op_illegal;   // operation illegal (invalid EMUL or register addresses for the current configuration):
-    assign op_illegal = vs1_invalid | vs2_invalid | vd_invalid | emul_invalid;
+    // operation illegal (invalid vtype, invalid EMUL, or register addresses for the current configuration)
+    logic op_illegal;
+    assign op_illegal = (unit_o != UNIT_CFG) & (vs1_invalid | vs2_invalid | vd_invalid | vtype_invalid | emul_invalid);
 
     assign illegal_o = instr_valid_i & (instr_illegal | op_illegal);
     assign valid_o   = instr_valid_i & (~instr_illegal) & (~op_illegal);

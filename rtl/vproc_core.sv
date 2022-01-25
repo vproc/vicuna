@@ -133,7 +133,7 @@ module vproc_core #(
 
     // CSR reads
     assign csr_vtype_o  = cfg_valid ? {24'b0, agnostic_q, 1'b0, vsew_q, lmul_q} : 32'h80000000;
-    assign csr_vl_o     = {{(32-CFG_VL_W-1){1'b0}}, vl_csr_q};
+    assign csr_vl_o     = cfg_valid ? {{(32-CFG_VL_W-1){1'b0}}, vl_csr_q} : '0;
     assign csr_vlenb_o  = VREG_W / 8;
     assign csr_vstart_o = '0;
     assign csr_vxrm_o   = vxrm_q;
@@ -374,41 +374,56 @@ module vproc_core #(
             vsew_d     = dec_data_q.mode.cfg.vsew;
             lmul_d     = dec_data_q.mode.cfg.lmul;
             agnostic_d = dec_data_q.mode.cfg.agnostic;
-            if ((dec_data_q.mode.cfg.vsew == VSEW_INVALID) | ((dec_data_q.rs1.r.xval == 32'b0) & ~dec_data_q.mode.cfg.vlmax)) begin
-                vl_0_d   = 1'b1;
-                vl_d     = {CFG_VL_W{1'b0}};
-                vl_csr_d = '0;
-            end
-            else if (dec_data_q.mode.cfg.keep_vl) begin
                 // TODO keeping the current VL is only possible if the VSEW/LMUL ratio is not changed
+            if (dec_data_q.mode.cfg.keep_vl) begin
             end else begin
+                // Vicuna supports all integer LMUL settings combined with any legal SEW setting.
+                // Fractional LMUL support covers the minimum requirements of the V specification:
+                // > Implementations must provide fractional LMUL settings [...] to support
+                // > LMUL ≥ SEWMIN/ELEN, where SEWMIN is the narrowest supported SEW value and ELEN
+                // > is the widest supported SEW value.
+                // The minimum SEW is 8 and ELEN is 32, hence Vicuna supports LMULs of 1/2 and 1/4.
+                // However, the fractional LMUL cannot be combined with any SEW. The spec states:
+                // > For a given supported fractional LMUL setting, implementations must support
+                // > SEW settings between SEWMIN and LMUL * ELEN, inclusive.
+                // LMUL 1/4 is only compatible with a SEW of 8 and LMUL 1/2 with a SEW of 8 and 16.
+                // Attempts to use an illegal combination sets the `vill` bit in `vtype` (by
+                // overwriting the VSEW setting with VSEW_INVALID.
                 vl_0_d = 1'b0;
                 vl_d   = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (dec_data_q.mode.cfg.lmul)
-                    // TODO support fractional LMUL
-                    LMUL_1: vl_d = ((cfg_avl[33:CFG_VL_W-3] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {3'b000, {(CFG_VL_W-3){1'b1}}};
-                    LMUL_2: vl_d = ((cfg_avl[33:CFG_VL_W-2] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {2'b00,  {(CFG_VL_W-2){1'b1}}};
-                    LMUL_4: vl_d = ((cfg_avl[33:CFG_VL_W-1] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {1'b0,   {(CFG_VL_W-1){1'b1}}};
-                    LMUL_8: vl_d = ((cfg_avl[33:CFG_VL_W  ] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] :          { CFG_VL_W   {1'b1}} ;
+                    LMUL_F4: vl_d = ((cfg_avl[33:CFG_VL_W-5] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {5'b00000, {(CFG_VL_W-5){1'b1}}};
+                    LMUL_F2: vl_d = ((cfg_avl[33:CFG_VL_W-4] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {4'b0000,  {(CFG_VL_W-4){1'b1}}};
+                    LMUL_1 : vl_d = ((cfg_avl[33:CFG_VL_W-3] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {3'b000,   {(CFG_VL_W-3){1'b1}}};
+                    LMUL_2 : vl_d = ((cfg_avl[33:CFG_VL_W-2] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {2'b00,    {(CFG_VL_W-2){1'b1}}};
+                    LMUL_4 : vl_d = ((cfg_avl[33:CFG_VL_W-1] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] : {1'b0,     {(CFG_VL_W-1){1'b1}}};
+                    LMUL_8 : vl_d = ((cfg_avl[33:CFG_VL_W  ] == '0) & ~dec_data_q.mode.cfg.vlmax) ? cfg_avl[CFG_VL_W-1:0] :            { CFG_VL_W   {1'b1}} ;
                     default: ;
                 endcase
                 vl_csr_d = DONT_CARE_ZERO ? '0 : 'x;
                 unique case ({dec_data_q.mode.cfg.lmul, dec_data_q.mode.cfg.vsew})
-                    // TODO support fractional LMUL
-                    {LMUL_1, VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-5] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {6'b1, {(CFG_VL_W-5){1'b0}}};
-                    {LMUL_1, VSEW_16},
-                    {LMUL_2, VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-4] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {5'b1, {(CFG_VL_W-4){1'b0}}};
-                    {LMUL_1, VSEW_8 },
-                    {LMUL_2, VSEW_16},
-                    {LMUL_4, VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-3] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {4'b1, {(CFG_VL_W-3){1'b0}}};
-                    {LMUL_2, VSEW_8 },
-                    {LMUL_4, VSEW_16},
-                    {LMUL_8, VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-2] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {3'b1, {(CFG_VL_W-2){1'b0}}};
-                    {LMUL_4, VSEW_8 },
-                    {LMUL_8, VSEW_16}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-1] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {2'b1, {(CFG_VL_W-1){1'b0}}};
-                    {LMUL_8, VSEW_8 }: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W  ] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {1'b1, {(CFG_VL_W  ){1'b0}}};
-                    default: ;
+                    {LMUL_F4, VSEW_8 },
+                    {LMUL_F2, VSEW_16},
+                    {LMUL_1 , VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-5] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {6'b1, {(CFG_VL_W-5){1'b0}}};
+                    {LMUL_F2, VSEW_8 },
+                    {LMUL_1 , VSEW_16},
+                    {LMUL_2 , VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-4] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {5'b1, {(CFG_VL_W-4){1'b0}}};
+                    {LMUL_1 , VSEW_8 },
+                    {LMUL_2 , VSEW_16},
+                    {LMUL_4 , VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-3] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {4'b1, {(CFG_VL_W-3){1'b0}}};
+                    {LMUL_2 , VSEW_8 },
+                    {LMUL_4 , VSEW_16},
+                    {LMUL_8 , VSEW_32}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-2] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {3'b1, {(CFG_VL_W-2){1'b0}}};
+                    {LMUL_4 , VSEW_8 },
+                    {LMUL_8 , VSEW_16}: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W-1] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {2'b1, {(CFG_VL_W-1){1'b0}}};
+                    {LMUL_8 , VSEW_8 }: vl_csr_d = ((dec_data_q.rs1.r.xval[31:CFG_VL_W  ] == '0) & ~dec_data_q.mode.cfg.vlmax) ? dec_data_q.rs1.r.xval[CFG_VL_W:0] : {1'b1, {(CFG_VL_W  ){1'b0}}};
+                    default: vsew_d = VSEW_INVALID;
                 endcase
+            end
+            if ((dec_data_q.rs1.r.xval == 32'b0) & ~dec_data_q.mode.cfg.vlmax) begin
+                vl_0_d   = 1'b1;
+                vl_d     = {CFG_VL_W{1'b0}};
+                vl_csr_d = '0;
             end
         end
     end
