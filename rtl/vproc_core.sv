@@ -374,8 +374,79 @@ module vproc_core #(
             vsew_d     = dec_data_q.mode.cfg.vsew;
             lmul_d     = dec_data_q.mode.cfg.lmul;
             agnostic_d = dec_data_q.mode.cfg.agnostic;
-                // TODO keeping the current VL is only possible if the VSEW/LMUL ratio is not changed
             if (dec_data_q.mode.cfg.keep_vl) begin
+                // Change VSEW and LMUL while keeping the current VL. Note that the spec states:
+                // > This form can only be used when VLMAX and hence vl is not actually changed by
+                // > the new SEW/LMUL ratio. Use of the instruction with a new SEW/LMUL ratio that
+                // > would result in a change of VLMAX is reserved. Implementations may set vill in
+                // > this case.
+                // Despite keeping the same VL, the `vl_q` register is a byte count and needs to be
+                // updated. Changes to the current SEW/LMUL ratio result set VSEW to VSEW_INVALID.
+                vl_d = DONT_CARE_ZERO ? '0 : 'x;
+                unique case ({vsew_q, dec_data_q.mode.cfg.vsew})
+                    // VSEW scaled by 4
+                    {VSEW_8 , VSEW_32}: begin
+                        vl_d = {vl_q[CFG_VL_W-3:0], 2'b11}; // vl_d = (vl_q + 1) * 4 - 1
+                        unique case ({lmul_q, dec_data_q.mode.cfg.lmul})
+                            {LMUL_F8, LMUL_F2},
+                            {LMUL_F4, LMUL_1 },
+                            {LMUL_F2, LMUL_2 },
+                            {LMUL_1 , LMUL_4 },
+                            {LMUL_2 , LMUL_8 }: ;
+                            default: vsew_d = VSEW_INVALID;
+                        endcase
+                    end
+                    // VSEW scaled by 2
+                    {VSEW_8 , VSEW_16},
+                    {VSEW_16, VSEW_32}: begin
+                        vl_d = {vl_q[CFG_VL_W-2:0], 1'b1}; // vl_d = (vl_q + 1) * 2 - 1
+                        unique case ({lmul_q, dec_data_q.mode.cfg.lmul})
+                            {LMUL_F8, LMUL_F4},
+                            {LMUL_F4, LMUL_F2},
+                            {LMUL_F2, LMUL_1 },
+                            {LMUL_1 , LMUL_2 },
+                            {LMUL_2 , LMUL_4 },
+                            {LMUL_4 , LMUL_8 }: ;
+                            default: vsew_d = VSEW_INVALID;
+                        endcase
+                    end
+                    // VSEW scaled by 1
+                    {VSEW_8 , VSEW_8 },
+                    {VSEW_16, VSEW_16},
+                    {VSEW_32, VSEW_32}: begin
+                        vl_d = vl_q;
+                        if (lmul_q != dec_data_q.mode.cfg.lmul) begin
+                            vsew_d = VSEW_INVALID;
+                        end
+                    end
+                    // VSEW scaled by 1/2
+                    {VSEW_16, VSEW_8 },
+                    {VSEW_32, VSEW_16}: begin
+                        vl_d = {1'b0, vl_q[CFG_VL_W-1:1]}; // vl_d = vl_q / 2
+                        unique case ({lmul_q, dec_data_q.mode.cfg.lmul})
+                            {LMUL_F4, LMUL_F8},
+                            {LMUL_F2, LMUL_F4},
+                            {LMUL_1 , LMUL_F2},
+                            {LMUL_2 , LMUL_1 },
+                            {LMUL_4 , LMUL_2 },
+                            {LMUL_8 , LMUL_4 }: ;
+                            default: vsew_d = VSEW_INVALID;
+                        endcase
+                    end
+                    // VSEW scaled by 1/4
+                    {VSEW_32, VSEW_8 }: begin
+                        vl_d = {2'b00, vl_q[CFG_VL_W-1:2]}; // vl_d = vl_q / 4
+                        unique case ({lmul_q, dec_data_q.mode.cfg.lmul})
+                            {LMUL_F2, LMUL_F8},
+                            {LMUL_1 , LMUL_F4},
+                            {LMUL_2 , LMUL_F2},
+                            {LMUL_4 , LMUL_1 },
+                            {LMUL_8 , LMUL_2 }: ;
+                            default: vsew_d = VSEW_INVALID;
+                        endcase
+                    end
+                    default: ;
+                endcase
             end else begin
                 // Vicuna supports all integer LMUL settings combined with any legal SEW setting.
                 // Fractional LMUL support covers the minimum requirements of the V specification:
