@@ -631,13 +631,11 @@ module vproc_core #(
         // hold back ready signal until hazards are cleared:
         if (queue_valid_q && ~pending_hazards) begin
             unique case (queue_data_q.unit)
-                // regular operations are only performed when the current
-                // configuration is valid
-                UNIT_LSU:  op_rdy_lsu  = queue_data_q.vsew != VSEW_INVALID;
-                UNIT_ALU:  op_rdy_alu  = queue_data_q.vsew != VSEW_INVALID;
-                UNIT_MUL:  op_rdy_mul  = queue_data_q.vsew != VSEW_INVALID;
-                UNIT_SLD:  op_rdy_sld  = queue_data_q.vsew != VSEW_INVALID;
-                UNIT_ELEM: op_rdy_elem = queue_data_q.vsew != VSEW_INVALID;
+                UNIT_LSU:  op_rdy_lsu  = 1'b1;
+                UNIT_ALU:  op_rdy_alu  = 1'b1;
+                UNIT_MUL:  op_rdy_mul  = 1'b1;
+                UNIT_SLD:  op_rdy_sld  = 1'b1;
+                UNIT_ELEM: op_rdy_elem = 1'b1;
                 default: ;
             endcase
         end
