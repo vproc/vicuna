@@ -45,18 +45,7 @@ module vproc_core #(
         input  logic                  csr_vxrm_set_i,
         output logic                  csr_vxsat_o,
         input  logic                  csr_vxsat_i,
-        input  logic                  csr_vxsat_set_i,
-
-        // vector memory interface
-        output logic                  data_req_o,
-        input  logic                  data_gnt_i,
-        input  logic                  data_rvalid_i,
-        input  logic                  data_err_i,
-        input  logic [VMEM_W-1:0]     data_rdata_i,
-        output logic [31:0]           data_addr_o,
-        output logic                  data_we_o,
-        output logic [(VMEM_W/8)-1:0] data_be_o,
-        output logic [VMEM_W-1:0]     data_wdata_o
+        input  logic                  csr_vxsat_set_i
     );
 
     import vproc_pkg::*;
