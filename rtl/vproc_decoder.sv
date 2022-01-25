@@ -1217,21 +1217,42 @@ module vproc_decoder #(
         endcase
     end
 
+    logic emul_invalid;
     always_comb begin
-        vsew_o = DONT_CARE_ZERO ? cfg_vsew'('0) : cfg_vsew'('x);
-        emul_o = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
-        vl_o   = DONT_CARE_ZERO ? '0 : 'x;
+        vsew_o       = DONT_CARE_ZERO ? cfg_vsew'('0) : cfg_vsew'('x);
+        emul_o       = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+        vl_o         = DONT_CARE_ZERO ? '0 : 'x;
+        emul_invalid = 1'b0;
 
         if (unit_o == UNIT_LSU) begin
 
             unique case ({mode_o.lsu.eew, vsew_i})
                 {VSEW_8 , VSEW_32}: begin   // EEW / SEW = 1 / 4
-                    emul_o = (lmul_i == LMUL_8) ? EMUL_2 : EMUL_1; // use EMUL == 1 for fractional EMUL (LMUL < 4), VL is updated anyways
+                    // use EMUL == 1 for fractional EMUL (LMUL < 4), VL is updated anyways
+                    unique case (lmul_i)
+                        LMUL_F8,
+                        LMUL_F4,
+                        LMUL_F2,
+                        LMUL_1,
+                        LMUL_2,
+                        LMUL_4:  emul_o = EMUL_1;
+                        LMUL_8:  emul_o = EMUL_2;
+                        default: ;
+                    endcase
                     vl_o   = {2'b00, vl_i[CFG_VL_W-1:2]};
                 end
                 {VSEW_8 , VSEW_16},
                 {VSEW_16, VSEW_32}: begin   // EEW / SEW = 1 / 2
-                    emul_o = (lmul_i == LMUL_8) ? EMUL_4 : ((lmul_i == LMUL_4) ? EMUL_2 : EMUL_1);
+                    unique case (lmul_i)
+                        LMUL_F8,
+                        LMUL_F4,
+                        LMUL_F2,
+                        LMUL_1,
+                        LMUL_2:  emul_o = EMUL_1;
+                        LMUL_4:  emul_o = EMUL_2;
+                        LMUL_8:  emul_o = EMUL_4;
+                        default: ;
+                    endcase
                     vl_o   = {1'b0, vl_i[CFG_VL_W-1:1]};
                 end
                 {VSEW_8 , VSEW_8 },
@@ -1295,7 +1316,10 @@ module vproc_decoder #(
                 // for widening or narrowing ops, eew and emul are increased to the next higher value,
                 // since those are the eew and emul that are used for the op itself; vl is doubled to
                 // capture the wider byte width of the intermediate result
-                vsew_o = (vsew_i == VSEW_8) ? VSEW_16 : VSEW_32;
+                unique case (vsew_i)
+                    VSEW_8:  vsew_o = VSEW_16;
+                    VSEW_16: vsew_o = VSEW_32;
+                endcase
                 unique case (lmul_i)
                     LMUL_F8,
                     LMUL_F4,
@@ -1303,6 +1327,7 @@ module vproc_decoder #(
                     LMUL_1:  emul_o = EMUL_2;
                     LMUL_2:  emul_o = EMUL_4;
                     LMUL_4:  emul_o = EMUL_8;
+                    LMUL_8:  emul_invalid = 1'b1;
                     default: ;
                 endcase
                 vl_o = {vl_i[CFG_VL_W-2:0], 1'b1};
@@ -1319,6 +1344,7 @@ module vproc_decoder #(
         unique case (emul_o)
             EMUL_1: begin
                 regaddr_mask        = 3'b000;
+                regaddr_mask_narrow = 3'b000; // fractional EMUL
             end
             EMUL_2: begin
                 regaddr_mask        = 3'b001;
@@ -1385,9 +1411,8 @@ module vproc_decoder #(
         end
     end
 
-    logic vtype_invalid, emul_invalid;
+    logic vtype_invalid;
     assign vtype_invalid = vsew_i == VSEW_INVALID;
-    assign emul_invalid  = (lmul_i == LMUL_8) & (widenarrow_o != OP_SINGLEWIDTH);
 
     // operation illegal (invalid vtype, invalid EMUL, or register addresses for the current configuration)
     logic op_illegal;
