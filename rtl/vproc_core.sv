@@ -225,7 +225,13 @@ module vproc_core #(
     assign dec_data_d.id   = xif_issue_if.issue_req.id;
     assign dec_data_d.vl_0 = vl_0_q;
 
-    assign xif_issue_if.issue_ready          = (~dec_valid | dec_ready) & ~issue_id_used;
+    // Note: The decoder is not ready if the decode buffer is not ready, even
+    // if an offloaded instruction is illegal.  The decode buffer could hold a
+    // vset[i]vl[i] instruction that will change the configuration in the next
+    // cycle and any subsequent offloaded instruction must be validated w.r.t.
+    // the new configuration.
+    assign xif_issue_if.issue_ready          = dec_ready & ~issue_id_used;
+
     assign xif_issue_if.issue_resp.accept    = dec_valid;
     assign xif_issue_if.issue_resp.writeback = dec_valid & (((dec_data_d.unit == UNIT_ELEM) & dec_data_d.mode.elem.xreg) | (dec_data_d.unit == UNIT_CFG));
     assign xif_issue_if.issue_resp.dualwrite = 1'b0;
