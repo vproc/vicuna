@@ -787,7 +787,7 @@ module vproc_core #(
         .op_ack_o                 ( op_ack_lsu                    ),
         .misaligned_o             ( misaligned_lsu                ),
         .mode_i                   ( queue_data_q.mode.lsu         ),
-        .rs1_i                    ( queue_data_q.rs1.r.xval       ),
+        .rs1_i                    ( queue_data_q.rs1              ),
         .rs2_i                    ( queue_data_q.rs2              ),
         .vd_i                     ( queue_data_q.rd.addr          ),
         .vreg_pend_wr_i           ( vreg_wr_hazard_map_q          ),
