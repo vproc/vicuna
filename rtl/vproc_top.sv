@@ -70,13 +70,18 @@ module vproc_top #(
     logic [31:0] sdata_rdata;
 
     // Vector Unit Interface
+    localparam X_NUM_RS = 2;
+    localparam X_ID_WIDTH = 3;
+    localparam X_RFR_WIDTH = 32;
+    localparam X_RFW_WIDTH = 32;
+    localparam X_MISA = 0;
     vproc_xif #(
-        .X_NUM_RS    ( 2      ),
-        .X_ID_WIDTH  ( 3      ),
-        .X_MEM_WIDTH ( VMEM_W ),
-        .X_RFR_WIDTH ( 32     ),
-        .X_RFW_WIDTH ( 32     ),
-        .X_MISA      ( '0     )
+        .X_NUM_RS    ( X_NUM_RS    ),
+        .X_ID_WIDTH  ( X_ID_WIDTH  ),
+        .X_MEM_WIDTH ( VMEM_W      ),
+        .X_RFR_WIDTH ( X_RFR_WIDTH ),
+        .X_RFW_WIDTH ( X_RFW_WIDTH ),
+        .X_MISA      ( X_MISA      )
     ) vcore_xif ();
     logic        vect_pending_load;
     logic        vect_pending_store;
@@ -177,8 +182,8 @@ module vproc_top #(
         .scan_rst_ni            ( 1'b1                               )
     );
 
-    logic [vcore_xif.X_ID_WIDTH-1:0] cpi_instr_id_q, cpi_instr_id_q2, cpi_instr_id_d;
-    logic                            cpi_commit_q,                    cpi_commit_d;
+    logic [X_ID_WIDTH-1:0] cpi_instr_id_q, cpi_instr_id_q2, cpi_instr_id_d;
+    logic                  cpi_commit_q,                    cpi_commit_d;
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (~rst_ni) begin
             cpi_instr_id_q  <= '0;
@@ -193,7 +198,7 @@ module vproc_top #(
     always_comb begin
         cpi_instr_id_d = cpi_instr_id_q;
         if (vcore_xif.issue_ready & vcore_xif.issue_valid) begin
-            cpi_instr_id_d = cpi_instr_id_q + {{vcore_xif.X_ID_WIDTH-1{1'b0}}, 1'b1};
+            cpi_instr_id_d = cpi_instr_id_q + {{X_ID_WIDTH-1{1'b0}}, 1'b1};
         end
     end
     assign cpi_commit_d = vcore_xif.issue_valid & vcore_xif.issue_ready & vcore_xif.issue_resp.accept;
