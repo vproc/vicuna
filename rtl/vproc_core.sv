@@ -200,7 +200,8 @@ module vproc_core #(
 
     logic instr_illegal;
     vproc_decoder #(
-        .DONT_CARE_ZERO ( DONT_CARE_ZERO               )
+        .DONT_CARE_ZERO ( DONT_CARE_ZERO               ),
+        .CFG_VL_W       ( CFG_VL_W                     )
     ) dec (
         .instr_i        ( xif_issue_if.issue_req.instr ),
         .instr_valid_i  ( instr_valid                  ),
