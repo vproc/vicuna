@@ -1319,6 +1319,7 @@ module vproc_decoder #(
                 unique case (vsew_i)
                     VSEW_8:  vsew_o = VSEW_16;
                     VSEW_16: vsew_o = VSEW_32;
+                    default: ;
                 endcase
                 unique case (lmul_i)
                     LMUL_F8,
