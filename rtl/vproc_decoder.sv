@@ -1165,6 +1165,22 @@ module vproc_decoder #(
                             mode_o.elem.xreg   = 1'b0;
                             mode_o.elem.masked = instr_masked;
                         end
+                        {6'b110000, 3'b000}: begin  // vwredsumu VV
+                            unit_o             = UNIT_ELEM;
+                            mode_o.elem.op     = ELEM_VREDSUM;
+                            mode_o.elem.sigext = 1'b0;
+                            mode_o.elem.xreg   = 1'b0;
+                            mode_o.elem.masked = instr_masked;
+                            widenarrow_o       = OP_WIDENING;
+                        end
+                        {6'b110001, 3'b000}: begin  // vwredsum VV
+                            unit_o             = UNIT_ELEM;
+                            mode_o.elem.op     = ELEM_VREDSUM;
+                            mode_o.elem.sigext = 1'b1;
+                            mode_o.elem.xreg   = 1'b0;
+                            mode_o.elem.masked = instr_masked;
+                            widenarrow_o       = OP_WIDENING;
+                        end
 
 
                         // Unary arithmetic:

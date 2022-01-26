@@ -993,6 +993,7 @@ module vproc_core #(
         .op_rdy_i           ( op_rdy_elem              ),
         .op_ack_o           ( op_ack_elem              ),
         .mode_i             ( queue_data_q.mode.elem   ),
+        .widenarrow_i       ( queue_data_q.widenarrow  ),
         .rs1_i              ( queue_data_q.rs1         ),
         .rs2_i              ( queue_data_q.rs2         ),
         .vd_i               ( queue_data_q.rd.addr     ),

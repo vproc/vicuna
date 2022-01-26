@@ -6,60 +6,61 @@
 `include "vproc_vregshift.svh"
 
 module vproc_elem #(
-        parameter int unsigned         VREG_W          = 128,  // width in bits of vector registers
-        parameter int unsigned         VMSK_W          = 16,   // width of vector register masks (= VREG_W / 8)
-        parameter int unsigned         CFG_VL_W        = 7,    // width of VL reg in bits (= log2(VREG_W))
-        parameter int unsigned         GATHER_OP_W     = 32,   // ELEM unit GATHER operand width in bits
-        parameter int unsigned         XIF_ID_W        = 3,    // width in bits of instruction IDs
-        parameter int unsigned         XIF_ID_CNT      = 8,    // total count of instruction IDs
-        parameter int unsigned         MAX_WR_ATTEMPTS = 1,    // max required vregfile write attempts
-        parameter bit                  BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
-        parameter bit                  BUF_RESULTS     = 1'b1, // insert pipeline stage after computing result
-        parameter bit                  DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
+        parameter int unsigned          VREG_W          = 128,  // width in bits of vector registers
+        parameter int unsigned          VMSK_W          = 16,   // width of vector register masks (= VREG_W / 8)
+        parameter int unsigned          CFG_VL_W        = 7,    // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned          GATHER_OP_W     = 32,   // ELEM unit GATHER operand width in bits
+        parameter int unsigned          XIF_ID_W        = 3,    // width in bits of instruction IDs
+        parameter int unsigned          XIF_ID_CNT      = 8,    // total count of instruction IDs
+        parameter int unsigned          MAX_WR_ATTEMPTS = 1,    // max required vregfile write attempts
+        parameter bit                   BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
+        parameter bit                   BUF_RESULTS     = 1'b1, // insert pipeline stage after computing result
+        parameter bit                   DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )(
-        input  logic                   clk_i,
-        input  logic                   async_rst_ni,
-        input  logic                   sync_rst_ni,
+        input  logic                    clk_i,
+        input  logic                    async_rst_ni,
+        input  logic                    sync_rst_ni,
 
-        input  logic [XIF_ID_W-1:0]    id_i,
-        input  vproc_pkg::cfg_vsew     vsew_i,
-        input  vproc_pkg::cfg_emul     emul_i,
-        input  logic [CFG_VL_W-1:0]    vl_i,
-        input  logic                   vl_0_i,
+        input  logic [XIF_ID_W-1:0]     id_i,
+        input  vproc_pkg::cfg_vsew      vsew_i,
+        input  vproc_pkg::cfg_emul      emul_i,
+        input  logic [CFG_VL_W-1:0]     vl_i,
+        input  logic                    vl_0_i,
 
-        input  logic                   op_rdy_i,
-        output logic                   op_ack_o,
+        input  logic                    op_rdy_i,
+        output logic                    op_ack_o,
 
-        input  vproc_pkg::op_mode_elem mode_i,
-        input  vproc_pkg::op_regs      rs1_i,
-        input  vproc_pkg::op_regs      rs2_i,
-        input  logic [4:0]             vd_i,
+        input  vproc_pkg::op_mode_elem  mode_i,
+        input  vproc_pkg::op_widenarrow widenarrow_i,
+        input  vproc_pkg::op_regs       rs1_i,
+        input  vproc_pkg::op_regs       rs2_i,
+        input  logic [4:0]              vd_i,
 
-        input  logic [31:0]            vreg_pend_wr_i,
-        output logic [31:0]            vreg_pend_rd_o,
-        input  logic [31:0]            vreg_pend_rd_i,
+        input  logic [31:0]             vreg_pend_wr_i,
+        output logic [31:0]             vreg_pend_rd_o,
+        input  logic [31:0]             vreg_pend_rd_i,
 
-        output logic [31:0]            clear_wr_hazards_o,
+        output logic [31:0]             clear_wr_hazards_o,
 
-        input  logic [XIF_ID_CNT-1:0]  instr_spec_i,
-        input  logic [XIF_ID_CNT-1:0]  instr_killed_i,
-        output logic                   instr_done_valid_o,
-        output logic [XIF_ID_W-1:0]    instr_done_id_o,
+        input  logic [XIF_ID_CNT-1:0]   instr_spec_i,
+        input  logic [XIF_ID_CNT-1:0]   instr_killed_i,
+        output logic                    instr_done_valid_o,
+        output logic [XIF_ID_W-1:0]     instr_done_id_o,
 
         // connections to register file:
-        input  logic [VREG_W-1:0]      vreg_mask_i,
-        input  logic [VREG_W-1:0]      vreg_rd_i,
-        output logic [4:0]             vreg_rd_addr_o,
-        output logic [VREG_W-1:0]      vreg_wr_o,
-        output logic [4:0]             vreg_wr_addr_o,
-        output logic [VMSK_W-1:0]      vreg_wr_mask_o,
-        output logic                   vreg_wr_en_o,
+        input  logic [VREG_W-1:0]       vreg_mask_i,
+        input  logic [VREG_W-1:0]       vreg_rd_i,
+        output logic [4:0]              vreg_rd_addr_o,
+        output logic [VREG_W-1:0]       vreg_wr_o,
+        output logic [4:0]              vreg_wr_addr_o,
+        output logic [VMSK_W-1:0]       vreg_wr_mask_o,
+        output logic                    vreg_wr_en_o,
 
         // main core write-back signals:
-        output logic                   xreg_valid_o,
-        output logic [XIF_ID_W-1:0]    xreg_id_o,
-        output logic [4:0]             xreg_addr_o,
-        output logic [31:0]            xreg_data_o
+        output logic                    xreg_valid_o,
+        output logic [XIF_ID_W-1:0]     xreg_id_o,
+        output logic [4:0]              xreg_addr_o,
+        output logic [31:0]             xreg_data_o
     );
 
     import vproc_pkg::*;
@@ -114,6 +115,7 @@ module vproc_elem #(
         logic                        vl_0;
         logic                        vl_mask;
         op_regs                      rs1;
+        logic                        vs1_narrow;
         logic                        vs1_fetch;
         logic                        vs1_shift;
         op_regs                      rs2;
@@ -206,6 +208,7 @@ module vproc_elem #(
             state_d.vl_mask        = ~vl_0_i;
             state_d.rs1            = ((mode_i.op == ELEM_XMV) | op_reduction) ? rs2_i : rs1_i;
             state_d.rs1.vreg       = ((mode_i.op == ELEM_XMV) | op_reduction) | rs1_i.vreg;
+            state_d.vs1_narrow     = widenarrow_i == OP_WIDENING;
             state_d.vs1_fetch      = ((mode_i.op == ELEM_XMV) | op_reduction) | rs1_i.vreg;
             state_d.vs1_shift      = 1'b1;
             state_d.rs2            = op_reduction ? rs1_i : rs2_i;
@@ -246,12 +249,18 @@ module vproc_elem #(
             state_d.gather_fetch = 1'b0;
             if (state_q.count_gather == '1) begin
                 if (state_q.count.part.low == '1) begin
-                    state_d.rs1.r.vaddr[2:0] = state_q.rs1.r.vaddr[2:0] + 3'b1;
-                    state_d.vs1_fetch        = state_q.rs1.vreg & ~last_cycle;
+                    if (state_q.rs1.vreg & (~state_q.vs1_narrow | state_q.count.part.mul[0])) begin
+                        state_d.rs1.r.vaddr[2:0] = state_q.rs1.r.vaddr[2:0] + 3'b1;
+                        state_d.vs1_fetch        = state_q.rs1.vreg & ~last_cycle;
+                    end
                 end
                 state_d.gather_fetch = 1'b1;
             end
-            state_d.vs1_shift = state_q.count.val[1:0] == '1;
+            if (~state_q.vs1_narrow) begin
+                state_d.vs1_shift = state_q.count.val[1:0] == '1;
+            end else begin
+                state_d.vs1_shift = state_q.count.val[2:0] == '1;
+            end
         end
     end
 
@@ -301,8 +310,8 @@ module vproc_elem #(
     logic        result_mask_q,    result_mask_d;
     logic        result_valid_q,   result_valid_d;
 
-    // first valid result register:
-    logic first_valid_result_q, first_valid_result_d;
+    // track whether there are any valid results:
+    logic has_valid_result_q, has_valid_result_d;
 
     // result shift register:
     logic [VREG_W-1:0] vd_shift_q,    vd_shift_d;
@@ -498,7 +507,7 @@ module vproc_elem #(
                 state_vd_q.vd_store  <= vd_store_d;
                 vd_shift_q           <= vd_shift_d;
                 vdmsk_shift_q        <= vdmsk_shift_d;
-                first_valid_result_q <= first_valid_result_d;
+                has_valid_result_q   <= has_valid_result_d;
             end
         end
         assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
@@ -625,20 +634,26 @@ module vproc_elem #(
     logic [31:0] pend_vs1, pend_vs2;
     always_comb begin
         pend_vs1 = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_init.emul)
-            EMUL_1: pend_vs1 = 32'h01 <<  state_init.rs1.r.vaddr;
-            EMUL_2: pend_vs1 = 32'h03 << {state_init.rs1.r.vaddr[4:1], 1'b0};
-            EMUL_4: pend_vs1 = 32'h0F << {state_init.rs1.r.vaddr[4:2], 2'b0};
-            EMUL_8: pend_vs1 = 32'hFF << {state_init.rs1.r.vaddr[4:3], 3'b0};
+        unique case ({state_init.emul, state_init.vs1_narrow})
+            {EMUL_1, 1'b0}: pend_vs1 = 32'h01 <<  state_init.rs1.r.vaddr;
+            {EMUL_2, 1'b1}: pend_vs1 = 32'h01 <<  state_init.rs1.r.vaddr;
+            {EMUL_2, 1'b0}: pend_vs1 = 32'h03 << {state_init.rs1.r.vaddr[4:1], 1'b0};
+            {EMUL_4, 1'b1}: pend_vs1 = 32'h03 << {state_init.rs1.r.vaddr[4:1], 1'b0};
+            {EMUL_4, 1'b0}: pend_vs1 = 32'h0F << {state_init.rs1.r.vaddr[4:2], 2'b0};
+            {EMUL_8, 1'b1}: pend_vs1 = 32'h0F << {state_init.rs1.r.vaddr[4:2], 2'b0};
+            {EMUL_8, 1'b0}: pend_vs1 = 32'hFF << {state_init.rs1.r.vaddr[4:3], 3'b0};
             default: ;
         endcase
-        // vs2 is either a mask vreg or it is the gather register group
+        // vs2 is either:
+        //  - a mask vreg, which is always a single vreg read in the first cycle
+        //  - the init vreg for reductions, which is also a single vreg read in the first cycle
+        //  - the gather register group
         pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
         if (state_init.mode.op == ELEM_VRGATHER) begin
             // entire gather register group remains pending throughout the operation
             pend_vs2 = state_init_gather_vregs;
         end else begin
-            // mask register is read right at the beginning
+            // mask/init register is read right at the beginning
             pend_vs2 = state_init.first_cycle ? (32'h01 << state_init.rs2.r.vaddr) : '0;
         end
     end
@@ -689,14 +704,32 @@ module vproc_elem #(
 
     // operand shift registers assignment:
     fetch_info vs1_info;
+    cfg_vsew   vs1_eew;
     always_comb begin
         vs1_info.shift  = state_vreg_q.vs1_shift & state_vreg_q.gather_fetch;
         vs1_info.fetch  = state_vreg_q.vs1_fetch;
+        vs1_eew         = state_vreg_q.eew;
+        if (state_vreg_q.vs1_narrow) begin
+            vs1_eew = DONT_CARE_ZERO ? cfg_vsew'('0) : cfg_vsew'('x);
+            case (state_vreg_q.eew)
+                VSEW_16: vs1_eew = VSEW_8;
+                VSEW_32: vs1_eew = VSEW_16;
+                default: ;
+            endcase
+        end
     end
-    `VREGSHIFT_OPERAND_VSEW(VREG_W, 32, vs1_info, ~state_vreg_q.gather_fetch, state_vreg_q.eew, vreg_rd_q, vs1_shift_q, vs1_shift_d)
+    `VREGSHIFT_OPERAND_VSEW(VREG_W, 32, vs1_info, ~state_vreg_q.gather_fetch, vs1_eew, vreg_rd_q, vs1_shift_q, vs1_shift_d)
 
     always_comb begin
         vs1_tmp_d = vs1_shift_q[31:0];
+        if (state_vs1_q.vs1_narrow) begin
+            vs1_tmp_d = DONT_CARE_ZERO ? '0 : 'x;
+            case (state_vs1_q.eew)
+                VSEW_16: vs1_tmp_d = {{8 {state_vs1_q.mode.sigext & vs1_shift_q[7 ]}}, vs1_shift_q[7 :0]};
+                VSEW_32: vs1_tmp_d = {{16{state_vs1_q.mode.sigext & vs1_shift_q[15]}}, vs1_shift_q[15:0]};
+                default: ;
+            endcase
+        end
         if (state_vs1_q.mode.op == ELEM_VRGATHER) begin
             unique case (state_vs1_q.eew)
                 VSEW_8:  vs1_tmp_d = {24'b0                                              , vs1_shift_q[7 :0]       };
@@ -776,16 +809,21 @@ module vproc_elem #(
     assign xreg_addr_o  = state_res_q.vd;
     assign xreg_data_o  = result_q;
 
-    //
+    // track whether there are any valid results
     always_comb begin
-        first_valid_result_d = first_valid_result_q;
-        if (result_valid_q) begin
-            first_valid_result_d = 1'b0;
+        has_valid_result_d = has_valid_result_q;
+        if (state_res_q.first_cycle) begin
+            has_valid_result_d = 1'b0;
         end
-        if (~state_res_valid_q | (state_res_q.last_cycle & ~state_res_q.requires_flush)) begin
-            first_valid_result_d = 1'b1;
+        if (result_valid_q) begin
+            has_valid_result_d = 1'b1;
         end
     end
+
+    // determine when we see the first valid result
+    logic first_valid_result;
+    assign first_valid_result = result_valid_q & (state_res_q.first_cycle | ~has_valid_result_q);
+
     always_comb begin
         vd_count_d.val = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_res_q.eew)
@@ -794,7 +832,7 @@ module vproc_elem #(
             VSEW_32: vd_count_d.val = state_vd_q.count.val + {{(ELEM_COUNTER_W-3){1'b0}}, result_valid_q, 2'b0};
             default: ;
         endcase
-        if (state_res_q.first_cycle | first_valid_result_q) begin
+        if (first_valid_result) begin
             vd_count_d.val      = '0;
             vd_count_d.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_res_q.eew)
@@ -805,7 +843,7 @@ module vproc_elem #(
             endcase
         end
     end
-    assign vd_store_d = ~state_res_q.mode.xreg & (vd_count_d.part.low == '1);
+    assign vd_store_d = ~state_res_q.mode.xreg & result_valid_q & (vd_count_d.part.low == '1);
 
     //
     assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall & ~instr_killed_i[state_vd_q.id];

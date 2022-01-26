@@ -195,9 +195,10 @@ typedef enum logic [3:0] {
 typedef struct packed {
     logic       masked;
     opcode_elem op;
+    logic       sigext;
     logic       xreg;
 `ifdef VPROC_OP_MODE_UNION
-    logic [5:0] unused;
+    logic [4:0] unused;
 `endif
 } op_mode_elem;
 
