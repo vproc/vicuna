@@ -795,7 +795,9 @@ module vproc_lsu #(
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
         .deq_ready_i  ( xif_memres_if.mem_result_valid | mem_err_d                    ),
         .deq_valid_o  ( deq_valid                                                     ),
-        .deq_data_o   ( {rdata_off_d, rmask_buf_d, deq_state}                         )
+        .deq_data_o   ( {rdata_off_d, rmask_buf_d, deq_state}                         ),
+        .flags_any_o  (                                                               ),
+        .flags_all_o  (                                                               )
     );
 
     // monitor the memory result for bus errors and the queue for exceptions

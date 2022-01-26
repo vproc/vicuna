@@ -17,7 +17,10 @@ module vproc_queue #(
 
         input  logic             deq_ready_i,
         output logic             deq_valid_o,
-        output logic [WIDTH-1:0] deq_data_o
+        output logic [WIDTH-1:0] deq_data_o,
+
+        output logic [WIDTH-1:0] flags_any_o,
+        output logic [WIDTH-1:0] flags_all_o
     );
 
     logic [WIDTH-1:0]         data[DEPTH];
@@ -54,5 +57,36 @@ module vproc_queue #(
     assign enq_ready_o = (rd_pos != wr_pos) | ~last_wr;
     assign deq_valid_o = (rd_pos != wr_pos) |  last_wr;
     assign deq_data_o  = data[rd_pos];
+
+    // Mask of valid entries
+    logic [DEPTH-1:0] entry_valid;
+    always_comb begin
+        entry_valid = '0;
+        if (rd_pos == wr_pos) begin
+            // either all or no entries are valid, depending on last action
+            entry_valid = {DEPTH{last_wr}};
+        end else begin
+            for (int i = 0; i < DEPTH; i++) begin
+                if (rd_pos < wr_pos) begin
+                    entry_valid[i] = (i >= rd_pos) & (i < wr_pos);
+                end else begin
+                    entry_valid[i] = (i >= rd_pos) | (i < wr_pos);
+                end
+            end
+        end
+    end
+
+    // Bitwise AND and OR of all valid entries (allows to check whether a flag
+    // is set in any/all valid entries)
+    always_comb begin
+        flags_any_o = {WIDTH{1'b0}};
+        flags_all_o = {WIDTH{1'b1}};
+        for (int i = 0; i < DEPTH; i++) begin
+            if (entry_valid[i]) begin
+                flags_any_o |= data[i];
+                flags_all_o &= data[i];
+            end
+        end
+    end
 
 endmodule

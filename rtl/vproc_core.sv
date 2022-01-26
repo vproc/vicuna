@@ -159,6 +159,8 @@ module vproc_core #(
         op_regs              rs1;
         op_regs              rs2;
         op_regd              rd;
+        logic                pend_load;
+        logic                pend_store;
     } decoder_data;
 
     // signals for decoder and for decoder buffer
@@ -212,8 +214,10 @@ module vproc_core #(
         .rs2_o          ( dec_data_d.rs2               ),
         .rd_o           ( dec_data_d.rd                )
     );
-    assign dec_data_d.id   = xif_issue_if.issue_req.id;
-    assign dec_data_d.vl_0 = vl_0_q;
+    assign dec_data_d.id         = xif_issue_if.issue_req.id;
+    assign dec_data_d.vl_0       = vl_0_q;
+    assign dec_data_d.pend_load  = (dec_data_d.unit == UNIT_LSU) & ~dec_data_d.mode.lsu.store;
+    assign dec_data_d.pend_store = (dec_data_d.unit == UNIT_LSU) &  dec_data_d.mode.lsu.store;
 
     // Note: The decoder is not ready if the decode buffer is not ready, even
     // if an offloaded instruction is illegal.  The decode buffer could hold a
@@ -537,6 +541,7 @@ module vproc_core #(
     endgenerate
 
     // instruction queue
+    decoder_data queue_flags_any;
     generate
         if (QUEUE_SZ > 0) begin
             vproc_queue #(
@@ -551,7 +556,9 @@ module vproc_core #(
                 .enq_data_i   ( dec_data_q              ),
                 .deq_ready_i  ( ~queue_valid_q | op_ack ),
                 .deq_valid_o  ( queue_valid_d           ),
-                .deq_data_o   ( queue_data_d            )
+                .deq_data_o   ( queue_data_d            ),
+                .flags_any_o  ( queue_flags_any         ),
+                .flags_all_o  (                         )
             );
         end else begin
             assign queue_valid_d = queue_push;
@@ -574,12 +581,13 @@ module vproc_core #(
     );
 
     // keep track of pending loads and stores
-    logic pending_load_lsu, pending_store_lsu;
-    assign pending_load_o  = (dec_buf_valid_q & (dec_data_q.unit   == UNIT_LSU) & ~dec_data_q.mode.lsu.store  ) |
-                             (queue_valid_q   & (queue_data_q.unit == UNIT_LSU) & ~queue_data_q.mode.lsu.store) |
+    assign pending_load_o  = (dec_buf_valid_q & dec_data_q.pend_load      ) |
+                                                queue_flags_any.pend_load   |
+                             (queue_valid_q   & queue_data_q.pend_load    ) |
                              pending_load_lsu;
-    assign pending_store_o = (dec_buf_valid_q & (dec_data_q.unit   == UNIT_LSU) &  dec_data_q.mode.lsu.store  ) |
-                             (queue_valid_q   & (queue_data_q.unit == UNIT_LSU) &  queue_data_q.mode.lsu.store) |
+    assign pending_store_o = (dec_buf_valid_q & dec_data_q.pend_store     ) |
+                                                queue_flags_any.pend_store  |
+                             (queue_valid_q   & queue_data_q.pend_store   ) |
                              pending_store_lsu;
 
 
