@@ -726,8 +726,8 @@ module vproc_elem #(
         if (state_vs1_q.vs1_narrow) begin
             vs1_tmp_d = DONT_CARE_ZERO ? '0 : 'x;
             case (state_vs1_q.eew)
-                VSEW_16: vs1_tmp_d = {{8 {state_vs1_q.mode.sigext & vs1_shift_q[7 ]}}, vs1_shift_q[7 :0]};
-                VSEW_32: vs1_tmp_d = {{16{state_vs1_q.mode.sigext & vs1_shift_q[15]}}, vs1_shift_q[15:0]};
+                VSEW_16: vs1_tmp_d[15:0] = {{8 {state_vs1_q.mode.sigext & vs1_shift_q[7 ]}}, vs1_shift_q[7 :0]};
+                VSEW_32: vs1_tmp_d[31:0] = {{16{state_vs1_q.mode.sigext & vs1_shift_q[15]}}, vs1_shift_q[15:0]};
                 default: ;
             endcase
         end

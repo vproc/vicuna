@@ -417,18 +417,18 @@ module vproc_top #(
     assign vcore_xif.mem_result.dbg   = '0;
 
     // Data arbiter for main core and vector unit
-    logic              sdata_hold;
-    logic              data_req;
-    logic [31:0]       data_addr;
-    logic              data_we;
-    logic [VMEM_W/8:0] data_be;
-    logic [VMEM_W  :0] data_wdata;
-    logic              data_gnt;
-    logic              data_rvalid;
-    logic              data_err;
-    logic [VMEM_W  :0] data_rdata;
-    logic              sdata_waiting, vdata_waiting;
-    logic [31:0]       sdata_wait_addr;
+    logic                sdata_hold;
+    logic                data_req;
+    logic [31:0]         data_addr;
+    logic                data_we;
+    logic [VMEM_W/8-1:0] data_be;
+    logic [VMEM_W  -1:0] data_wdata;
+    logic                data_gnt;
+    logic                data_rvalid;
+    logic                data_err;
+    logic [VMEM_W  -1:0] data_rdata;
+    logic                sdata_waiting, vdata_waiting;
+    logic [31:0]         sdata_wait_addr;
     assign sdata_hold = vdata_req | vect_pending_store | (vect_pending_load & sdata_we);
     always_comb begin
         data_req   = vdata_req | (sdata_req & ~sdata_hold);
@@ -473,7 +473,7 @@ module vproc_top #(
     assign vdata_rvalid = vdata_waiting & data_rvalid;
     assign sdata_err    = data_err;
     assign vdata_err    = data_err;
-    assign sdata_rdata  = data_rdata[(sdata_wait_addr[$clog2(VMEM_W/8)-1:0] & {{$clog2(VMEM_W/32){1'b1}}, 2'b00})*8 +: 32];
+    assign sdata_rdata  = data_rdata[(sdata_wait_addr[$clog2(VMEM_W)-1:0] & {3'b000, {($clog2(VMEM_W/8)-2){1'b1}}, 2'b00})*8 +: 32];
     assign vdata_rdata  = data_rdata;
 
 
@@ -652,7 +652,7 @@ module vproc_top #(
     assign imem_err    = mem_err_i;
     assign dmem_err    = mem_err_i;
     assign imem_rdata  = (ICACHE_SZ != 0) ? mem_rdata_i : mem_rdata_i[
-        (imem_req_addr[0][$clog2(MEM_W/8)-1:0] & {{$clog2(MEM_W/32){1'b1}}, 2'b00})*8 +: 32];
+        (imem_req_addr[0][$clog2(MEM_W)-1:0] & {3'b000, {($clog2(MEM_W/8)-2){1'b1}}, 2'b00})*8 +: 32];
     assign dmem_rdata  = mem_rdata_i;
 
 endmodule
