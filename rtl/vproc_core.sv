@@ -189,7 +189,9 @@ module vproc_core #(
     logic instr_valid, issue_id_used;
     assign instr_valid = xif_issue_if.issue_valid & ~issue_id_used;
 
-    logic instr_illegal;
+    logic   instr_illegal;
+    op_unit instr_unit;
+    op_mode instr_mode;
     vproc_decoder #(
         .DONT_CARE_ZERO ( DONT_CARE_ZERO               ),
         .CFG_VL_W       ( CFG_VL_W                     )
@@ -207,8 +209,8 @@ module vproc_core #(
         .vsew_o         ( dec_data_d.vsew              ),
         .emul_o         ( dec_data_d.emul              ),
         .vl_o           ( dec_data_d.vl                ),
-        .unit_o         ( dec_data_d.unit              ),
-        .mode_o         ( dec_data_d.mode              ),
+        .unit_o         ( instr_unit                   ),
+        .mode_o         ( instr_mode                   ),
         .widenarrow_o   ( dec_data_d.widenarrow        ),
         .rs1_o          ( dec_data_d.rs1               ),
         .rs2_o          ( dec_data_d.rs2               ),
@@ -216,8 +218,10 @@ module vproc_core #(
     );
     assign dec_data_d.id         = xif_issue_if.issue_req.id;
     assign dec_data_d.vl_0       = vl_0_q;
-    assign dec_data_d.pend_load  = (dec_data_d.unit == UNIT_LSU) & ~dec_data_d.mode.lsu.store;
-    assign dec_data_d.pend_store = (dec_data_d.unit == UNIT_LSU) &  dec_data_d.mode.lsu.store;
+    assign dec_data_d.unit       = instr_unit;
+    assign dec_data_d.mode       = instr_mode;
+    assign dec_data_d.pend_load  = (instr_unit == UNIT_LSU) & ~instr_mode.lsu.store;
+    assign dec_data_d.pend_store = (instr_unit == UNIT_LSU) &  instr_mode.lsu.store;
 
     // Note: The decoder is not ready if the decode buffer is not ready, even
     // if an offloaded instruction is illegal.  The decode buffer could hold a
@@ -227,11 +231,11 @@ module vproc_core #(
     assign xif_issue_if.issue_ready          = dec_ready & ~issue_id_used;
 
     assign xif_issue_if.issue_resp.accept    = dec_valid;
-    assign xif_issue_if.issue_resp.writeback = dec_valid & (((dec_data_d.unit == UNIT_ELEM) & dec_data_d.mode.elem.xreg) | (dec_data_d.unit == UNIT_CFG));
+    assign xif_issue_if.issue_resp.writeback = dec_valid & (((instr_unit == UNIT_ELEM) & instr_mode.elem.xreg) | (instr_unit == UNIT_CFG));
     assign xif_issue_if.issue_resp.dualwrite = 1'b0;
     assign xif_issue_if.issue_resp.dualread  = 1'b0;
-    assign xif_issue_if.issue_resp.loadstore = dec_valid & (dec_data_d.unit == UNIT_LSU);
-    assign xif_issue_if.issue_resp.exc       = dec_valid & (dec_data_d.unit == UNIT_LSU);
+    assign xif_issue_if.issue_resp.loadstore = dec_valid & (instr_unit == UNIT_LSU);
+    assign xif_issue_if.issue_resp.exc       = dec_valid & (instr_unit == UNIT_LSU);
 
 
     ///////////////////////////////////////////////////////////////////////////
