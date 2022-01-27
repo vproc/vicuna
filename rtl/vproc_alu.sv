@@ -215,10 +215,11 @@ module vproc_alu #(
     // ALU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    logic                       state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_res_ready,   state_vd_ready;
-    logic     state_init_stall,                                                                                                                    state_vd_stall;
-    logic     state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_res_valid_q, state_vd_valid_q;
-    alu_state state_init,       state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_res_q,       state_vd_q;
+    logic                        state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_res_ready,   state_vd_ready;
+    logic     state_init_stall,                                                                                                                     state_vd_stall;
+    logic     state_init_valid,  state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_res_valid_q, state_vd_valid_q;
+    logic     state_init_masked, state_vreg_masked,  state_vs1_masked;
+    alu_state state_init,        state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_res_q,       state_vd_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
@@ -559,7 +560,6 @@ module vproc_alu #(
         endcase
     end
     // Determine whether there is a pending read of v0 as a mask
-    logic state_init_masked, state_vreg_masked, state_vs1_masked;
     assign state_init_masked = (state_init.mode.masked   | (state_init.mode.op_mask   == ALU_MASK_CARRY) | (state_init.mode.op_mask   == ALU_MASK_SEL));
     assign state_vreg_masked = (state_vreg_q.mode.masked | (state_vreg_q.mode.op_mask == ALU_MASK_CARRY) | (state_vreg_q.mode.op_mask == ALU_MASK_SEL));
     assign state_vs1_masked  = (state_vs1_q.mode.masked  | (state_vs1_q.mode.op_mask  == ALU_MASK_CARRY) | (state_vs1_q.mode.op_mask  == ALU_MASK_SEL));
