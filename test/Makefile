@@ -32,7 +32,7 @@ all: $(TESTS_ALL)
 
 # TODO find ways to check that:
 # - all parameters are initialized
-lint: lint-verible
+lint: lint-verible lint-verilator
 
 # Verible Linting Rules
 # change rule parameters
@@ -53,10 +53,10 @@ lint-verible:
 
 lint-verilator:
 	verilator -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSED -Wno-UNDRIVEN            \
-		-Wno-UNSIGNED -Wno-DECLFILENAME                                       \
-	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_xif.sv vproc_core.sv    \
-	    vproc_hazards.sv vproc_vregpack.sv vproc_vregunpack.sv                \
-	    --top-module vproc_core --clk clk_i --lint-only
+		-Wno-UNSIGNED -Wno-DECLFILENAME -Wno-USERFATAL -Wno-SYNCASYNCNET      \
+	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_top.sv vproc_xif.sv     \
+	    vproc_core.sv vproc_vregpack.sv vproc_vregunpack.sv                   \
+	    --top-module vproc_top --clk clk_i --lint-only
 
 
 .SECONDEXPANSION:
