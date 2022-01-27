@@ -37,8 +37,8 @@ module vproc_result #(
     // LSU result buffer
     logic                result_lsu_valid_q,   result_lsu_valid_d;
     logic [XIF_ID_W-1:0] result_lsu_id_q,      result_lsu_id_d;
-    logic [4:0]          result_lsu_exc_q,     result_lsu_exc_d;
-    logic [31:0]         result_lsu_exccode_q, result_lsu_exccode_d;
+    logic                result_lsu_exc_q,     result_lsu_exc_d;
+    logic [5:0]          result_lsu_exccode_q, result_lsu_exccode_d;
 
     // XREG result buffer
     logic                result_xreg_valid_q, result_xreg_valid_d;
