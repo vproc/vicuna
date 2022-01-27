@@ -368,6 +368,7 @@ module vproc_top #(
         .MUL_OP_W         ( VMUL_W             ),
         .ALU_OP_W         ( VALU_W             ),
         .SLD_OP_W         ( VSLD_W             ),
+        .XIF_ID_W         ( X_ID_WIDTH         ),
         .RAM_TYPE         ( RAM_TYPE           ),
         .MUL_TYPE         ( MUL_TYPE           ),
         .DONT_CARE_ZERO   ( 1'b0               ),

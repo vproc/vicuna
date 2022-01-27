@@ -10,6 +10,7 @@ module vproc_core #(
         parameter int unsigned        MUL_OP_W       = 64,   // MUL unit operand width in bits
         parameter int unsigned        SLD_OP_W       = 64,   // SLD unit operand width in bits
         parameter int unsigned        GATHER_OP_W    = 32,   // ELEM unit GATHER operand width in bits
+        parameter int unsigned        XIF_ID_W       = 3,    // width in bits of instruction IDs
         parameter int unsigned        QUEUE_SZ       = 2,    // instruction queue size
         parameter vproc_pkg::ram_type RAM_TYPE       = vproc_pkg::RAM_GENERIC,
         parameter vproc_pkg::mul_type MUL_TYPE       = vproc_pkg::MUL_GENERIC,
@@ -65,8 +66,7 @@ module vproc_core #(
     // encoding the top 3 bits of VL are only used when LMUL > 1.
     localparam int unsigned CFG_VL_W = $clog2(VREG_W); // width of the vl config register
 
-    // Width and total count of instruction IDs used by the extension interface
-    localparam int unsigned XIF_ID_W   = xif_issue_if.X_ID_WIDTH;
+    // Total count of instruction IDs used by the extension interface
     localparam int unsigned XIF_ID_CNT = 1 << XIF_ID_W;
 
     // define asynchronous and synchronous reset signals
