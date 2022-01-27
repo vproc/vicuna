@@ -581,6 +581,7 @@ module vproc_core #(
     );
 
     // keep track of pending loads and stores
+    logic pending_load_lsu, pending_store_lsu;
     assign pending_load_o  = (dec_buf_valid_q & dec_data_q.pend_load      ) |
                                                 queue_flags_any.pend_load   |
                              (queue_valid_q   & queue_data_q.pend_load    ) |
