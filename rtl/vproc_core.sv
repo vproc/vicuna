@@ -823,7 +823,6 @@ module vproc_core #(
         .xif_mem_if               ( xif_mem_if                    ),
         .xif_memres_if            ( xif_memres_if                 )
     );
-    assign misaligned_ls_o = misaligned_lsu & op_ack_lsu;
 
 
     // ALU
