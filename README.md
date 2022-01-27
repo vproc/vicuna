@@ -1,9 +1,19 @@
 # Vicuna - a RISC-V Zve32x Vector Coprocessor
 
 Vicuna is an open-source 32-bit integer vector coprocessor written in
-SystemVerilog that implements the
-[RISC-V "V" extension](https://github.com/riscv/riscv-v-spec)
-(presently, the v0.10 draft of the soon-to-be-ratified specification).
+SystemVerilog that implements version 1.0 of the
+[RISC-V "V" Vector extension specification
+](https://github.com/riscv/riscv-v-spec).
+More precisely, Vicuna complies with the `Zve32x` extension, a variant of the
+`V` extension aimed at embedded processors that do not require 64-bit elements
+or floating-point support (see Sect. 18.2 of the specification for details).
+As such, Vicuna supports vector element widths of 8, 16, and 32 bits and
+implements all vector load and store, vector integer[^1], vector fixed-point,
+vector integer reduction, vector mask, and vector permutation instructions.
+
+[^1]: Currently, the vector integer divide instructions (i.e., `vdiv`, `vdivu`,
+`vrem`, and `vremu`) are still missing.
+
 The vector core is heavily parametrizable and primarily targets FPGAs,
 although patches for ASIC support are welcome.
 
