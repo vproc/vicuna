@@ -296,7 +296,7 @@ module vproc_core #(
         instr_empty_res_d  = instr_empty_res_q;
         result_vl_valid    = 1'b0;
         result_vl_id       = dec_data_q.id;
-        result_vl_addr     = dec_data_q.rd;
+        result_vl_addr     = dec_data_q.rd.addr;
         result_empty_valid = 1'b0;
         result_empty_id    = xif_commit_if.commit.id;
         dec_clear          = 1'b0;
