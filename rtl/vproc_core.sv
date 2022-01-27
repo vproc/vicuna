@@ -765,15 +765,15 @@ module vproc_core #(
 
 
     // LSU
-    logic              misaligned_lsu;
-    logic [VREG_W-1:0] lsu_wr_data;
-    logic [VMSK_W-1:0] lsu_wr_mask;
-    logic [4:0]        lsu_wr_addr;
-    logic              lsu_wr_en;
-    logic              lsu_trans_complete_valid;
-    logic              lsu_trans_complete_id;
-    logic              lsu_trans_complete_exc;
-    logic [5:0]        lsu_trans_complete_exccode;
+    logic                misaligned_lsu;
+    logic [VREG_W-1:0]   lsu_wr_data;
+    logic [VMSK_W-1:0]   lsu_wr_mask;
+    logic [4:0]          lsu_wr_addr;
+    logic                lsu_wr_en;
+    logic                lsu_trans_complete_valid;
+    logic [XIF_ID_W-1:0] lsu_trans_complete_id;
+    logic                lsu_trans_complete_exc;
+    logic [5:0]          lsu_trans_complete_exccode;
     vproc_lsu #(
         .VREG_W                   ( VREG_W                        ),
         .VMSK_W                   ( VMSK_W                        ),
