@@ -14,21 +14,17 @@ vector integer reduction, vector mask, and vector permutation instructions.
 [^1]: Currently, the vector integer divide instructions (i.e., `vdiv`, `vdivu`,
 `vrem`, and `vremu`) are still missing.
 
+Vicuna is a coprocessor and thus requires a main processor to function.  It
+uses the OpenHW Group's [CORE-V eXtension Interface
+](https://docs.openhwgroup.org/projects/openhw-group-core-v-xif/) as interface
+to the main core.  Currently, a modified version of the [Ibex core
+](https://github.com/lowRISC/ibex) or the [CV32E40X core
+](https://github.com/openhwgroup/cv32e40x) serves as the main core.  Support
+for further RISC-V CPUs is under development.
+
 The vector core is heavily parametrizable and primarily targets FPGAs,
-although patches for ASIC support are welcome.
-
-Vicuna is a coprocessor and thus requires a main processor with a suitable
-interface.  Currently, a modified version of the
-[Ibex core](https://github.com/lowRISC/ibex) or the
-[CV32E40X core](https://github.com/openhwgroup/cv32e40x) serves as the main
-core. Support for further RISC-V CPUs is under development.
-
-Vicuna is an integer vector coprocessor and supports element widths of 8, 16,
-and 32 bits.  Note that Vicuna currently does not have a floating-point unit
-and hence does not support the floating-point vector instructions of the RISC-V
-V extension.
-
-Vicuna is under active development, and contributions are welcome!
+although patches for ASIC support are welcome.  Vicuna is under active
+development, and contributions are welcome!
 
 
 ## Publication
