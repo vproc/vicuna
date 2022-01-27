@@ -1416,6 +1416,32 @@ module vproc_decoder #(
             vd_invalid  = 1'b0;
         end
 
+        if (unit_o == UNIT_ELEM) begin
+            unique case (mode_o.elem.op)
+                ELEM_VREDSUM,
+                ELEM_VREDAND,
+                ELEM_VREDOR,
+                ELEM_VREDXOR,
+                ELEM_VREDMINU,
+                ELEM_VREDMIN,
+                ELEM_VREDMAXU,
+                ELEM_VREDMAX: begin
+                    // reduction instructions read the init value from vs1,
+                    // which is a single vreg rather than a vreg group, and
+                    // also write to a single vreg rather than a vreg group
+                    vs1_invalid = 1'b0;
+                    vd_invalid  = 1'b0;
+                end
+                ELEM_VRGATHER: ;
+                default: begin
+                    // except for vrgather and the reduction instructions,
+                    // all remaining ELEM instructions read a mask from vs2,
+                    // which is a single vreg rather than a vreg group
+                    vs2_invalid = 1'b0;
+                end
+            endcase
+        end
+
         // register addresses are always valid if it is not a vector register:
         if (~rs1_o.vreg) begin
             vs1_invalid = 1'b0;

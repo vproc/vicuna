@@ -12,11 +12,18 @@ main:
     vsetvli         t0, t0, e16
 
     li              t0, 0x4178
-    vmv.v.x         v0, t0
+    vmv.v.x         v3, t0
 
-    vle16.v         v2, (a0)
-    vwredsumu.vs    v0, v2, v0
-    vse16.v         v0, (a0)
+    li              t0, 29
+    vsetvli         t0, t0, e16,m4
+
+    vle16.v         v4, (a0)
+    vwredsumu.vs    v3, v4, v3
+
+    li              t0, 8
+    vsetvli         t0, t0, e16
+
+    vse16.v         v3, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
@@ -66,7 +73,7 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0x417ad669
+    .word           0x4180b031
     .word           0x41784178
     .word           0x41784178
     .word           0x41784178

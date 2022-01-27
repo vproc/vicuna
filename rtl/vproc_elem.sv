@@ -647,6 +647,7 @@ module vproc_elem #(
         // vs2 is either:
         //  - a mask vreg, which is always a single vreg read in the first cycle
         //  - the init vreg for reductions, which is also a single vreg read in the first cycle
+        //    (for reductions vs1 and vs2 are swapped, so actually this is vs1)
         //  - the gather register group
         pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
         if (state_init.mode.op == ELEM_VRGATHER) begin

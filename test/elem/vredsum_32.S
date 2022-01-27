@@ -12,11 +12,18 @@ main:
     vsetvli         t0, t0, e32
 
     li              t0, 0x4178fbc4
-    vmv.v.x         v0, t0
+    vmv.v.x         v3, t0
 
-    vle32.v         v2, (a0)
-    vredsum.vs      v0, v2, v0
-    vse32.v         v0, (a0)
+    li              t0, 29
+    vsetvli         t0, t0, e32,m8
+
+    vle32.v         v8, (a0)
+    vredsum.vs      v3, v8, v3
+
+    li              t0, 4
+    vsetvli         t0, t0, e32
+
+    vse32.v         v3, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
@@ -66,7 +73,7 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0xd366fec8
+    .word           0xf6ab4cea
     .word           0x4178fbc4
     .word           0x4178fbc4
     .word           0x4178fbc4
