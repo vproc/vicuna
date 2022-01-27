@@ -1,6 +1,6 @@
 // Copyright TU Wien
-// Licensed under the ISC license, see LICENSE.txt for details
-// SPDX-License-Identifier: ISC
+// Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 // This interface definition is based on the CORE-V-XIF specification for a CPU
 // extension interface. The current draft of the specification can be found at:

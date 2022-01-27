@@ -1,6 +1,6 @@
 # Copyright TU Wien
-# Licensed under the ISC license, see LICENSE.txt for details
-# SPDX-License-Identifier: ISC
+# Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 ## Clock Signal
 set_property -dict { PACKAGE_PIN R4    IOSTANDARD LVCMOS33 } [get_ports { sys_clk_pi }];

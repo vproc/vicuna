@@ -1,6 +1,6 @@
 # Copyright TU Wien
-# Licensed under the ISC license, see LICENSE.txt for details
-# SPDX-License-Identifier: ISC
+# Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
+# SPDX-License-Identifier: SHL-2.1
 
 
 # Generic Makefile for RV32IMV applications

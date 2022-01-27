@@ -1,6 +1,6 @@
 # Copyright TU Wien
-# Licensed under the ISC license, see LICENSE.txt for details
-# SPDX-License-Identifier: ISC
+# Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
     .section .vectors, "ax", @progbits

@@ -86,9 +86,8 @@ functional units can be configured independently.
 ## License
 
 Unless otherwise noted, everything in this repository is licensed under the
-ISC license, a permissive free software license that is functionally equivalent
-to the MIT and the simplified 2-clause BSD license (with some language deemed
-unnecessary removed).
+[Solderpad Hardware License v2.1](https://solderpad.org/licenses/SHL-2.1/), a
+permissive free software license that is based on the Apache-2.0 license.
 
 The Ibex core (included in this repository as a submodule) is licensed under
 the Apache License, see [the Ibex repository](https://github.com/lowRISC/ibex)
