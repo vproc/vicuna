@@ -816,7 +816,7 @@ module vproc_lsu #(
     end
 
     // LSU result (indicates potential exceptions):
-    assign trans_complete_valid_o   = (xif_memres_if.mem_result_valid | mem_err_d) & deq_state.last_cycle;
+    assign trans_complete_valid_o   = deq_valid & deq_state.last_cycle & (xif_memres_if.mem_result_valid | mem_err_d);
     assign trans_complete_id_o      = deq_state.id;
     assign trans_complete_exc_o     = mem_err_d;
     assign trans_complete_exccode_o = mem_exccode_d;
