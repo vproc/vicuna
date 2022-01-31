@@ -50,11 +50,14 @@ module vproc_decoder #(
     logic instr_illegal;
     logic emul_override;
     cfg_emul emul;
+    logic evl_1, evl_max;
 
     always_comb begin
         instr_illegal = 1'b0;
         emul_override = 1'b0;
         emul          = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
+        evl_1         = 1'b0;
+        evl_max       = 1'b0;
 
         unit_o        = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
         mode_o.unused = DONT_CARE_ZERO ? '0 : 'x;
@@ -86,10 +89,6 @@ module vproc_decoder #(
                 rd_o.vreg = 1'b1; // rd is a v register
                 rd_o.addr = instr_vd;
 
-                if (instr_i[31:29] != 3'b000) begin
-                    instr_illegal = 1'b1; // Zvlsseg is not supported
-                end
-
                 // mop field
                 unique case (instr_i[27:26])
                     2'b00: begin // unit-stride load
@@ -101,9 +100,18 @@ module vproc_decoder #(
                             5'b00000,       // regular unit-stride load
                             5'b10000: begin // fault-only-first load
                             end
-                            5'b01000,       // whole register load
+                            5'b01000: begin // whole register load
+                                emul_override = 1'b1;
+                                evl_max       = 1'b1;
+                                unique case (instr_i[31:29])
+                                    3'b000: emul = EMUL_1;
+                                    3'b001: emul = EMUL_2;
+                                    3'b011: emul = EMUL_4;
+                                    3'b111: emul = EMUL_8;
+                                    default: instr_illegal = 1'b1;
+                                endcase
+                            end
                             5'b01011: begin // mask load
-                                // TODO whole register loads use nf field
                                 emul_override = 1'b1;
                                 emul          = EMUL_1;
                             end
@@ -155,10 +163,6 @@ module vproc_decoder #(
                 rd_o.vreg = 1'b1; // rd (rs3) is a v register
                 rd_o.addr = instr_vd;
 
-                if (instr_i[31:29] != 3'b000) begin
-                    instr_illegal = 1'b1; // Zvlsseg is not supported
-                end
-
                 // mop field
                 unique case (instr_i[27:26])
                     2'b00: begin // unit-stride store
@@ -169,9 +173,18 @@ module vproc_decoder #(
                         unique case (instr_i[24:20])
                             5'b00000: begin // regular unit-stride store
                             end
-                            5'b01000,       // whole register store
+                            5'b01000: begin // whole register store
+                                emul_override = 1'b1;
+                                evl_max       = 1'b1;
+                                unique case (instr_i[31:29])
+                                    3'b000: emul = EMUL_1;
+                                    3'b001: emul = EMUL_2;
+                                    3'b011: emul = EMUL_4;
+                                    3'b111: emul = EMUL_8;
+                                    default: instr_illegal = 1'b1;
+                                endcase
+                            end
                             5'b01011: begin // mask store
-                                // TODO whole register stores use nf field
                                 emul_override = 1'b1;
                                 emul          = EMUL_1;
                             end
@@ -1366,6 +1379,18 @@ module vproc_decoder #(
 
         if (emul_override) begin
             emul_o = emul;
+        end
+        if (evl_1) begin
+            emul_o = EMUL_1;
+            vl_o   = DONT_CARE_ZERO ? '0 : 'x;
+            unique case (vsew_i)
+                VSEW_8:  vl_o = '0;
+                VSEW_16: vl_o = {{(CFG_VL_W-1){1'b0}}, 1'b1 };
+                VSEW_32: vl_o = {{(CFG_VL_W-2){1'b0}}, 2'b11};
+            endcase
+        end
+        if (evl_max) begin
+            vl_o = '1;
         end
     end
 
