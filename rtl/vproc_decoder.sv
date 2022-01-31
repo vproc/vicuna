@@ -833,6 +833,25 @@ module vproc_decoder #(
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.masked   = instr_masked;
                         end
+                        {6'b100111, 3'b011}: begin  // vmv<nr>r VI
+                            unit_o              = UNIT_ALU;
+                            mode_o.alu.opx2.res = ALU_VSEL;
+                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.inv_op1  = 1'b0;
+                            mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.cmp      = 1'b0;
+                            mode_o.alu.masked   = 1'b0;
+                            evl_pol             = EVL_MAX;
+                            emul_override       = 1'b1;
+                            unique case (instr_vs1)
+                                5'b00000: emul = EMUL_1;
+                                5'b00001: emul = EMUL_2;
+                                5'b00011: emul = EMUL_4;
+                                5'b00111: emul = EMUL_8;
+                                default: instr_illegal = 1'b1;
+                            endcase
+                        end
 
 
                         // MUL unit:
