@@ -1225,6 +1225,15 @@ module vproc_decoder #(
                         {6'b010000, 3'b110}: begin  // VRXUNARY0
                             unique case (instr_i[24:20])
                                 5'b00000: begin     // vmv.s.x
+                                    unit_o              = UNIT_ALU;
+                                    mode_o.alu.opx2.res = ALU_VSELN;
+                                    mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                                    mode_o.alu.inv_op1  = 1'b1;
+                                    mode_o.alu.inv_op2  = 1'b0;
+                                    mode_o.alu.op_mask  = ALU_MASK_NONE;
+                                    mode_o.alu.cmp      = 1'b0;
+                                    mode_o.alu.masked   = 1'b0;
+                                    evl_1               = 1'b1;
                                 end
                                 default: begin
                                     instr_illegal = 1'b1;
