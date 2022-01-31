@@ -77,103 +77,42 @@ module vproc_decoder #(
 
         unique case (instr_i[6:0])
 
-            // OPCODE LOAD-FP:
-            7'h07: begin
-                unit_o            = UNIT_LSU;
-                mode_o.lsu.store  = 1'b0;
-                mode_o.lsu.masked = instr_masked;
-
-                rs1_o.vreg    = 1'b0; // rs1 is an x register
-                rs1_o.r.xval  = x_rs1_i;
-
-                rd_o.vreg = 1'b1; // rd is a v register
-                rd_o.addr = instr_vd;
-
-                // mop field
-                unique case (instr_i[27:26])
-                    2'b00: begin // unit-stride load
-                        mode_o.lsu.stride = LSU_UNITSTRIDE;
-                        rs2_o.vreg        = 1'b0;
-
-                        // lumop field
-                        unique case (instr_i[24:20])
-                            5'b00000,       // regular unit-stride load
-                            5'b10000: begin // fault-only-first load
-                            end
-                            5'b01000: begin // whole register load
-                                emul_override = 1'b1;
-                                evl_max       = 1'b1;
-                                unique case (instr_i[31:29])
-                                    3'b000: emul = EMUL_1;
-                                    3'b001: emul = EMUL_2;
-                                    3'b011: emul = EMUL_4;
-                                    3'b111: emul = EMUL_8;
-                                    default: instr_illegal = 1'b1;
-                                endcase
-                            end
-                            5'b01011: begin // mask load
-                                emul_override = 1'b1;
-                                emul          = EMUL_1;
-                            end
-                            default: begin
-                                instr_illegal = 1'b1;
-                            end
-                        endcase
-                    end
-                    2'b10: begin // strided load
-                        mode_o.lsu.stride = LSU_STRIDED;
-                        rs2_o.vreg        = 1'b0;
-                        rs2_o.r.xval      = x_rs2_i;
-                    end
-                    2'b01,
-                    2'b11: begin // indexed load
-                        mode_o.lsu.stride = LSU_INDEXED;
-                        rs2_o.vreg        = 1'b1;
-                        rs2_o.r.vaddr     = instr_vs2;
-                    end
-                    default: ;
-                endcase
-
-                // width field (including mew)
-                unique case ({instr_i[28], instr_i[14:12]})
-                    4'b0000: begin
-                        mode_o.lsu.eew = VSEW_8;
-                    end
-                    4'b0101: begin
-                        mode_o.lsu.eew = VSEW_16;
-                    end
-                    4'b0110: begin
-                        mode_o.lsu.eew = VSEW_32;
-                    end
-                    default: begin
-                        instr_illegal = 1'b1;
-                    end
-                endcase
-            end
-
-            // OPCODE STORE-FP:
+            // OPCODE LOAD-FP/STORE-FP:
+            7'h07,
             7'h27: begin
-                unit_o            = UNIT_LSU;
-                mode_o.lsu.store  = 1'b1;
-                mode_o.lsu.masked = instr_masked;
+                unit_o             = UNIT_LSU;
+                mode_o.lsu.store   = instr_i[6:0] == 7'h27;
+                mode_o.lsu.masked  = instr_masked;
 
-                rs1_o.vreg    = 1'b0; // rs1 is an x register
-                rs1_o.r.xval  = x_rs1_i;
+                rs1_o.vreg   = 1'b0; // rs1 is an x register
+                rs1_o.r.xval = x_rs1_i;
 
-                rd_o.vreg = 1'b1; // rd (rs3) is a v register
+                rd_o.vreg = 1'b1; // vd/vs3 is a vreg
                 rd_o.addr = instr_vd;
+
+                // width field (including mew)
+                unique case ({instr_i[28], instr_i[14:12]})
+                    4'b0000: mode_o.lsu.eew = VSEW_8;
+                    4'b0101: mode_o.lsu.eew = VSEW_16;
+                    4'b0110: mode_o.lsu.eew = VSEW_32;
+                    default: instr_illegal = 1'b1;
+                endcase
 
                 // mop field
                 unique case (instr_i[27:26])
-                    2'b00: begin // unit-stride store
+                    2'b00: begin // unit-strided load/store
                         mode_o.lsu.stride = LSU_UNITSTRIDE;
                         rs2_o.vreg        = 1'b0;
+                        rs2_o.r.xval      = DONT_CARE_ZERO ? '0 : 'x;
 
-                        // sumop field
+                        // lumop/sumop field
                         unique case (instr_i[24:20])
-                            5'b00000: begin // regular unit-stride store
+                            5'b00000: begin // regular unit-stride load/store
                             end
-                            5'b01000: begin // whole register store
+                            5'b10000: begin // fault-only-first load
+                                instr_illegal = instr_i[6:0] == 7'h27; // illegal for stores
+                            end
+                            5'b01000: begin // whole register load/store
                                 emul_override = 1'b1;
                                 evl_max       = 1'b1;
                                 unique case (instr_i[31:29])
@@ -184,7 +123,7 @@ module vproc_decoder #(
                                     default: instr_illegal = 1'b1;
                                 endcase
                             end
-                            5'b01011: begin // mask store
+                            5'b01011: begin // mask load/store
                                 emul_override = 1'b1;
                                 emul          = EMUL_1;
                             end
@@ -193,13 +132,13 @@ module vproc_decoder #(
                             end
                         endcase
                     end
-                    2'b10: begin // strided store
+                    2'b10: begin // strided load/store
                         mode_o.lsu.stride = LSU_STRIDED;
                         rs2_o.vreg        = 1'b0;
                         rs2_o.r.xval      = x_rs2_i;
                     end
                     2'b01,
-                    2'b11: begin // indexed store
+                    2'b11: begin // indexed load/store
                         mode_o.lsu.stride = LSU_INDEXED;
                         rs2_o.vreg        = 1'b1;
                         rs2_o.r.vaddr     = instr_vs2;
@@ -207,21 +146,6 @@ module vproc_decoder #(
                     default: ;
                 endcase
 
-                // width field (including mew)
-                unique case ({instr_i[28], instr_i[14:12]})
-                    4'b0000: begin
-                        mode_o.lsu.eew = VSEW_8;
-                    end
-                    4'b0101: begin
-                        mode_o.lsu.eew = VSEW_16;
-                    end
-                    4'b0110: begin
-                        mode_o.lsu.eew = VSEW_32;
-                    end
-                    default: begin
-                        instr_illegal = 1'b1;
-                    end
-                endcase
             end
 
             // OPCODE VECTOR:
