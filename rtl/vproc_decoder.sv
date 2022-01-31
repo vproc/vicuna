@@ -48,11 +48,13 @@ module vproc_decoder #(
     assign instr_masked = ~instr_i[25];
 
     logic instr_illegal;
-    logic emul_1;
+    logic emul_override;
+    cfg_emul emul;
 
     always_comb begin
         instr_illegal = 1'b0;
-        emul_1        = 1'b0;
+        emul_override = 1'b0;
+        emul          = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
 
         unit_o        = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
         mode_o.unused = DONT_CARE_ZERO ? '0 : 'x;
@@ -102,7 +104,8 @@ module vproc_decoder #(
                             5'b01000,       // whole register load
                             5'b01011: begin // mask load
                                 // TODO whole register loads use nf field
-                                emul_1 = 1'b1;
+                                emul_override = 1'b1;
+                                emul          = EMUL_1;
                             end
                             default: begin
                                 instr_illegal = 1'b1;
@@ -169,7 +172,8 @@ module vproc_decoder #(
                             5'b01000,       // whole register store
                             5'b01011: begin // mask store
                                 // TODO whole register stores use nf field
-                                emul_1 = 1'b1;
+                                emul_override = 1'b1;
+                                emul          = EMUL_1;
                             end
                             default: begin
                                 instr_illegal = 1'b1;
@@ -590,7 +594,8 @@ module vproc_decoder #(
                             widenarrow_o        = OP_WIDENING;
                         end
                         {6'b011000, 3'b010}: begin  // vmandnot VV
-                            emul_1              = 1'b1;
+                            emul_override       = 1'b1;
+                            emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -600,7 +605,8 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011001, 3'b010}: begin  // vmand VV
-                            emul_1              = 1'b1;
+                            emul_override       = 1'b1;
+                            emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b0;
@@ -610,7 +616,8 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011010, 3'b010}: begin  // vmor VV
-                            emul_1              = 1'b1;
+                            emul_override       = 1'b1;
+                            emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b0;
@@ -620,7 +627,8 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011011, 3'b010}: begin  // vmxor VV
-                            emul_1              = 1'b1;
+                            emul_override       = 1'b1;
+                            emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b0;
@@ -630,7 +638,8 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011100, 3'b010}: begin  // vmornot VV
-                            emul_1              = 1'b1;
+                            emul_override       = 1'b1;
+                            emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -640,7 +649,8 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011101, 3'b010}: begin  // vmnand VV
-                            emul_1              = 1'b1;
+                            emul_override       = 1'b1;
+                            emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -650,7 +660,8 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011110, 3'b010}: begin  // vmnor VV
-                            emul_1              = 1'b1;
+                            emul_override       = 1'b1;
+                            emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -660,7 +671,8 @@ module vproc_decoder #(
                             mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011111, 3'b010}: begin  // vmxnor VV
-                            emul_1              = 1'b1;
+                            emul_override       = 1'b1;
+                            emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b1;
@@ -1350,6 +1362,10 @@ module vproc_decoder #(
                 vl_o = {vl_i[CFG_VL_W-2:0], 1'b1};
             end
 
+        end
+
+        if (emul_override) begin
+            emul_o = emul;
         end
     end
 
