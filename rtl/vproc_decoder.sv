@@ -1387,6 +1387,7 @@ module vproc_decoder #(
                 VSEW_8:  vl_o = '0;
                 VSEW_16: vl_o = {{(CFG_VL_W-1){1'b0}}, 1'b1 };
                 VSEW_32: vl_o = {{(CFG_VL_W-2){1'b0}}, 2'b11};
+                default: ;
             endcase
         end
         if (evl_max) begin
