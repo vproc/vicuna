@@ -43,6 +43,14 @@ typedef enum logic [1:0] {
     EMUL_8 = 2'b11
 } cfg_emul;
 
+// Policy for determining the effective vector length of an instruction
+typedef enum logic [1:0] {
+    EVL_DEFAULT, // default EVL (VL for most instr; depends on EEW/SEW ratio for loads and stores)
+    EVL_1,       // set EVL to 1
+    EVL_MASK,    // set EVL to ceil(VL/8) (used for loading/storing vector masks)
+    EVL_MAX      // set EVL to the maximum value for the current config
+} evl_policy;
+
 typedef enum logic [1:0] {
     OP_SINGLEWIDTH,  // neither widening nor narrowing
     OP_WIDENING,     // widening operation with 2*SEW =   SEW op SEW

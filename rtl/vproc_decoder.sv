@@ -42,22 +42,19 @@ module vproc_decoder #(
     assign instr_vs2 = instr_i[24:20]; // & vreg_mul_mask;
     assign instr_vd  = instr_i[11:7];  // & vreg_mul_mask;
 
-    //op_widening_narrowing widenarrow;
-
     logic instr_masked;
     assign instr_masked = ~instr_i[25];
 
-    logic instr_illegal;
-    logic emul_override;
-    cfg_emul emul;
-    logic evl_1, evl_max;
+    logic      instr_illegal;
+    logic      emul_override;
+    cfg_emul   emul;
+    evl_policy evl_pol;
 
     always_comb begin
         instr_illegal = 1'b0;
         emul_override = 1'b0;
         emul          = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
-        evl_1         = 1'b0;
-        evl_max       = 1'b0;
+        evl_pol       = EVL_DEFAULT;
 
         unit_o        = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
         mode_o.unused = DONT_CARE_ZERO ? '0 : 'x;
@@ -114,7 +111,7 @@ module vproc_decoder #(
                             end
                             5'b01000: begin // whole register load/store
                                 emul_override = 1'b1;
-                                evl_max       = 1'b1;
+                                evl_pol       = EVL_MAX;
                                 unique case (instr_i[31:29])
                                     3'b000: emul = EMUL_1;
                                     3'b001: emul = EMUL_2;
@@ -124,8 +121,7 @@ module vproc_decoder #(
                                 endcase
                             end
                             5'b01011: begin // mask load/store
-                                emul_override = 1'b1;
-                                emul          = EMUL_1;
+                                evl_pol = EVL_MASK;
                             end
                             default: begin
                                 instr_illegal = 1'b1;
@@ -1157,7 +1153,7 @@ module vproc_decoder #(
                                     mode_o.alu.op_mask  = ALU_MASK_NONE;
                                     mode_o.alu.cmp      = 1'b0;
                                     mode_o.alu.masked   = 1'b0;
-                                    evl_1               = 1'b1;
+                                    evl_pol             = EVL_1;
                                 end
                                 default: begin
                                     instr_illegal = 1'b1;
@@ -1313,19 +1309,24 @@ module vproc_decoder #(
         if (emul_override) begin
             emul_o = emul;
         end
-        if (evl_1) begin
-            emul_o = EMUL_1;
-            vl_o   = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (vsew_i)
-                VSEW_8:  vl_o = '0;
-                VSEW_16: vl_o = {{(CFG_VL_W-1){1'b0}}, 1'b1 };
-                VSEW_32: vl_o = {{(CFG_VL_W-2){1'b0}}, 2'b11};
-                default: ;
-            endcase
-        end
-        if (evl_max) begin
-            vl_o = '1;
-        end
+        unique case (evl_pol)
+            EVL_1: begin
+                emul_o = EMUL_1;
+                vl_o   = DONT_CARE_ZERO ? '0 : 'x;
+                unique case (vsew_i)
+                    VSEW_8:  vl_o = '0;
+                    VSEW_16: vl_o = {{(CFG_VL_W-1){1'b0}}, 1'b1 };
+                    VSEW_32: vl_o = {{(CFG_VL_W-2){1'b0}}, 2'b11};
+                    default: ;
+                endcase
+            end
+            EVL_MASK: begin
+                emul_o = EMUL_1;
+                vl_o   = {3'b000, vl_i[CFG_VL_W-1:3]}; // ceil(VL/8)
+            end
+            EVL_MAX:  vl_o = '1;
+            default: ;
+        endcase
     end
 
     // address masks (lower bits that must be 0) for registers based on EMUL:
