@@ -639,6 +639,15 @@ module vproc_alu #(
             endcase
         end
     end
+    logic [ALU_OP_W/8-1:0] carry_in_mask;
+    always_comb begin
+        carry_in_mask = '0;
+        for (int i = 0; i < ALU_OP_W / 8; i++) begin
+            if (state_vs2_q.mode.op_mask == ALU_MASK_CARRY) begin
+                carry_in_mask[i] = operand_mask_d[i];
+            end
+        end
+    end
     logic state_vs2_subtract;
     assign state_vs2_subtract = state_vs2_q.mode.inv_op1 | state_vs2_q.mode.inv_op2;
     always_comb begin
@@ -656,15 +665,15 @@ module vproc_alu #(
             operand2_d[36*i+19 +: 8] = state_vs2_q.mode.inv_op2 ? ~operand2[32*i+16 +: 8] : operand2[32*i+16 +: 8];
             operand2_d[36*i+28 +: 8] = state_vs2_q.mode.inv_op2 ? ~operand2[32*i+24 +: 8] : operand2[32*i+24 +: 8];
             // operand 1 carry logic
-            operand1_d[36*i   ] =                                 ((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4  ]) ^ state_vs2_subtract;
-            operand1_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+1]) ^ state_vs2_subtract) : 1'b1;
-            operand1_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+2]) ^ state_vs2_subtract) : 1'b1;
-            operand1_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+3]) ^ state_vs2_subtract) : 1'b1;
+            operand1_d[36*i   ] =                                 carry_in_mask[i*4  ] ^ state_vs2_subtract;
+            operand1_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+1] ^ state_vs2_subtract) : 1'b1;
+            operand1_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (carry_in_mask[i*4+2] ^ state_vs2_subtract) : 1'b1;
+            operand1_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+3] ^ state_vs2_subtract) : 1'b1;
             // operand 2 carry logic
             operand2_d[36*i   ] = 1'b1;
-            operand2_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+1]) ^ state_vs2_subtract) : 1'b0;
-            operand2_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+2]) ^ state_vs2_subtract) : 1'b0;
-            operand2_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (((state_vs2_q.mode.op_mask == ALU_MASK_CARRY) & operand_mask_d[i*4+3]) ^ state_vs2_subtract) : 1'b0;
+            operand2_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+1] ^ state_vs2_subtract) : 1'b0;
+            operand2_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (carry_in_mask[i*4+2] ^ state_vs2_subtract) : 1'b0;
+            operand2_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+3] ^ state_vs2_subtract) : 1'b0;
         end
     end
 
