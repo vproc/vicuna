@@ -915,6 +915,66 @@ module vproc_decoder #(
                             mode_o.alu.sigext   = 1'b1;
                             vxrm_o              = vxrm_i;
                         end
+                        {6'b101010, 3'b000},        // vssrl VV
+                        {6'b101010, 3'b011},        // vssrl VI
+                        {6'b101010, 3'b100}: begin  // vssrl VX
+                            unit_o                = UNIT_ALU;
+                            mode_o.alu.opx2.res   = ALU_VSHIFT;
+                            mode_o.alu.opx1.shift = ALU_SHIFT_VSRL;
+                            mode_o.alu.shift_op   = 1'b0;
+                            mode_o.alu.inv_op1    = 1'b0;
+                            mode_o.alu.inv_op2    = 1'b0;
+                            mode_o.alu.sat_res    = 1'b0;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
+                            mode_o.alu.cmp        = 1'b0;
+                            vxrm_o                = vxrm_i;
+                        end
+                        {6'b101011, 3'b000},        // vssra VV
+                        {6'b101011, 3'b011},        // vssra VI
+                        {6'b101011, 3'b100}: begin  // vssra VX
+                            unit_o                = UNIT_ALU;
+                            mode_o.alu.opx2.res   = ALU_VSHIFT;
+                            mode_o.alu.opx1.shift = ALU_SHIFT_VSRA;
+                            mode_o.alu.shift_op   = 1'b0;
+                            mode_o.alu.inv_op1    = 1'b0;
+                            mode_o.alu.inv_op2    = 1'b0;
+                            mode_o.alu.sat_res    = 1'b0;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
+                            mode_o.alu.cmp        = 1'b0;
+                            vxrm_o                = vxrm_i;
+                        end
+                        {6'b101110, 3'b000},        // vnclipu VV
+                        {6'b101110, 3'b011},        // vnclipu VI
+                        {6'b101110, 3'b100}: begin  // vnclipu VX
+                            unit_o                = UNIT_ALU;
+                            mode_o.alu.opx2.res   = ALU_VSHIFT;
+                            mode_o.alu.opx1.shift = ALU_SHIFT_VSRL;
+                            mode_o.alu.shift_op   = 1'b0;
+                            mode_o.alu.inv_op1    = 1'b0;
+                            mode_o.alu.inv_op2    = 1'b0;
+                            mode_o.alu.sat_res    = 1'b1;
+                            mode_o.alu.sigext     = 1'b0;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
+                            mode_o.alu.cmp        = 1'b0;
+                            vxrm_o                = vxrm_i;
+                            widenarrow_o          = OP_NARROWING;
+                        end
+                        {6'b101111, 3'b000},        // vnclip VV
+                        {6'b101111, 3'b011},        // vnclip VI
+                        {6'b101111, 3'b100}: begin  // vnclip VX
+                            unit_o                = UNIT_ALU;
+                            mode_o.alu.opx2.res   = ALU_VSHIFT;
+                            mode_o.alu.opx1.shift = ALU_SHIFT_VSRA;
+                            mode_o.alu.shift_op   = 1'b0;
+                            mode_o.alu.inv_op1    = 1'b0;
+                            mode_o.alu.inv_op2    = 1'b0;
+                            mode_o.alu.sat_res    = 1'b1;
+                            mode_o.alu.sigext     = 1'b1;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
+                            mode_o.alu.cmp        = 1'b0;
+                            vxrm_o                = vxrm_i;
+                            widenarrow_o          = OP_NARROWING;
+                        end
                         {6'b100111, 3'b011}: begin  // vmv<nr>r VI
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VSEL;
