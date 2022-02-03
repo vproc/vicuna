@@ -221,9 +221,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b000010, 3'b000},        // vsub VV
@@ -233,9 +233,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b000011, 3'b011},        // vrsub VI
@@ -245,9 +245,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b000100, 3'b000},        // vminu VV
@@ -257,9 +257,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_SEL;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b000101, 3'b000},        // vmin VV
@@ -269,9 +269,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_SEL;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b000110, 3'b000},        // vmaxu VV
@@ -281,9 +281,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_SEL;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b000111, 3'b000},        // vmax VV
@@ -293,9 +293,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_SEL;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b001001, 3'b000},        // vand VV
@@ -305,9 +305,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                         end
                         {6'b001010, 3'b000},        // vor VV
                         {6'b001010, 3'b011},        // vor VI
@@ -316,9 +316,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                         end
                         {6'b001011, 3'b000},        // vxor VV
                         {6'b001011, 3'b011},        // vxor VI
@@ -327,9 +327,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                         end
                         {6'b100101, 3'b000},        // vsll VV
                         {6'b100101, 3'b011},        // vsll VI
@@ -339,9 +339,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSLL;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
-                            mode_o.alu.op_mask    = ALU_MASK_NONE;
+                            mode_o.alu.inv_res    = 1'b0;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp        = 1'b0;
-                            mode_o.alu.masked     = instr_masked;
                             vxrm_o                = VXRM_RDN;
                         end
                         {6'b101000, 3'b000},        // vsrl VV
@@ -352,9 +352,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSRL;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
-                            mode_o.alu.op_mask    = ALU_MASK_NONE;
+                            mode_o.alu.inv_res    = 1'b0;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp        = 1'b0;
-                            mode_o.alu.masked     = instr_masked;
                             vxrm_o                = VXRM_RDN;
                         end
                         {6'b101001, 3'b000},        // vsra VV
@@ -365,9 +365,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSRA;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
-                            mode_o.alu.op_mask    = ALU_MASK_NONE;
+                            mode_o.alu.inv_res    = 1'b0;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp        = 1'b0;
-                            mode_o.alu.masked     = instr_masked;
                             vxrm_o                = VXRM_RDN;
                         end
                         {6'b101100, 3'b000},        // vnsrl VV
@@ -378,9 +378,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSRL;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
-                            mode_o.alu.op_mask    = ALU_MASK_NONE;
+                            mode_o.alu.inv_res    = 1'b0;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp        = 1'b0;
-                            mode_o.alu.masked     = instr_masked;
                             vxrm_o                = VXRM_RDN;
                             widenarrow_o          = OP_NARROWING;
                         end
@@ -392,9 +392,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSRA;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
-                            mode_o.alu.op_mask    = ALU_MASK_NONE;
+                            mode_o.alu.inv_res    = 1'b0;
+                            mode_o.alu.op_mask    = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp        = 1'b0;
-                            mode_o.alu.masked     = instr_masked;
                             vxrm_o                = VXRM_RDN;
                             widenarrow_o          = OP_NARROWING;
                         end
@@ -405,9 +405,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b0;
                             vxrm_o              = VXRM_RDN;
                             widenarrow_o        = OP_WIDENING;
@@ -419,9 +419,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b1;
                             vxrm_o              = VXRM_RDN;
                             widenarrow_o        = OP_WIDENING;
@@ -433,9 +433,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b0;
                             vxrm_o              = VXRM_RDN;
                             widenarrow_o        = OP_WIDENING;
@@ -447,9 +447,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b1;
                             vxrm_o              = VXRM_RDN;
                             widenarrow_o        = OP_WIDENING;
@@ -461,9 +461,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b0;
                             vxrm_o              = VXRM_RDN;
                             widenarrow_o        = OP_WIDENING_VS2;
@@ -475,9 +475,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b1;
                             vxrm_o              = VXRM_RDN;
                             widenarrow_o        = OP_WIDENING_VS2;
@@ -489,9 +489,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b0;
                             vxrm_o              = VXRM_RDN;
                             widenarrow_o        = OP_WIDENING_VS2;
@@ -503,9 +503,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b1;
                             vxrm_o              = VXRM_RDN;
                             widenarrow_o        = OP_WIDENING_VS2;
@@ -518,9 +518,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_CARRY;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b010010, 3'b000},        // vsbc VV
@@ -531,9 +531,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_CARRY;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b010010, 3'b010}: begin  // v[z|s]ext.vf2 VV
@@ -542,9 +542,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = instr_vs1[0];
                             rs1_o.vreg          = 1'b0;
                             instr_illegal       = (instr_vs1[4:1] != 4'b0011);
@@ -557,9 +557,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011001, 3'b010}: begin  // vmand VV
                             emul_override       = 1'b1;
@@ -568,9 +568,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011010, 3'b010}: begin  // vmor VV
                             emul_override       = 1'b1;
@@ -579,9 +579,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011011, 3'b010}: begin  // vmxor VV
                             emul_override       = 1'b1;
@@ -590,9 +590,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011100, 3'b010}: begin  // vmornot VV
                             emul_override       = 1'b1;
@@ -601,9 +601,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011101, 3'b010}: begin  // vmnand VV
                             emul_override       = 1'b1;
@@ -612,9 +612,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VOR;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b1;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011110, 3'b010}: begin  // vmnor VV
                             emul_override       = 1'b1;
@@ -623,9 +623,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VAND;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b1;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                         end
                         {6'b011111, 3'b010}: begin  // vmxnor VV
                             emul_override       = 1'b1;
@@ -634,9 +634,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.res = ALU_VXOR;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                         end
                         {6'b010111, 3'b000},        // vmv/vmerge VV
                         {6'b010111, 3'b011},        // vmv/vmerge VI
@@ -646,9 +646,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = instr_masked ? ALU_MASK_SEL : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                             if (~instr_masked) begin
                                 rs2_o.vreg      = 1'b0;
                             end
@@ -660,9 +660,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.cmp = ALU_CMP_EQ;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b011001, 3'b000},        // vmsne VV
@@ -672,9 +672,9 @@ module vproc_decoder #(
                             mode_o.alu.opx2.cmp = ALU_CMP_NE;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b011010, 3'b000},        // vmsltu VV
@@ -684,9 +684,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b011011, 3'b000},        // vmslt VV
@@ -696,9 +696,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b011100, 3'b000},        // vmsleu VV
@@ -709,9 +709,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b011101, 3'b000},        // vmsle VV
@@ -722,9 +722,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b011110, 3'b011},        // vmsgtu VI
@@ -734,9 +734,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b011111, 3'b011},        // vmsgt VI
@@ -746,9 +746,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b010001, 3'b000},        // vmadc VV
@@ -759,9 +759,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = instr_masked ? ALU_MASK_CARRY : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = 1'b0;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b010011, 3'b000},        // vmsbc VV
@@ -772,9 +772,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = instr_masked ? ALU_MASK_CARRY : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b1;
-                            mode_o.alu.masked   = 1'b0;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b100000, 3'b000},        // vsaddu VV
@@ -785,9 +785,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b100001, 3'b000},        // vsadd VV
@@ -798,9 +798,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_OVFLW;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b100010, 3'b000},        // vssubu VV
@@ -810,9 +810,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b100011, 3'b000},        // vssub VV
@@ -822,9 +822,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_OVFLW;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             vxrm_o              = VXRM_RDN;
                         end
                         {6'b001000, 3'b010},        // vaaddu VV
@@ -834,9 +834,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b0;
                             vxrm_o              = vxrm_i;
                         end
@@ -847,9 +847,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_res  = 1'b0;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b1;
                             vxrm_o              = vxrm_i;
                         end
@@ -858,11 +858,12 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAADD;
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
-                            mode_o.alu.inv_op1  = 1'b1;
-                            mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_op1  = 1'b0;
+                            mode_o.alu.inv_op2  = 1'b1;
+                            mode_o.alu.inv_res  = 1'b1;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b0;
                             vxrm_o              = vxrm_i;
                         end
@@ -871,11 +872,12 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAADD;
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
-                            mode_o.alu.inv_op1  = 1'b1;
-                            mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.inv_op1  = 1'b0;
+                            mode_o.alu.inv_op2  = 1'b1;
+                            mode_o.alu.inv_res  = 1'b1;
+                            mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = instr_masked;
                             mode_o.alu.sigext   = 1'b1;
                             vxrm_o              = vxrm_i;
                         end
@@ -885,9 +887,9 @@ module vproc_decoder #(
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
+                            mode_o.alu.inv_res  = 1'b0;
                             mode_o.alu.op_mask  = ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
-                            mode_o.alu.masked   = 1'b0;
                             evl_pol             = EVL_MAX;
                             emul_override       = 1'b1;
                             unique case (instr_vs1)
@@ -1215,9 +1217,9 @@ module vproc_decoder #(
                                     mode_o.alu.opx1.sel = ALU_SEL_MASK;
                                     mode_o.alu.inv_op1  = 1'b1;
                                     mode_o.alu.inv_op2  = 1'b0;
+                                    mode_o.alu.inv_res  = 1'b0;
                                     mode_o.alu.op_mask  = ALU_MASK_NONE;
                                     mode_o.alu.cmp      = 1'b0;
-                                    mode_o.alu.masked   = 1'b0;
                                     evl_pol             = EVL_1;
                                 end
                                 default: begin

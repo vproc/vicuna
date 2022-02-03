@@ -124,13 +124,13 @@ typedef enum logic [2:0] {
 } opcode_alu_cmp;
 
 typedef enum logic [1:0] {
-    ALU_MASK_NONE,  // mask is not involved in operation (could be used as write mask)
+    ALU_MASK_NONE,  // mask vreg is not used
+    ALU_MASK_WRITE, // mask used as write enable (regular masked operation)
     ALU_MASK_CARRY, // mask used as carry
     ALU_MASK_SEL    // mask used as selector
 } opcode_alu_mask;
 
 typedef struct packed {
-    logic         masked;  // the instruction is masked
     logic         cmp;     // compare instruction (result is a mask)
     union packed {
         opcode_alu_sel   sel;
@@ -143,6 +143,7 @@ typedef struct packed {
     opcode_alu_mask op_mask;
     logic           inv_op1; // invert operand 1
     logic           inv_op2; // invert operand 2
+    logic           inv_res;
     logic           sigext;
 } op_mode_alu;
 

@@ -563,9 +563,9 @@ module vproc_alu #(
         endcase
     end
     // Determine whether there is a pending read of v0 as a mask
-    assign state_init_masked = (state_init.mode.masked   | (state_init.mode.op_mask   == ALU_MASK_CARRY) | (state_init.mode.op_mask   == ALU_MASK_SEL));
-    assign state_vreg_masked = (state_vreg_q.mode.masked | (state_vreg_q.mode.op_mask == ALU_MASK_CARRY) | (state_vreg_q.mode.op_mask == ALU_MASK_SEL));
-    assign state_vs1_masked  = (state_vs1_q.mode.masked  | (state_vs1_q.mode.op_mask  == ALU_MASK_CARRY) | (state_vs1_q.mode.op_mask  == ALU_MASK_SEL));
+    assign state_init_masked = state_init.mode.op_mask   != ALU_MASK_NONE;
+    assign state_vreg_masked = state_vreg_q.mode.op_mask != ALU_MASK_NONE;
+    assign state_vs1_masked  = state_vs1_q.mode.op_mask  != ALU_MASK_NONE;
     // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
     // and is always read in state_vs1
     assign vreg_pend_rd_o = ((
@@ -739,22 +739,36 @@ module vproc_alu #(
     // result byte mask:
     logic [VREG_W-1:0] vl_mask;
     assign vl_mask       = state_ex2_q.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_ex2_q.vl));
-    assign result_mask_d = (state_ex2_q.mode.masked ? operand_mask_tmp_q : {(ALU_OP_W/8){1'b1}}) & vl_mask[state_ex2_q.count.val*ALU_OP_W/8 +: ALU_OP_W/8];
+    assign result_mask_d = ((state_ex2_q.mode.op_mask == ALU_MASK_WRITE) ? operand_mask_tmp_q : {(ALU_OP_W/8){1'b1}}) & vl_mask[state_ex2_q.count.val*ALU_OP_W/8 +: ALU_OP_W/8];
 
     // conversion from results to destination registers:
     logic [ALU_OP_W  -1:0] vd_alu;
     logic [ALU_OP_W/8-1:0] vdmsk_alu;
-    vproc_vregpack #(
-        .OP_W            ( ALU_OP_W              ),
-        .DONT_CARE_ZERO  ( DONT_CARE_ZERO        )
-    ) alu_vregpack (
-        .vsew_i          ( state_res_q.eew       ),
-        .result_i        ( result_alu_q          ),
-        .result_narrow_i ( state_res_q.vd_narrow ),
-        .result_mask_i   ( result_mask_q         ),
-        .vd_o            ( vd_alu                ),
-        .vdmsk_o         ( vdmsk_alu             )
-    );
+    always_comb begin
+        vd_alu    = DONT_CARE_ZERO ? '0 : 'x;
+        vdmsk_alu = DONT_CARE_ZERO ? '0 : 'x;
+        if (state_res_q.vd_narrow) begin
+            unique case (state_res_q.eew)
+                VSEW_16: begin
+                    for (int i = 0; i < ALU_OP_W / 16; i++) begin
+                        vd_alu   [i*8  +: 8 ] = state_res_q.mode.inv_res ? ~result_alu_q [i*16 +: 8 ] : result_alu_q [i*16 +: 8 ];
+                        vdmsk_alu[i         ] = result_mask_q[i*2];
+                    end
+                end
+                VSEW_32: begin
+                    for (int i = 0; i < ALU_OP_W / 32; i++) begin
+                        vd_alu   [i*16 +: 16] = state_res_q.mode.inv_res ? ~result_alu_q [i*32 +: 16] : result_alu_q [i*32 +: 16];
+                        vdmsk_alu[i*2       ] = result_mask_q[i*4];
+                        vdmsk_alu[i*2  +  1 ] = result_mask_q[i*4];
+                    end
+                end
+                default: ;
+            endcase
+        end else begin
+            vd_alu    = state_res_q.mode.inv_res ? ~result_alu_q : result_alu_q;
+            vdmsk_alu = result_mask_q;
+        end
+    end
 
     // result shift register assignment:
     store_info vd_info;
@@ -895,7 +909,11 @@ module vproc_alu #(
             ALU_SEL_LT:    cmp_d = ovflw ^ sig_res; // minuend is less than subtrahend
             ALU_SEL_MASK: begin
                 for (int i = 0; i < ALU_OP_W / 8; i++) begin
-                    cmp_d[i] = (state_ex1_q.mode.op_mask == ALU_MASK_SEL) & operand_mask_q[i];
+                    unique case (state_ex1_q.mode.op_mask)
+                        ALU_MASK_NONE: cmp_d[i] = 1'b0;
+                        ALU_MASK_SEL:  cmp_d[i] = operand_mask_q[i];
+                        default: ;
+                    endcase
                 end
             end
             default: ;
