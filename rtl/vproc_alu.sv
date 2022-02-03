@@ -657,15 +657,15 @@ module vproc_alu #(
                 VSEW_16: begin
                     for (int i = 0; i < ALU_OP_W / 16; i++) begin
                         operand1[18*i+1  +: 8] = vs1_tmp_q[8 *i +: 8 ];
-                        operand1[18*i+10 +: 8] = {8 {state_vs2_q.mode.sigext & vs1_tmp_q[8 *i + 7 ]}};
+                        operand1[18*i+10 +: 8] = {8{state_vs2_q.mode.sigext & vs1_tmp_q[8 *i + 7 ]}};
                     end
                 end
                 VSEW_32: begin
                     for (int i = 0; i < ALU_OP_W / 32; i++) begin
                         operand1[36*i+1  +: 8] = vs1_tmp_q[16*i   +: 8];
                         operand1[36*i+10 +: 8] = vs1_tmp_q[16*i+8 +: 8];
-                        operand1[36*i+19 +: 8] = {16{state_vs2_q.mode.sigext & vs1_tmp_q[16*i + 15]}};
-                        operand1[36*i+28 +: 8] = {16{state_vs2_q.mode.sigext & vs1_tmp_q[16*i + 15]}};
+                        operand1[36*i+19 +: 8] = {8{state_vs2_q.mode.sigext & vs1_tmp_q[16*i + 15]}};
+                        operand1[36*i+28 +: 8] = {8{state_vs2_q.mode.sigext & vs1_tmp_q[16*i + 15]}};
                     end
                 end
                 default: ;
@@ -683,15 +683,15 @@ module vproc_alu #(
                 VSEW_16: begin
                     for (int i = 0; i < ALU_OP_W / 16; i++) begin
                         operand2[18*i+1  +: 8] = vs2_shift_q[8 *i +: 8 ];
-                        operand2[18*i+10 +: 8] = {8 {state_vs2_q.mode.sigext & vs2_shift_q[8 *i + 7 ]}};
+                        operand2[18*i+10 +: 8] = {8{state_vs2_q.mode.sigext & vs2_shift_q[8 *i + 7 ]}};
                     end
                 end
                 VSEW_32: begin
                     for (int i = 0; i < ALU_OP_W / 32; i++) begin
                         operand2[36*i+1  +: 8] = vs2_shift_q[16*i   +: 8];
                         operand2[36*i+10 +: 8] = vs2_shift_q[16*i+8 +: 8];
-                        operand2[36*i+19 +: 8] = {16{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}};
-                        operand2[36*i+28 +: 8] = {16{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}};
+                        operand2[36*i+19 +: 8] = {8{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}};
+                        operand2[36*i+28 +: 8] = {8{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}};
                     end
                 end
                 default: ;
