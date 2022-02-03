@@ -65,10 +65,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0x191e2024
-    .word           0x2422261d
-    .word           0x18181719
-    .word           0x74202529
+    .word           0x1a1e2024
+    .word           0x2422261e
+    .word           0x1918181a
+    .word           0x75212629
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049

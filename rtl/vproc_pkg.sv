@@ -88,7 +88,7 @@ typedef struct packed {
     lsu_stride  stride;
     cfg_vsew    eew;
 `ifdef VPROC_OP_MODE_UNION
-    logic [5:0] unused;
+    logic [6:0] unused;
 `endif
 } op_mode_lsu;
 
@@ -107,7 +107,7 @@ typedef enum logic [1:0] {
 
 typedef enum logic [2:0] {
     ALU_VADD,
-    ALU_VAADD,
+    ALU_VSADD,
     ALU_VAND,
     ALU_VOR,
     ALU_VXOR,
@@ -131,7 +131,7 @@ typedef enum logic [1:0] {
 } opcode_alu_mask;
 
 typedef struct packed {
-    logic         cmp;     // compare instruction (result is a mask)
+    logic           cmp;        // compare instruction (result is a mask)
     union packed {
         opcode_alu_sel   sel;
         opcode_alu_shift shift;
@@ -141,8 +141,9 @@ typedef struct packed {
         opcode_alu_cmp cmp;
     } opx2;
     opcode_alu_mask op_mask;
-    logic           inv_op1; // invert operand 1
-    logic           inv_op2; // invert operand 2
+    logic           shift_op;   // shift operands right by 1 bit (also sets carry in for rounding)
+    logic           inv_op1;    // invert operand 1
+    logic           inv_op2;    // invert operand 2
     logic           inv_res;
     logic           sigext;
 } op_mode_alu;
@@ -162,7 +163,7 @@ typedef struct packed {
     logic       op2_signed;
     logic       op2_is_vd;
 `ifdef VPROC_OP_MODE_UNION
-    logic [4:0] unused;
+    logic [5:0] unused;
 `endif
 } op_mode_mul;
 
@@ -177,7 +178,7 @@ typedef struct packed {
     logic       masked;
     opcode_sld  op;
 `ifdef VPROC_OP_MODE_UNION
-    logic [8:0] unused;
+    logic [9:0] unused;
 `endif
 } op_mode_sld;
 
@@ -206,7 +207,7 @@ typedef struct packed {
     logic       sigext;
     logic       xreg;
 `ifdef VPROC_OP_MODE_UNION
-    logic [4:0] unused;
+    logic [5:0] unused;
 `endif
 } op_mode_elem;
 
@@ -217,13 +218,13 @@ typedef struct packed {
     logic       vlmax;
     logic       keep_vl;
 `ifdef VPROC_OP_MODE_UNION
-    logic [2:0] unused;
+    logic [3:0] unused;
 `endif
 } op_mode_cfg;
 
 `ifdef VPROC_OP_MODE_UNION
 typedef union packed {
-    logic [11:0]  unused;
+    logic [12:0]  unused;
 `else
 typedef struct packed {
 `endif

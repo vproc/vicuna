@@ -649,7 +649,23 @@ module vproc_alu #(
     always_comb begin
         operand1 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 8; i++) begin
+            if (~state_vs2_q.mode.shift_op) begin
                 operand1[9*i+1 +: 8] = operand1_src[8*i +: 8];
+            end else begin
+                operand1[9*i   +: 8] = operand1_src[8*i +: 8];
+                unique case (state_vs2_q.eew)
+                    VSEW_8: begin
+                        operand1[9*i+8] =                  state_vs2_q.mode.sigext & operand1_src[8*i+7];
+                    end
+                    VSEW_16: begin
+                        operand1[9*i+8] = ((i & 1) == 1) ? state_vs2_q.mode.sigext & operand1_src[8*i+7] : operand1_src[8*i+8];
+                    end
+                    VSEW_32: begin
+                        operand1[9*i+8] = ((i & 3) == 3) ? state_vs2_q.mode.sigext & operand1_src[8*i+7] : operand1_src[8*i+8];
+                    end
+                    default: ;
+                endcase
+            end
         end
         if (state_vs2_q.rs1.vreg & state_vs2_q.vs1_narrow) begin
             operand1 = DONT_CARE_ZERO ? '0 : 'x;
@@ -675,7 +691,23 @@ module vproc_alu #(
     always_comb begin
         operand2 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 8; i++) begin
+            if (~state_vs2_q.mode.shift_op) begin
                 operand2[9*i+1 +: 8] = vs2_shift_q[8*i +: 8];
+            end else begin
+                operand2[9*i   +: 8] = vs2_shift_q[8*i +: 8];
+                unique case (state_vs2_q.eew)
+                    VSEW_8: begin
+                        operand2[9*i+8] =                  state_vs2_q.mode.sigext & vs2_shift_q[8*i+7];
+                    end
+                    VSEW_16: begin
+                        operand2[9*i+8] = ((i & 1) == 1) ? state_vs2_q.mode.sigext & vs2_shift_q[8*i+7] : vs2_shift_q[8*i+8];
+                    end
+                    VSEW_32: begin
+                        operand2[9*i+8] = ((i & 3) == 3) ? state_vs2_q.mode.sigext & vs2_shift_q[8*i+7] : vs2_shift_q[8*i+8];
+                    end
+                    default: ;
+                endcase
+            end
         end
         if (state_vs2_q.vs2_narrow) begin
             operand2 = DONT_CARE_ZERO ? '0 : 'x;
@@ -704,6 +736,24 @@ module vproc_alu #(
         for (int i = 0; i < ALU_OP_W / 8; i++) begin
             if (state_vs2_q.mode.op_mask == ALU_MASK_CARRY) begin
                 carry_in_mask[i] = operand_mask_d[i];
+            end
+            if (state_vs2_q.mode.shift_op) begin
+                // Select carry in for averaging add/subtract rounding; the averaging add/subtract
+                // instructions shift the result of the add/subtract right by one bit.  The result
+                // is rounded based on its least significant bit as well as the bit that is shifted
+                // out, depending on the rounding mode.  The carry in has the effect of rounding up
+                // the result if the bit that is shifted out was set.
+                unique case (state_vs2_q.vxrm)
+                    // round-to-nearest-up: always carry in
+                    VXRM_RNU: carry_in_mask[i] =  operand1[9*i] | operand2[9*i];
+                    // round-to-nearest-even: carry in if the shifted result (w/o carry) would be odd
+                    VXRM_RNE: carry_in_mask[i] = (operand1[9*i] | operand2[9*i]) & (operand1[9*i+1] != operand2[9*i+1]);
+                    // round-down: no carry in
+                    VXRM_RDN: carry_in_mask[i] =  operand1[9*i] & operand2[9*i];
+                    // round-to-odd: carry in if the shifted result (w/o carry) would be even
+                    VXRM_ROD: carry_in_mask[i] = (operand1[9*i] | operand2[9*i]) & (operand1[9*i+1] == operand2[9*i+1]);
+                    default: ;
+                endcase
             end
         end
     end
@@ -1012,21 +1062,17 @@ module vproc_alu #(
     always_comb begin
         result_alu_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex2_q.mode.opx2.res)
-            // add and saturating add: the result is replaced by the saturation
-            // value if the corresponding bit in the compare register is set;
-            // for non-saturating addition (and subtraction) the compare
-            // register has to be 0
             ALU_VADD: begin
                 for (int i = 0; i < ALU_OP_W / 8; i++) begin
-                    result_alu_d[8*i +: 8] = cmp_q[i] ? {satval_q[2*i+1], {7{satval_q[2*i]}}} : sum_q[9*i +: 8];
+                    result_alu_d[8*i +: 8] = sum_q[9*i +: 8];
                 end
             end
 
-            // averaging add: the result is right-shifted by one bit (the carry
-            // in of the addition can be used to control rounding behavior)
-            ALU_VAADD: begin
+            // saturating add: the result is replaced by the saturation value
+            // if the corresponding bit in the compare register is set
+            ALU_VSADD: begin
                 for (int i = 0; i < ALU_OP_W / 8; i++) begin
-                    result_alu_d[8*i +: 8] = sum_q[9*i+1 +: 8];
+                    result_alu_d[8*i +: 8] = cmp_q[i] ? {satval_q[2*i+1], {7{satval_q[2*i]}}} : sum_q[9*i +: 8];
                 end
             end
 

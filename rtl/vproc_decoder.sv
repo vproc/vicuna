@@ -218,7 +218,7 @@ module vproc_decoder #(
                         {6'b000000, 3'b100}: begin  // vadd VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -230,7 +230,7 @@ module vproc_decoder #(
                         {6'b000010, 3'b100}: begin  // vsub VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -242,7 +242,7 @@ module vproc_decoder #(
                         {6'b000011, 3'b100}: begin  // vrsub VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b0;
@@ -255,6 +255,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VSELN;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -267,6 +268,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VSELN;
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -279,6 +281,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VSEL;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -291,6 +294,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VSEL;
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -303,6 +307,7 @@ module vproc_decoder #(
                         {6'b001001, 3'b100}: begin  // vand VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -314,6 +319,7 @@ module vproc_decoder #(
                         {6'b001010, 3'b100}: begin  // vor VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -325,6 +331,7 @@ module vproc_decoder #(
                         {6'b001011, 3'b100}: begin  // vxor VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -337,6 +344,7 @@ module vproc_decoder #(
                             unit_o                = UNIT_ALU;
                             mode_o.alu.opx2.res   = ALU_VSHIFT;
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSLL;
+                            mode_o.alu.shift_op   = 1'b0;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
                             mode_o.alu.inv_res    = 1'b0;
@@ -350,6 +358,7 @@ module vproc_decoder #(
                             unit_o                = UNIT_ALU;
                             mode_o.alu.opx2.res   = ALU_VSHIFT;
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSRL;
+                            mode_o.alu.shift_op   = 1'b0;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
                             mode_o.alu.inv_res    = 1'b0;
@@ -363,6 +372,7 @@ module vproc_decoder #(
                             unit_o                = UNIT_ALU;
                             mode_o.alu.opx2.res   = ALU_VSHIFT;
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSRA;
+                            mode_o.alu.shift_op   = 1'b0;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
                             mode_o.alu.inv_res    = 1'b0;
@@ -376,6 +386,7 @@ module vproc_decoder #(
                             unit_o                = UNIT_ALU;
                             mode_o.alu.opx2.res   = ALU_VSHIFT;
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSRL;
+                            mode_o.alu.shift_op   = 1'b0;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
                             mode_o.alu.inv_res    = 1'b0;
@@ -390,6 +401,7 @@ module vproc_decoder #(
                             unit_o                = UNIT_ALU;
                             mode_o.alu.opx2.res   = ALU_VSHIFT;
                             mode_o.alu.opx1.shift = ALU_SHIFT_VSRA;
+                            mode_o.alu.shift_op   = 1'b0;
                             mode_o.alu.inv_op1    = 1'b0;
                             mode_o.alu.inv_op2    = 1'b0;
                             mode_o.alu.inv_res    = 1'b0;
@@ -402,7 +414,7 @@ module vproc_decoder #(
                         {6'b110000, 3'b110}: begin  // vwaddu VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -416,7 +428,7 @@ module vproc_decoder #(
                         {6'b110001, 3'b110}: begin  // vwadd VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -430,7 +442,7 @@ module vproc_decoder #(
                         {6'b110010, 3'b110}: begin  // vwsubu VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -444,7 +456,7 @@ module vproc_decoder #(
                         {6'b110011, 3'b110}: begin  // vwsub VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -458,7 +470,7 @@ module vproc_decoder #(
                         {6'b110100, 3'b110}: begin  // vwaddu.w VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -472,7 +484,7 @@ module vproc_decoder #(
                         {6'b110101, 3'b110}: begin  // vwadd.w VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -486,7 +498,7 @@ module vproc_decoder #(
                         {6'b110110, 3'b110}: begin  // vwsubu.w VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -500,7 +512,7 @@ module vproc_decoder #(
                         {6'b110111, 3'b110}: begin  // vwsub.w VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -515,7 +527,7 @@ module vproc_decoder #(
                         {6'b010000, 3'b100}: begin  // vadc VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -528,7 +540,7 @@ module vproc_decoder #(
                         {6'b010010, 3'b100}: begin  // vsbc VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -540,6 +552,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VSEL;
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -555,6 +568,7 @@ module vproc_decoder #(
                             emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -566,6 +580,7 @@ module vproc_decoder #(
                             emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -577,6 +592,7 @@ module vproc_decoder #(
                             emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -588,6 +604,7 @@ module vproc_decoder #(
                             emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -599,6 +616,7 @@ module vproc_decoder #(
                             emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -610,6 +628,7 @@ module vproc_decoder #(
                             emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VOR;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b0;
@@ -621,6 +640,7 @@ module vproc_decoder #(
                             emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VAND;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b0;
@@ -632,6 +652,7 @@ module vproc_decoder #(
                             emul                = EMUL_1;
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VXOR;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -644,6 +665,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = instr_masked ? ALU_VSEL : ALU_VSELN;
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -658,6 +680,7 @@ module vproc_decoder #(
                         {6'b011000, 3'b100}: begin  // vmseq VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_EQ;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -670,6 +693,7 @@ module vproc_decoder #(
                         {6'b011001, 3'b100}: begin  // vmsne VX
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_NE;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -682,6 +706,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_CMP;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -694,6 +719,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_CMP;
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -707,6 +733,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_CMPN;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b0;
@@ -720,6 +747,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_CMPN;
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b0;
@@ -732,6 +760,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_CMP;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b0;
@@ -744,6 +773,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_CMP;
                             mode_o.alu.opx1.sel = ALU_SEL_LT;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b0;
@@ -757,6 +787,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_CMP;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -770,6 +801,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.cmp = ALU_CMP_CMP;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -781,8 +813,9 @@ module vproc_decoder #(
                         {6'b100000, 3'b011},        // vsaddu VI
                         {6'b100000, 3'b100}: begin  // vsaddu VX
                             unit_o              = UNIT_ALU;
-                            mode_o.alu.opx2.res = ALU_VADD;
+                            mode_o.alu.opx2.res = ALU_VSADD;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -794,8 +827,9 @@ module vproc_decoder #(
                         {6'b100001, 3'b011},        // vsadd VI
                         {6'b100001, 3'b100}: begin  // vsadd VX
                             unit_o              = UNIT_ALU;
-                            mode_o.alu.opx2.res = ALU_VADD;
+                            mode_o.alu.opx2.res = ALU_VSADD;
                             mode_o.alu.opx1.sel = ALU_SEL_OVFLW;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -806,8 +840,9 @@ module vproc_decoder #(
                         {6'b100010, 3'b000},        // vssubu VV
                         {6'b100010, 3'b100}: begin  // vssubu VX
                             unit_o              = UNIT_ALU;
-                            mode_o.alu.opx2.res = ALU_VADD;
+                            mode_o.alu.opx2.res = ALU_VSADD;
                             mode_o.alu.opx1.sel = ALU_SEL_CARRY;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -818,8 +853,9 @@ module vproc_decoder #(
                         {6'b100011, 3'b000},        // vssub VV
                         {6'b100011, 3'b100}: begin  // vssub VX
                             unit_o              = UNIT_ALU;
-                            mode_o.alu.opx2.res = ALU_VADD;
+                            mode_o.alu.opx2.res = ALU_VSADD;
                             mode_o.alu.opx1.sel = ALU_SEL_OVFLW;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b1;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -830,8 +866,8 @@ module vproc_decoder #(
                         {6'b001000, 3'b010},        // vaaddu VV
                         {6'b001000, 3'b110}: begin  // vaaddu VX
                             unit_o              = UNIT_ALU;
-                            mode_o.alu.opx2.res = ALU_VAADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.opx2.res = ALU_VADD;
+                            mode_o.alu.shift_op = 1'b1;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -843,8 +879,8 @@ module vproc_decoder #(
                         {6'b001001, 3'b010},        // vaadd VV
                         {6'b001001, 3'b110}: begin  // vaadd VX
                             unit_o              = UNIT_ALU;
-                            mode_o.alu.opx2.res = ALU_VAADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.opx2.res = ALU_VADD;
+                            mode_o.alu.shift_op = 1'b1;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -856,9 +892,8 @@ module vproc_decoder #(
                         {6'b001010, 3'b010},        // vasubu VV
                         {6'b001010, 3'b110}: begin  // vasubu VX
                             unit_o              = UNIT_ALU;
-                            mode_o.alu.opx2.res = ALU_VAADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.opx2.res = ALU_VADD;
+                            mode_o.alu.shift_op = 1'b1;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b1;
@@ -870,9 +905,8 @@ module vproc_decoder #(
                         {6'b001011, 3'b010},        // vasub VV
                         {6'b001011, 3'b110}: begin  // vasub VX
                             unit_o              = UNIT_ALU;
-                            mode_o.alu.opx2.res = ALU_VAADD;
-                            mode_o.alu.opx1.sel = ALU_SEL_MASK;
-                            mode_o.alu.op_mask  = ALU_MASK_NONE;
+                            mode_o.alu.opx2.res = ALU_VADD;
+                            mode_o.alu.shift_op = 1'b1;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b1;
                             mode_o.alu.inv_res  = 1'b1;
@@ -885,6 +919,7 @@ module vproc_decoder #(
                             unit_o              = UNIT_ALU;
                             mode_o.alu.opx2.res = ALU_VSEL;
                             mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                            mode_o.alu.shift_op = 1'b0;
                             mode_o.alu.inv_op1  = 1'b0;
                             mode_o.alu.inv_op2  = 1'b0;
                             mode_o.alu.inv_res  = 1'b0;
@@ -1215,6 +1250,7 @@ module vproc_decoder #(
                                     unit_o              = UNIT_ALU;
                                     mode_o.alu.opx2.res = ALU_VSELN;
                                     mode_o.alu.opx1.sel = ALU_SEL_MASK;
+                                    mode_o.alu.shift_op = 1'b0;
                                     mode_o.alu.inv_op1  = 1'b1;
                                     mode_o.alu.inv_op2  = 1'b0;
                                     mode_o.alu.inv_res  = 1'b0;

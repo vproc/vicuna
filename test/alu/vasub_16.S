@@ -66,9 +66,9 @@ vdata_end:
     .global vref_end
 vref_start:
     .word           0x191d1fa3
-    .word           0x23a1259c
-    .word           0x18171718
-    .word           0x741f2528
+    .word           0x23a1259d
+    .word           0x18171719
+    .word           0xf4202528
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
