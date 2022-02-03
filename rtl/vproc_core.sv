@@ -151,6 +151,7 @@ module vproc_core #(
         logic [XIF_ID_W-1:0] id;
         cfg_vsew             vsew;
         cfg_emul             emul;
+        cfg_vxrm             vxrm;
         logic                vl_0;
         logic [CFG_VL_W-1:0] vl;
         op_unit              unit;
@@ -208,6 +209,7 @@ module vproc_core #(
         .valid_o        ( dec_valid                    ),
         .vsew_o         ( dec_data_d.vsew              ),
         .emul_o         ( dec_data_d.emul              ),
+        .vxrm_o         ( dec_data_d.vxrm              ),
         .vl_o           ( dec_data_d.vl                ),
         .unit_o         ( instr_unit                   ),
         .mode_o         ( instr_mode                   ),
@@ -850,6 +852,7 @@ module vproc_core #(
         .id_i               ( queue_data_q.id               ),
         .vsew_i             ( queue_data_q.vsew             ),
         .emul_i             ( queue_data_q.emul             ),
+        .vxrm_i             ( queue_data_q.vxrm             ),
         .vl_i               ( queue_data_q.vl               ),
         .vl_0_i             ( queue_data_q.vl_0             ),
         .op_rdy_i           ( op_rdy_alu                    ),
@@ -899,6 +902,7 @@ module vproc_core #(
         .id_i               ( queue_data_q.id                        ),
         .vsew_i             ( queue_data_q.vsew                      ),
         .emul_i             ( queue_data_q.emul                      ),
+        .vxrm_i             ( queue_data_q.vxrm                      ),
         .vl_i               ( queue_data_q.vl                        ),
         .vl_0_i             ( queue_data_q.vl_0                      ),
         .op_rdy_i           ( op_rdy_mul                             ),

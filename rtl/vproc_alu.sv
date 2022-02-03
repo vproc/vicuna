@@ -26,6 +26,7 @@ module vproc_alu #(
         input  logic [XIF_ID_W-1:0]     id_i,
         input  vproc_pkg::cfg_vsew      vsew_i,
         input  vproc_pkg::cfg_emul      emul_i,
+        input  vproc_pkg::cfg_vxrm      vxrm_i,
         input  logic [CFG_VL_W-1:0]     vl_i,
         input  logic                    vl_0_i,
 
@@ -102,6 +103,7 @@ module vproc_alu #(
         op_mode_alu          mode;
         cfg_vsew             eew;        // effective element width
         cfg_emul             emul;       // effective MUL factor
+        cfg_vxrm             vxrm;
         logic [CFG_VL_W-1:0] vl;
         logic                vl_0;
         op_regs              rs1;
@@ -164,6 +166,7 @@ module vproc_alu #(
             state_d.mode        = mode_i;
             state_d.emul        = emul_i;
             state_d.eew         = vsew_i;
+            state_d.vxrm        = vxrm_i;
             state_d.vl          = vl_i;
             state_d.vl_0        = vl_0_i;
             state_d.rs1         = rs1_i;

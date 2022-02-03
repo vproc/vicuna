@@ -157,12 +157,11 @@ typedef struct packed {
     logic       masked;
     opcode_mul  op;
     logic       accsub;     // subtract from accumulator instead of adding
-    cfg_vxrm    rounding;   // rounding mode
     logic       op1_signed;
     logic       op2_signed;
     logic       op2_is_vd;
 `ifdef VPROC_OP_MODE_UNION
-    logic [2:0] unused;
+    logic [4:0] unused;
 `endif
 } op_mode_mul;
 

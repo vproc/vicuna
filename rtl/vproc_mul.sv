@@ -28,6 +28,7 @@ module vproc_mul #(
         input  logic [XIF_ID_W-1:0]   id_i,
         input  vproc_pkg::cfg_vsew    vsew_i,
         input  vproc_pkg::cfg_emul    emul_i,
+        input  vproc_pkg::cfg_vxrm    vxrm_i,
         input  logic [CFG_VL_W-1:0]   vl_i,
         input  logic                  vl_0_i,
 
@@ -106,6 +107,7 @@ module vproc_mul #(
         op_mode_mul          mode;
         cfg_vsew             eew;        // effective element width
         cfg_emul             emul;       // effective MUL factor
+        cfg_vxrm             vxrm;
         logic [CFG_VL_W-1:0] vl;
         logic                vl_0;
         op_regs              rs1;
@@ -166,23 +168,24 @@ module vproc_mul #(
             state_d.first_cycle = 1'b1;
             state_d.id          = id_i;
             state_d.mode        = mode_i;
-            state_d.emul       = emul_i;
-            state_d.eew        = vsew_i;
-            state_d.vl         = vl_i;
-            state_d.vl_0       = vl_0_i;
-            state_d.rs1        = rs1_i;
-            state_d.vs1_narrow = widening_i;
-            state_d.vs1_fetch  = rs1_i.vreg;
-            state_d.vs1_shift  = 1'b1;
-            state_d.rs2        = rs2_i;
-            state_d.vs2_narrow = widening_i;
-            state_d.vs2_fetch  = 1'b1;
-            state_d.vs2_shift  = 1'b1;
+            state_d.emul        = emul_i;
+            state_d.eew         = vsew_i;
+            state_d.vxrm        = vxrm_i;
+            state_d.vl          = vl_i;
+            state_d.vl_0        = vl_0_i;
+            state_d.rs1         = rs1_i;
+            state_d.vs1_narrow  = widening_i;
+            state_d.vs1_fetch   = rs1_i.vreg;
+            state_d.vs1_shift   = 1'b1;
+            state_d.rs2         = rs2_i;
+            state_d.vs2_narrow  = widening_i;
+            state_d.vs2_fetch   = 1'b1;
+            state_d.vs2_shift   = 1'b1;
             state_d.v0msk_shift = 1'b1;
-            state_d.vs3_fetch  = mode_i.op == MUL_VMACC;
-            state_d.vd         = vd_i;
-            state_d.vd_store   = 1'b0;
-            vreg_pend_wr_d     = vreg_pend_wr_i;
+            state_d.vs3_fetch   = mode_i.op == MUL_VMACC;
+            state_d.vd          = vd_i;
+            state_d.vd_store    = 1'b0;
+            vreg_pend_wr_d      = vreg_pend_wr_i;
         end
         else if (state_valid_q & pipeline_ready) begin
             state_d.count.val   = state_q.count.val + 1;
@@ -796,7 +799,6 @@ module vproc_mul #(
         endcase
     end
     assign mul_accsub = state_ex2_q.mode.accsub;
-    assign mul_round  = (state_ex2_q.mode.rounding == VXRM_RNU) | (state_ex2_q.mode.rounding == VXRM_RNE);
 
     // perform signed multiplication of 17-bit integers and add 16-bit accumulator values
     logic [(MUL_OP_W/8)*33-1:0] mul_res;
