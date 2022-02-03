@@ -144,7 +144,7 @@ typedef struct packed {
     logic           shift_op;   // shift operands right by 1 bit (also sets carry in for rounding)
     logic           inv_op1;    // invert operand 1
     logic           inv_op2;    // invert operand 2
-    logic           inv_res;
+    logic           sat_res;    // saturate result for narrowing operations
     logic           sigext;
 } op_mode_alu;
 

@@ -809,22 +809,39 @@ module vproc_alu #(
             unique case (state_res_q.eew)
                 VSEW_16: begin
                     for (int i = 0; i < ALU_OP_W / 16; i++) begin
-                        vd_alu   [i*8  +: 8 ] = state_res_q.mode.inv_res ? ~result_alu_q [i*16 +: 8 ] : result_alu_q [i*16 +: 8 ];
-                        vdmsk_alu[i         ] = result_mask_q[i*2];
+                        vd_alu    [i*8  +: 8 ] = result_alu_q [i*16 +: 8 ];
+                        vdmsk_alu [i         ] = result_mask_q[i*2];
+                        if (state_res_q.mode.sat_res & (result_alu_q[i*16+8  +: 8 ] != {8 {state_res_q.mode.sigext & result_alu_q[i*16+7 ]}})) begin
+                            vd_alu[i*8  +: 8 ] = state_res_q.mode.sigext ? {result_alu_q[i*16+15], {7 {~result_alu_q[i*16+15]}}} : '1;
+                        end
                     end
                 end
                 VSEW_32: begin
                     for (int i = 0; i < ALU_OP_W / 32; i++) begin
-                        vd_alu   [i*16 +: 16] = state_res_q.mode.inv_res ? ~result_alu_q [i*32 +: 16] : result_alu_q [i*32 +: 16];
-                        vdmsk_alu[i*2       ] = result_mask_q[i*4];
-                        vdmsk_alu[i*2  +  1 ] = result_mask_q[i*4];
+                        vd_alu    [i*16 +: 16] = result_alu_q [i*32 +: 16];
+                        vdmsk_alu [i*2       ] = result_mask_q[i*4];
+                        vdmsk_alu [i*2  +  1 ] = result_mask_q[i*4];
+                        if (state_res_q.mode.sat_res & (result_alu_q[i*32+16 +: 16] != {16{state_res_q.mode.sigext & result_alu_q[i*32+15]}})) begin
+                            vd_alu[i*16 +: 16] = state_res_q.mode.sigext ? {result_alu_q[i*32+31], {15{~result_alu_q[i*32+31]}}} : '1;
+                        end
                     end
                 end
                 default: ;
             endcase
         end else begin
-            vd_alu    = state_res_q.mode.inv_res ? ~result_alu_q : result_alu_q;
+            vd_alu    = result_alu_q;
             vdmsk_alu = result_mask_q;
+        end
+    end
+
+    // The result is inverted for averaging subtract instructions (i.e., instructions for
+    // which the operands are shifted right and at least one operand is being inverted).
+    // This is required to allow using the carry logic for rounding.
+    logic [ALU_OP_W-1:0] vd_alu_finalized;
+    always_comb begin
+        vd_alu_finalized = vd_alu;
+        if (state_res_q.mode.shift_op & (state_res_q.mode.inv_op1 | state_res_q.mode.inv_op2)) begin
+            vd_alu_finalized = ~vd_alu;
         end
     end
 
@@ -833,7 +850,7 @@ module vproc_alu #(
     always_comb begin
         vd_info.shift = ~state_res_q.vd_narrow | ~state_res_q.count.val[0];
     end
-    `VREGSHIFT_RESULT_NARROW(VREG_W, ALU_OP_W, vd_info, vd_alu, vd_alu_shift_q, vd_alu_shift_d)
+    `VREGSHIFT_RESULT_NARROW(VREG_W, ALU_OP_W, vd_info, vd_alu_finalized, vd_alu_shift_q, vd_alu_shift_d)
     `VREGSHIFT_RESMASK_NARROW(VREG_W, ALU_OP_W, vd_info, vdmsk_alu, vdmsk_alu_shift_q, vdmsk_alu_shift_d)
 
     // Inactive elements (tail and masked-off elements) are always handled
