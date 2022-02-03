@@ -1035,50 +1035,102 @@ module vproc_alu #(
     end
 
     // barrel shifter
+    logic shift_arith;
+    always_comb begin
+        shift_arith = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_ex1_q.mode.opx1.shift)
+            ALU_SHIFT_VSRL: shift_arith = 1'b0;
+            ALU_SHIFT_VSRA: shift_arith = 1'b1;
+            default: ;
+        endcase
+    end
+    logic [ALU_OP_W  -1:0] shift_left;
+    logic [ALU_OP_W*2-1:0] shift_right;
+    always_comb begin
+        shift_left  = DONT_CARE_ZERO ? '0 : 'x;
+        shift_right = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_ex1_q.eew)
+
+            VSEW_8: begin
+                for (int i = 0; i < ALU_OP_W / 8; i++) begin
+                    shift_left [8 *i +: 8 ] =  operand2_32[8 *i +: 8 ]         <<        operand1_32[8 *i +: 3];
+                    shift_right[16*i +: 16] = {operand2_32[8 *i +: 8 ], 8'b0 } >> {1'b0, operand1_32[8 *i +: 3]};
+                    for (int j = 0; j < operand1_32[8 *i +: 3]; j++) begin
+                        shift_right[16*i+15-j] = shift_arith & operand2_32[8 *i+7 ]; // sign extend
+                    end
+                end
+            end
+
+            VSEW_16: begin
+                for (int i = 0; i < ALU_OP_W / 16; i++) begin
+                    shift_left [16*i +: 16] =  operand2_32[16*i +: 16]         <<        operand1_32[16*i +: 4];
+                    shift_right[32*i +: 32] = {operand2_32[16*i +: 16], 16'b0} >> {1'b0, operand1_32[16*i +: 4]};
+                    for (int j = 0; j < operand1_32[16*i +: 4]; j++) begin
+                        shift_right[32*i+31-j] = shift_arith & operand2_32[16*i+15]; // sign extend
+                    end
+                end
+            end
+
+            VSEW_32: begin
+                for (int i = 0; i < ALU_OP_W / 32; i++) begin
+                    shift_left [32*i +: 32] =  operand2_32[32*i +: 32]         <<        operand1_32[32*i +: 5];
+                    shift_right[64*i +: 64] = {operand2_32[32*i +: 32], 32'b0} >> {1'b0, operand1_32[32*i +: 5]};
+                    for (int j = 0; j < operand1_32[32*i +: 5]; j++) begin
+                        shift_right[64*i+63-j] = shift_arith & operand2_32[32*i+31]; // sign extend
+                    end
+                end
+            end
+
+            default: ;
+        endcase
+    end
     always_comb begin
         shift_res_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case ({state_ex1_q.mode.opx1.shift, state_ex1_q.eew})
-            // vsll.*
-            {ALU_SHIFT_VSLL, VSEW_8}: begin
-                for (int i = 0; i < ALU_OP_W / 8 ; i++)
-                    shift_res_d[8 *i +: 8 ] = operand2_32[8 *i +: 8 ] << operand1_32[8 *i +: 3];
-            end
-            {ALU_SHIFT_VSLL, VSEW_16}: begin
-                for (int i = 0; i < ALU_OP_W / 16; i++)
-                    shift_res_d[16*i +: 16] = operand2_32[16*i +: 16] << operand1_32[16*i +: 4];
-            end
+
+            {ALU_SHIFT_VSLL, VSEW_8 },
+            {ALU_SHIFT_VSLL, VSEW_16},
             {ALU_SHIFT_VSLL, VSEW_32}: begin
-                for (int i = 0; i < ALU_OP_W / 32; i++)
-                    shift_res_d[32*i +: 32] = operand2_32[32*i +: 32] << operand1_32[32*i +: 5];
+                shift_res_d = shift_left;
             end
 
-            // vsrl.*
-            {ALU_SHIFT_VSRL, VSEW_8}: begin
-                for (int i = 0; i < ALU_OP_W / 8 ; i++)
-                    shift_res_d[8 *i +: 8 ] = operand2_32[8 *i +: 8 ] >> operand1_32[8 *i +: 3];
-            end
-            {ALU_SHIFT_VSRL, VSEW_16}: begin
-                for (int i = 0; i < ALU_OP_W / 16; i++)
-                    shift_res_d[16*i +: 16] = operand2_32[16*i +: 16] >> operand1_32[16*i +: 4];
-            end
-            {ALU_SHIFT_VSRL, VSEW_32}: begin
-                for (int i = 0; i < ALU_OP_W / 32; i++)
-                    shift_res_d[32*i +: 32] = operand2_32[32*i +: 32] >> operand1_32[32*i +: 5];
-            end
-
-            // vsra.*
+            {ALU_SHIFT_VSRL, VSEW_8},
             {ALU_SHIFT_VSRA, VSEW_8}: begin
-                for (int i = 0; i < ALU_OP_W / 8 ; i++)
-                    shift_res_d[8 *i +: 8 ] = $signed(operand2_32[8 *i +: 8 ]) >>> operand1_32[8 *i +: 3];
+                for (int i = 0; i < ALU_OP_W / 8 ; i++) begin
+                    unique case (state_ex1_q.vxrm)
+                        VXRM_RNU: shift_res_d[8 *i +: 8 ] = shift_right[16*i+8  +: 8 ] + {7'b0 ,  shift_right[16*i+7 ]};
+                        VXRM_RNE: shift_res_d[8 *i +: 8 ] = shift_right[16*i+8  +: 8 ] + {7'b0 ,  shift_right[16*i+7 ] & ((shift_right[16*i +: 7 ] != '0) | shift_right[16*i+8 ])};
+                        VXRM_RDN: shift_res_d[8 *i +: 8 ] = shift_right[16*i+8  +: 8 ];
+                        VXRM_ROD: shift_res_d[8 *i +: 8 ] = shift_right[16*i+8  +: 8 ] + {7'b0 , ~shift_right[16*i+8 ] & ( shift_right[16*i +: 8 ] != '0)};
+                        default: ;
+                    endcase
+                end
             end
+            {ALU_SHIFT_VSRL, VSEW_16},
             {ALU_SHIFT_VSRA, VSEW_16}: begin
-                for (int i = 0; i < ALU_OP_W / 16; i++)
-                    shift_res_d[16*i +: 16] = $signed(operand2_32[16*i +: 16]) >>> operand1_32[16*i +: 4];
+                for (int i = 0; i < ALU_OP_W / 16; i++) begin
+                    unique case (state_ex1_q.vxrm)
+                        VXRM_RNU: shift_res_d[16*i +: 16] = shift_right[32*i+16 +: 16] + {15'b0,  shift_right[32*i+15]};
+                        VXRM_RNE: shift_res_d[16*i +: 16] = shift_right[32*i+16 +: 16] + {15'b0,  shift_right[32*i+15] & ((shift_right[32*i +: 15] != '0) | shift_right[32*i+16])};
+                        VXRM_RDN: shift_res_d[16*i +: 16] = shift_right[32*i+16 +: 16];
+                        VXRM_ROD: shift_res_d[16*i +: 16] = shift_right[32*i+16 +: 16] + {15'b0, ~shift_right[32*i+16] & ( shift_right[32*i +: 16] != '0)};
+                        default: ;
+                    endcase
+                end
             end
+            {ALU_SHIFT_VSRL, VSEW_32},
             {ALU_SHIFT_VSRA, VSEW_32}: begin
-                for (int i = 0; i < ALU_OP_W / 32; i++)
-                    shift_res_d[32*i +: 32] = $signed(operand2_32[32*i +: 32]) >>> operand1_32[32*i +: 5];
+                for (int i = 0; i < ALU_OP_W / 32; i++) begin
+                    unique case (state_ex1_q.vxrm)
+                        VXRM_RNU: shift_res_d[32*i +: 32] = shift_right[64*i+32 +: 32] + {31'b0,  shift_right[64*i+31]};
+                        VXRM_RNE: shift_res_d[32*i +: 32] = shift_right[64*i+32 +: 32] + {31'b0,  shift_right[64*i+31] & ((shift_right[64*i +: 31] != '0) | shift_right[64*i+32])};
+                        VXRM_RDN: shift_res_d[32*i +: 32] = shift_right[64*i+32 +: 32];
+                        VXRM_ROD: shift_res_d[32*i +: 32] = shift_right[64*i+32 +: 32] + {31'b0, ~shift_right[64*i+32] & ( shift_right[64*i +: 32] != '0)};
+                        default: ;
+                    endcase
+                end
             end
+
             default: ;
         endcase
     end
