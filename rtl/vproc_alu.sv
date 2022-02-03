@@ -602,7 +602,7 @@ module vproc_alu #(
     assign vs1_tmp_d = vs1_shift_q[ALU_OP_W-1:0];
 
     // conversion from source registers to operands:
-    logic [ALU_OP_W-1:0] operand1, operand2;
+    logic [ALU_OP_W*9/8-1:0] operand1, operand2;
     vproc_vregunpack #(
         .OP_W           ( ALU_OP_W                      ),
         .DONT_CARE_ZERO ( DONT_CARE_ZERO                )
@@ -616,23 +616,82 @@ module vproc_alu #(
         .vs2_narrow_i   ( state_vs2_q.vs2_narrow        ),
         .vs2_sigext_i   ( state_vs2_q.mode.sigext       ),
         .vmsk_i         ( v0msk_shift_q[ALU_OP_W/8-1:0] ),
-        .operand1_o     ( operand1                      ),
+        .operand1_o     (                               ),
         .operand2_o     (                               ),
         .operand_mask_o ( operand_mask_d                )
     );
+    logic [ALU_OP_W-1:0] operand1_src;
     always_comb begin
-        operand2 = vs2_shift_q[ALU_OP_W-1:0];
+        operand1_src = DONT_CARE_ZERO ? '0 : 'x;
+        if (state_vs2_q.rs1.vreg) begin
+            operand1_src = vs1_tmp_q;
+        end else begin
+            unique case (state_vs2_q.eew)
+                VSEW_8: begin
+                    for (int i = 0; i < ALU_OP_W / 8; i++) begin
+                        operand1_src[8 *i +: 8 ] = state_vs2_q.rs1.r.xval[7 :0];
+                    end
+                end
+                VSEW_16: begin
+                    for (int i = 0; i < ALU_OP_W / 16; i++) begin
+                        operand1_src[16*i +: 16] = state_vs2_q.rs1.r.xval[15:0];
+                    end
+                end
+                VSEW_32: begin
+                    for (int i = 0; i < ALU_OP_W / 32; i++) begin
+                        operand1_src[32*i +: 32] = state_vs2_q.rs1.r.xval[31:0];
+                    end
+                end
+                default: ;
+            endcase
+        end
+    end
+    always_comb begin
+        operand1 = DONT_CARE_ZERO ? '0 : 'x;
+        for (int i = 0; i < ALU_OP_W / 8; i++) begin
+                operand1[9*i+1 +: 8] = operand1_src[8*i +: 8];
+        end
+        if (state_vs2_q.rs1.vreg & state_vs2_q.vs1_narrow) begin
+            operand1 = DONT_CARE_ZERO ? '0 : 'x;
+            unique case (state_vs2_q.eew)
+                VSEW_16: begin
+                    for (int i = 0; i < ALU_OP_W / 16; i++) begin
+                        operand1[18*i+1  +: 8] = vs1_tmp_q[8 *i +: 8 ];
+                        operand1[18*i+10 +: 8] = {8 {state_vs2_q.mode.sigext & vs1_tmp_q[8 *i + 7 ]}};
+                    end
+                end
+                VSEW_32: begin
+                    for (int i = 0; i < ALU_OP_W / 32; i++) begin
+                        operand1[36*i+1  +: 8] = vs1_tmp_q[16*i   +: 8];
+                        operand1[36*i+10 +: 8] = vs1_tmp_q[16*i+8 +: 8];
+                        operand1[36*i+19 +: 8] = {16{state_vs2_q.mode.sigext & vs1_tmp_q[16*i + 15]}};
+                        operand1[36*i+28 +: 8] = {16{state_vs2_q.mode.sigext & vs1_tmp_q[16*i + 15]}};
+                    end
+                end
+                default: ;
+            endcase
+        end
+    end
+    always_comb begin
+        operand2 = DONT_CARE_ZERO ? '0 : 'x;
+        for (int i = 0; i < ALU_OP_W / 8; i++) begin
+                operand2[9*i+1 +: 8] = vs2_shift_q[8*i +: 8];
+        end
         if (state_vs2_q.vs2_narrow) begin
             operand2 = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_vs2_q.eew)
                 VSEW_16: begin
                     for (int i = 0; i < ALU_OP_W / 16; i++) begin
-                        operand2[16*i +: 16] = {{8 {state_vs2_q.mode.sigext & vs2_shift_q[8 *i + 7 ]}}, vs2_shift_q[8 *i +: 8 ]};
+                        operand2[18*i+1  +: 8] = vs2_shift_q[8 *i +: 8 ];
+                        operand2[18*i+10 +: 8] = {8 {state_vs2_q.mode.sigext & vs2_shift_q[8 *i + 7 ]}};
                     end
                 end
                 VSEW_32: begin
                     for (int i = 0; i < ALU_OP_W / 32; i++) begin
-                        operand2[32*i +: 32] = {{16{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}}, vs2_shift_q[16*i +: 16]};
+                        operand2[36*i+1  +: 8] = vs2_shift_q[16*i   +: 8];
+                        operand2[36*i+10 +: 8] = vs2_shift_q[16*i+8 +: 8];
+                        operand2[36*i+19 +: 8] = {16{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}};
+                        operand2[36*i+28 +: 8] = {16{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}};
                     end
                 end
                 default: ;
@@ -651,25 +710,14 @@ module vproc_alu #(
     logic state_vs2_subtract;
     assign state_vs2_subtract = state_vs2_q.mode.inv_op1 | state_vs2_q.mode.inv_op2;
     always_comb begin
-        operand1_d = DONT_CARE_ZERO ? '0 : 'x;
-        operand2_d = DONT_CARE_ZERO ? '0 : 'x;
+        operand1_d = state_vs2_q.mode.inv_op1 ? ~operand1 : operand1;
+        operand2_d = state_vs2_q.mode.inv_op2 ? ~operand2 : operand2;
         for (int i = 0; i < ALU_OP_W / 32; i++) begin
-            // operand 1 extraction
-            operand1_d[36*i+1  +: 8] = state_vs2_q.mode.inv_op1 ? ~operand1[32*i    +: 8] : operand1[32*i    +: 8];
-            operand1_d[36*i+10 +: 8] = state_vs2_q.mode.inv_op1 ? ~operand1[32*i+8  +: 8] : operand1[32*i+8  +: 8];
-            operand1_d[36*i+19 +: 8] = state_vs2_q.mode.inv_op1 ? ~operand1[32*i+16 +: 8] : operand1[32*i+16 +: 8];
-            operand1_d[36*i+28 +: 8] = state_vs2_q.mode.inv_op1 ? ~operand1[32*i+24 +: 8] : operand1[32*i+24 +: 8];
-            // operand 2 extraction
-            operand2_d[36*i+1  +: 8] = state_vs2_q.mode.inv_op2 ? ~operand2[32*i    +: 8] : operand2[32*i    +: 8];
-            operand2_d[36*i+10 +: 8] = state_vs2_q.mode.inv_op2 ? ~operand2[32*i+8  +: 8] : operand2[32*i+8  +: 8];
-            operand2_d[36*i+19 +: 8] = state_vs2_q.mode.inv_op2 ? ~operand2[32*i+16 +: 8] : operand2[32*i+16 +: 8];
-            operand2_d[36*i+28 +: 8] = state_vs2_q.mode.inv_op2 ? ~operand2[32*i+24 +: 8] : operand2[32*i+24 +: 8];
-            // operand 1 carry logic
+            // operands carry logic for fracturable adder
             operand1_d[36*i   ] =                                 carry_in_mask[i*4  ] ^ state_vs2_subtract;
             operand1_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+1] ^ state_vs2_subtract) : 1'b1;
             operand1_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (carry_in_mask[i*4+2] ^ state_vs2_subtract) : 1'b1;
             operand1_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+3] ^ state_vs2_subtract) : 1'b1;
-            // operand 2 carry logic
             operand2_d[36*i   ] = 1'b1;
             operand2_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+1] ^ state_vs2_subtract) : 1'b0;
             operand2_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (carry_in_mask[i*4+2] ^ state_vs2_subtract) : 1'b0;
