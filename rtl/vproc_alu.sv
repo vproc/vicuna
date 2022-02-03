@@ -602,24 +602,6 @@ module vproc_alu #(
     assign vs1_tmp_d = vs1_shift_q[ALU_OP_W-1:0];
 
     // conversion from source registers to operands:
-    logic [ALU_OP_W*9/8-1:0] operand1, operand2;
-    vproc_vregunpack #(
-        .OP_W           ( ALU_OP_W                      ),
-        .DONT_CARE_ZERO ( DONT_CARE_ZERO                )
-    ) alu_vregunpack (
-        .vsew_i         ( state_vs2_q.eew               ),
-        .rs1_i          ( state_vs2_q.rs1               ),
-        .vs1_i          ( vs1_tmp_q                     ),
-        .vs1_narrow_i   ( state_vs2_q.vs1_narrow        ),
-        .vs1_sigext_i   ( state_vs2_q.mode.sigext       ),
-        .vs2_i          ( vs2_shift_q[ALU_OP_W-1:0]     ),
-        .vs2_narrow_i   ( state_vs2_q.vs2_narrow        ),
-        .vs2_sigext_i   ( state_vs2_q.mode.sigext       ),
-        .vmsk_i         ( v0msk_shift_q[ALU_OP_W/8-1:0] ),
-        .operand1_o     (                               ),
-        .operand2_o     (                               ),
-        .operand_mask_o ( operand_mask_d                )
-    );
     logic [ALU_OP_W-1:0] operand1_src;
     always_comb begin
         operand1_src = DONT_CARE_ZERO ? '0 : 'x;
@@ -646,6 +628,7 @@ module vproc_alu #(
             endcase
         end
     end
+    logic [ALU_OP_W*9/8-1:0] operand1;
     always_comb begin
         operand1 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 8; i++) begin
@@ -688,6 +671,7 @@ module vproc_alu #(
             endcase
         end
     end
+    logic [ALU_OP_W*9/8-1:0] operand2;
     always_comb begin
         operand2 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 8; i++) begin
@@ -730,6 +714,30 @@ module vproc_alu #(
             endcase
         end
     end
+    always_comb begin
+        operand_mask_d = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_vs2_q.eew)
+            VSEW_8: begin
+                operand_mask_d = v0msk_shift_q[ALU_OP_W/8-1:0];
+            end
+            VSEW_16: begin
+                for (int i = 0; i < ALU_OP_W / 16; i++) begin
+                    operand_mask_d[i*2]   = v0msk_shift_q[i];
+                    operand_mask_d[i*2+1] = v0msk_shift_q[i];
+                end
+            end
+            VSEW_32: begin
+                for (int i = 0; i < ALU_OP_W / 32; i++) begin
+                    operand_mask_d[i*4]   = v0msk_shift_q[i];
+                    operand_mask_d[i*4+1] = v0msk_shift_q[i];
+                    operand_mask_d[i*4+2] = v0msk_shift_q[i];
+                    operand_mask_d[i*4+3] = v0msk_shift_q[i];
+                end
+            end
+            default: ;
+        endcase
+    end
+
     logic [ALU_OP_W/8-1:0] carry_in_mask;
     always_comb begin
         carry_in_mask = '0;
