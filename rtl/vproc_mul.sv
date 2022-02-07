@@ -222,29 +222,18 @@ module vproc_mul #(
     // MUL PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    logic                       state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_ex3_ready,   state_res_ready,   state_vd_ready;
-    logic     state_init_stall,                                                                                                                                       state_vd_stall;
-    logic     state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_ex3_valid_q, state_res_valid_q, state_vd_valid_q;
-    mul_state state_init,       state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_ex3_q,       state_res_q,       state_vd_q;
+    logic                       state_ex1_ready,                      state_ex2_ready,   state_ex3_ready,   state_res_ready,   state_vd_ready;
+    logic     state_init_stall,                                                                             state_vd_stall;
+    logic     state_init_valid, state_ex1_valid_q, state_ex1_valid_d, state_ex2_valid_q, state_ex3_valid_q, state_res_valid_q, state_vd_valid_q;
+    mul_state state_init,       state_ex1_q,       state_ex1_d,       state_ex2_q,       state_ex3_q,       state_res_q,       state_vd_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vd_store   = state_q.count.part.low == '1;
     end
-    assign pipeline_ready = state_vreg_ready & ~state_init_stall;
-
-    // common vreg read register:
-    logic [VREG_W-1:0] vreg_rd_q, vreg_rd_d;
-
-    // operand shift registers:
-    logic [VREG_W-1:0] vs1_shift_q,   vs1_shift_d;
-    logic [VREG_W-1:0] vs2_shift_q,   vs2_shift_d;
-    logic [VREG_W-1:0] vs3_shift_q,   vs3_shift_d;
-    logic [VREG_W-1:0] v0msk_shift_q, v0msk_shift_d;
-
-    // temporary buffer for vs1 while fetching vs2:
-    logic [MUL_OP_W-1:0] vs1_tmp_q, vs1_tmp_d;
+    logic unpack_ready;
+    assign pipeline_ready = unpack_ready & ~state_init_stall;
 
     // operands and result:
     logic [MUL_OP_W  -1:0] operand1_q,     operand1_d;
@@ -272,78 +261,6 @@ module vproc_mul #(
     logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
-        if (BUF_VREG) begin
-            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_vreg_valid
-                if (~async_rst_ni) begin
-                    state_vreg_valid_q <= 1'b0;
-                end
-                else if (~sync_rst_ni) begin
-                    state_vreg_valid_q <= 1'b0;
-                end
-                else if (state_vreg_ready) begin
-                    state_vreg_valid_q <= state_init_valid & ~state_init_stall;
-                end
-            end
-            always_ff @(posedge clk_i) begin : vproc_mul_stage_vreg
-                // Note: state_init_valid is omitted here since vreg buffering
-                // may need to proceed for one extra cycle after the
-                // instruction has left state_init
-                if (state_vreg_ready) begin
-                    state_vreg_q <= state_init;
-                    vreg_rd_q    <= vreg_rd_d;
-                end
-            end
-            assign state_vreg_ready = ~state_vreg_valid_q | state_vs1_ready;
-        end else begin
-            always_comb begin
-                state_vreg_valid_q = state_init_valid & ~state_init_stall;
-                state_vreg_q       = state_init;
-                vreg_rd_q          = vreg_rd_d;
-            end
-            assign state_vreg_ready = state_vs1_ready;
-        end
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_vs1_valid
-            if (~async_rst_ni) begin
-                state_vs1_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vs1_valid_q <= 1'b0;
-            end
-            else if (state_vs1_ready) begin
-                state_vs1_valid_q <= state_vreg_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_mul_stage_vs1
-            if (state_vs1_ready & state_vreg_valid_q) begin
-                state_vs1_q <= state_vreg_q;
-                vs1_shift_q <= vs1_shift_d;
-            end
-        end
-        assign state_vs1_ready = ~state_vs1_valid_q | state_vs2_ready;
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_vs2_valid
-            if (~async_rst_ni) begin
-                state_vs2_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vs2_valid_q <= 1'b0;
-            end
-            else if (state_vs2_ready) begin
-                state_vs2_valid_q <= state_vs1_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_mul_stage_vs2
-            if (state_vs2_ready & state_vs1_valid_q) begin
-                state_vs2_q   <= state_vs1_q;
-                vs2_shift_q   <= vs2_shift_d;
-                vs3_shift_q   <= vs3_shift_d;
-                v0msk_shift_q <= v0msk_shift_d;
-                vs1_tmp_q     <= vs1_tmp_d;
-            end
-        end
-        assign state_vs2_ready = ~state_vs2_valid_q | state_ex1_ready;
-
         if (BUF_OPERANDS) begin
             always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_ex1_valid
                 if (~async_rst_ni) begin
@@ -353,12 +270,12 @@ module vproc_mul #(
                     state_ex1_valid_q <= 1'b0;
                 end
                 else if (state_ex1_ready) begin
-                    state_ex1_valid_q <= state_vs2_valid_q;
+                    state_ex1_valid_q <= state_ex1_valid_d;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_mul_stage_ex1
-                if (state_ex1_ready & state_vs2_valid_q) begin
-                    state_ex1_q    <= state_vs2_q;
+                if (state_ex1_ready & state_ex1_valid_d) begin
+                    state_ex1_q    <= state_ex1_d;
                     operand1_q     <= operand1_d;
                     operand2_q     <= operand2_d;
                     operand_mask_q <= operand_mask_d;
@@ -368,8 +285,8 @@ module vproc_mul #(
             assign state_ex1_ready = ~state_ex1_valid_q | state_ex2_ready;
         end else begin
             always_comb begin
-                state_ex1_valid_q = state_vs2_valid_q;
-                state_ex1_q       = state_vs2_q;
+                state_ex1_valid_q = state_ex1_valid_d;
+                state_ex1_q       = state_ex1_d;
                 operand1_q        = operand1_d;
                 operand2_q        = operand2_d;
                 operand_mask_q    = operand_mask_d;
@@ -583,69 +500,128 @@ module vproc_mul #(
     end
     // Note: vs2 is read in the second cycle; vs3 and the v0 mask have no extra
     // buffer and are always read in state_vs1
+    logic [31:0] unpack_pend_rd;
     assign vreg_pend_rd_o = ((
             ((state_init_valid & state_init.rs1.vreg              ) ? pend_vs1                        : '0) |
             ((state_init_valid                                    ) ? pend_vs2                        : '0) |
             ((state_init_valid & (state_init.mode.op == MUL_VMACC)) ? pend_vs3                        : '0) |
             ((state_init_valid & state_init.first_cycle           ) ? {31'b0, state_init.mode.masked} : '0)
         ) & ~vreg_pend_wr_q) |
-    ((            state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.rs2.r.vaddr) : '0) |
-    ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.rs2.r.vaddr ) : '0) |
-    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vd)          : '0) |
-    ((            state_vs1_valid_q  & state_vs1_q.vs3_fetch   ) ? (32'h1 << state_vs1_q.vd )          : '0) |
-    ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked}   : '0) |
-    ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_q.mode.masked}    : '0);
+    unpack_pend_rd;
 
 
     ///////////////////////////////////////////////////////////////////////////
     // MUL REGISTER READ/WRITE:
 
-    // source register addressing and read:
-    assign vreg_rd_addr_o = (state_init.count.part.low[0] == 1'b0) ? state_init.rs1.r.vaddr : (state_init.mode.op2_is_vd ? state_init.vd : state_init.rs2.r.vaddr);
-    assign vreg_rd_d      = vreg_rd_i;
-
-    assign vreg_rd3_addr_o = state_vs1_q.mode.op2_is_vd ? state_vs1_q.rs2.r.vaddr : state_vs1_q.vd;
-
-    // operand shift registers assignment:
-    fetch_info vs1_info, vs2_info, v0msk_info;
+    fetch_info [3:0]       unpack_op_fetch;
+    logic      [3:0][4 :0] unpack_op_vaddr;
+    logic      [3:0]       unpack_op_vreg;
+    logic      [3:0][31:0] unpack_op_xval;
+    logic      [3:0]       unpack_op_narrow;
+    logic      [3:0]       unpack_op_sigext;
     always_comb begin
-        vs1_info.shift  = state_vreg_q.vs1_shift;
-        vs1_info.fetch  = state_vreg_q.vs1_fetch;
-        vs2_info.shift  = state_vs1_q.vs2_shift;
-        vs2_info.fetch  = state_vs1_q.vs2_fetch;
-        v0msk_info.shift = state_vs1_q.v0msk_shift;
-        v0msk_info.fetch = state_vs1_q.first_cycle;
+        unpack_op_fetch  [0].shift    = state_init.vs1_shift;
+        unpack_op_fetch  [0].fetch    = state_init.vs1_fetch;
+        unpack_op_fetch  [0].elemwise = '0;
+        unpack_op_vaddr  [0]          = state_init.rs1.r.vaddr;
+        unpack_op_vreg   [0]          = state_init.rs1.vreg;
+        unpack_op_xval   [0]          = state_init.rs1.r.xval;
+        unpack_op_narrow [0]          = state_init.vs1_narrow;
+        unpack_op_sigext [0]          = state_init.mode.op1_signed;
+        unpack_op_fetch  [1].shift    = state_init.vs2_shift;
+        unpack_op_fetch  [1].fetch    = state_init.vs2_fetch;
+        unpack_op_fetch  [1].elemwise = '0;
+        unpack_op_vaddr  [1]          = state_init.mode.op2_is_vd ? state_init.vd : state_init.rs2.r.vaddr;
+        unpack_op_vreg   [1]          = '0;
+        unpack_op_xval   [1]          = '0;
+        unpack_op_narrow [1]          = state_init.vs2_narrow;
+        unpack_op_sigext [1]          = state_init.mode.op2_signed;
+        unpack_op_fetch  [2].shift    = 1'b1;
+        unpack_op_fetch  [2].fetch    = state_init.vs3_fetch;
+        unpack_op_fetch  [2].elemwise = '0;
+        unpack_op_vaddr  [2]          = state_init.mode.op2_is_vd ? state_init.rs2.r.vaddr : state_init.vd;
+        unpack_op_vreg   [2]          = '0;
+        unpack_op_xval   [2]          = '0;
+        unpack_op_narrow [2]          = '0;
+        unpack_op_sigext [2]          = '0;
+        unpack_op_fetch  [3].shift    = state_init.v0msk_shift;
+        unpack_op_fetch  [3].fetch    = state_init.first_cycle & state_init.mode.masked;
+        unpack_op_fetch  [3].elemwise = '0;
+        unpack_op_vaddr  [3]          = '0;
+        unpack_op_vreg   [3]          = '0;
+        unpack_op_xval   [3]          = '0;
+        unpack_op_narrow [3]          = '0;
+        unpack_op_sigext [3]          = '0;
     end
-    `VREGSHIFT_OPERAND_NARROW(VREG_W, MUL_OP_W, vs1_info, vreg_rd_q, vs1_shift_q, vs1_shift_d)
-    `VREGSHIFT_OPERAND_NARROW(VREG_W, MUL_OP_W, vs2_info, vreg_rd_q, vs2_shift_q, vs2_shift_d)
-    `VREGSHIFT_OPMASK(VREG_W, MUL_OP_W, v0msk_info, state_vs1_q.eew, vreg_mask_i, v0msk_shift_q, v0msk_shift_d)
-    always_comb begin
-        vs3_shift_d   = vreg_rd3_i;
-        if (~state_vs1_q.vs3_fetch) begin
-            vs3_shift_d[VREG_W-MUL_OP_W-1:0] = vs3_shift_q[VREG_W-1:MUL_OP_W];
-        end
-    end
-    assign vs1_tmp_d = vs1_shift_q[MUL_OP_W-1:0];
 
-    // conversion from source registers to operands:
+    localparam int unsigned UNPACK_VPORT_W [3] = '{VREG_W,VREG_W,VREG_W};
+    localparam int unsigned UNPACK_VADDR_W [3] = '{5,5,5};
+    localparam int unsigned UNPACK_OP_W    [4] = '{MUL_OP_W,MUL_OP_W,MUL_OP_W,MUL_OP_W/8};
+    localparam int unsigned UNPACK_OP_STAGE[4] = '{1,2,2,2};
+    localparam int unsigned UNPACK_OP_SRC  [4] = '{0,0,1,2};
+
+    logic [3:0][MUL_OP_W-1:0] unpack_ops;
+    logic [2:0][4:0]          unpack_vreg_addr;
+    logic [2:0][VREG_W-1:0]   unpack_vreg_data;
     vproc_vregunpack #(
-        .OP_W           ( MUL_OP_W                      ),
-        .DONT_CARE_ZERO ( DONT_CARE_ZERO                )
-    ) mul_vregunpack (
-        .vsew_i         ( state_vs2_q.eew               ),
-        .rs1_i          ( state_vs2_q.rs1               ),
-        .vs1_i          ( vs1_tmp_q                     ),
-        .vs1_narrow_i   ( state_vs2_q.vs1_narrow        ),
-        .vs1_sigext_i   ( state_vs2_q.mode.op1_signed   ),
-        .vs2_i          ( vs2_shift_q[MUL_OP_W-1:0]     ),
-        .vs2_narrow_i   ( state_vs2_q.vs2_narrow        ),
-        .vs2_sigext_i   ( state_vs2_q.mode.op2_signed   ),
-        .vmsk_i         ( v0msk_shift_q[MUL_OP_W/8-1:0] ),
-        .operand1_o     ( operand1_d                    ),
-        .operand2_o     ( operand2_d                    ),
-        .operand_mask_o ( operand_mask_d                )
+        .MAX_VPORT_W          ( VREG_W                               ),
+        .MAX_VADDR_W          ( 5                                    ),
+        .VPORT_CNT            ( 3                                    ),
+        .VPORT_W              ( UNPACK_VPORT_W                       ),
+        .VADDR_W              ( UNPACK_VADDR_W                       ),
+        .VPORT_ADDR_ZERO      ( 3'b100                               ),
+        .VPORT_BUFFER         ( 3'b001                               ),
+        .MAX_OP_W             ( MUL_OP_W                             ),
+        .OP_CNT               ( 4                                    ),
+        .OP_W                 ( UNPACK_OP_W                          ),
+        .OP_STAGE             ( UNPACK_OP_STAGE                      ),
+        .OP_SRC               ( UNPACK_OP_SRC                        ),
+        .OP_MASK              ( 4'b1000                              ),
+        .OP_XREG              ( 4'b0001                              ),
+        .OP_NARROW            ( 4'b0011                              ),
+        .OP_ALLOW_ELEMWISE    ( 4'b0000                              ),
+        .OP_ALWAYS_ELEMWISE   ( 4'b0000                              ),
+        .UNPACK_STAGES        ( 3                                    ),
+        .LOAD_T               ( fetch_info                           ),
+        .CTRL_DATA_W          ( $bits(mul_state)                     ),
+        .DONT_CARE_ZERO       ( DONT_CARE_ZERO                       )
+    ) mul_unpack (
+        .clk_i                ( clk_i                                ),
+        .async_rst_ni         ( async_rst_ni                         ),
+        .sync_rst_ni          ( sync_rst_ni                          ),
+        .vreg_rd_addr_o       ( unpack_vreg_addr                     ),
+        .vreg_rd_data_i       ( unpack_vreg_data                     ),
+        .pipe_in_valid_i      ( state_init_valid & ~state_init_stall ),
+        .pipe_in_ready_o      ( unpack_ready                         ),
+        .pipe_in_ctrl_i       ( state_init                           ),
+        .pipe_in_eew_i        ( state_init.eew                       ),
+        .pipe_in_op_fetch_i   ( unpack_op_fetch                      ),
+        .pipe_in_op_vaddr_i   ( unpack_op_vaddr                      ),
+        .pipe_in_op_vreg_i    ( unpack_op_vreg                       ),
+        .pipe_in_op_xval_i    ( unpack_op_xval                       ),
+        .pipe_in_op_narrow_i  ( unpack_op_narrow                     ),
+        .pipe_in_op_element_i ( '0                                   ),
+        .pipe_in_op_sigext_i  ( unpack_op_sigext                     ),
+        .pipe_out_valid_o     ( state_ex1_valid_d                    ),
+        .pipe_out_ready_i     ( state_ex1_ready                      ),
+        .pipe_out_ctrl_o      ( state_ex1_d                          ),
+        .pipe_out_op_data_o   ( unpack_ops                           ),
+        .pending_vreg_reads_o ( unpack_pend_rd                       ),
+        .stage_valid_any_o    (                                      ),
+        .ctrl_flags_any_o     (                                      ),
+        .ctrl_flags_all_o     (                                      )
     );
-    assign accumulator1_d = vs3_shift_q[MUL_OP_W-1:0];
+    assign vreg_rd_addr_o  = unpack_vreg_addr[0];
+    assign vreg_rd3_addr_o = unpack_vreg_addr[1];
+    always_comb begin
+        unpack_vreg_data[0] = vreg_rd_i;
+        unpack_vreg_data[1] = vreg_rd3_i;
+        unpack_vreg_data[2] = vreg_mask_i;
+    end
+    assign operand1_d     = unpack_ops[0];
+    assign operand2_d     = unpack_ops[1];
+    assign accumulator1_d = unpack_ops[2];
+    assign operand_mask_d = unpack_ops[3][MUL_OP_W/8-1:0];
 
     // result byte mask:
     logic [VREG_W-1:0] vl_mask;

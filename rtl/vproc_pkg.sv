@@ -263,7 +263,7 @@ typedef struct packed {
     logic       narrow;
     logic       fetch;
     logic       shift;
-    logic       clear_hazard;
+    logic       elemwise;
 } fetch_info;
 
 function automatic fetch_info fetch_init (
