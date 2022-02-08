@@ -557,6 +557,7 @@ module vproc_elem #(
             VSEW_8:  unpack_op_flags[1].shift = state_init.count[4:0] == '0;
             VSEW_16: unpack_op_flags[1].shift = state_init.count[5:0] == '0;
             VSEW_32: unpack_op_flags[1].shift = state_init.count[6:0] == '0;
+            default: ;
         endcase
         unpack_op_flags  [1].load     = state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER);
         unpack_op_flags  [1].elemwise = '0;
@@ -582,7 +583,7 @@ module vproc_elem #(
     localparam int unsigned UNPACK_OP_STAGE[4] = '{1,2,3,3};
     localparam int unsigned UNPACK_OP_SRC  [4] = '{0,0,0,1};
 
-    logic [4:0][GATHER_OP_W-1:0] unpack_ops;
+    logic [3:0][GATHER_OP_W-1:0] unpack_ops;
     logic [1:0][4:0]             unpack_vreg_addr;
     logic [1:0][VREG_W-1:0]      unpack_vreg_data;
     vproc_vregunpack #(

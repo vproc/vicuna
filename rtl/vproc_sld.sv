@@ -267,7 +267,7 @@ module vproc_sld #(
     assign pipeline_ready = unpack_ready & ~state_init_stall;
 
     // operands and result:
-    logic [VMSK_W  -1:0] v0msk_part_q,   v0msk_part_d;
+    //logic [VMSK_W  -1:0] v0msk_part_q,   v0msk_part_d;
     logic [SLD_OP_W-1:0] operand_low_q,  operand_low_d;
     logic [SLD_OP_W-1:0] operand_high_q, operand_high_d;
     logic [SLD_OP_W-1:0] result_q,       result_d;
@@ -309,7 +309,7 @@ module vproc_sld #(
                 if (state_ex_ready & state_ex_valid_d) begin
                     state_ex_q     <= state_ex_d;
                     operand_high_q <= operand_high_d;
-                    v0msk_part_q   <= v0msk_part_d;
+                    //v0msk_part_q   <= v0msk_part_d;
                 end
             end
             assign state_ex_ready = ~state_ex_valid_q | state_res_ready;
@@ -318,7 +318,7 @@ module vproc_sld #(
                 state_ex_valid_q = state_ex_valid_d;
                 state_ex_q       = state_ex_d;
                 operand_high_q   = operand_high_d;
-                v0msk_part_q     = v0msk_part_d;
+                //v0msk_part_q     = v0msk_part_d;
             end
             assign state_ex_ready = state_res_ready;
         end
@@ -491,9 +491,9 @@ module vproc_sld #(
     ///////////////////////////////////////////////////////////////////////////
     // SLD REGISTER READ/WRITE:
 
-    unpack_flags [1:0]       unpack_op_flags;
-    logic        [1:0][4 :0] unpack_op_vaddr;
-    logic        [1:0][31:0] unpack_op_xval;
+    unpack_flags [0:0]       unpack_op_flags;
+    logic        [0:0][4 :0] unpack_op_vaddr;
+    logic        [0:0][31:0] unpack_op_xval;
     always_comb begin
         unpack_op_flags  [0]          = unpack_flags'('0);
         unpack_op_flags  [0].shift    = 1'b1;
@@ -501,12 +501,6 @@ module vproc_sld #(
         unpack_op_flags  [0].elemwise = '0;
         unpack_op_vaddr  [0]          = state_init.rs2.r.vaddr;
         unpack_op_xval   [0]          = '0;
-        unpack_op_flags  [1]          = unpack_flags'('0);
-        unpack_op_flags  [1].shift    = 1'b1;
-        unpack_op_flags  [1].load     = state_init.first_cycle & state_init.mode.masked;
-        unpack_op_flags  [1].elemwise = '0;
-        unpack_op_vaddr  [1]          = '0;
-        unpack_op_xval   [1]          = '0;
     end
 
     localparam int unsigned UNPACK_VPORT_W [2] = '{VREG_W,VREG_W};
@@ -515,29 +509,29 @@ module vproc_sld #(
     localparam int unsigned UNPACK_OP_STAGE[2] = '{1,1};
     localparam int unsigned UNPACK_OP_SRC  [2] = '{0,1};
 
-    logic [2:0][SLD_OP_W-1:0] unpack_ops;
-    logic [1:0][4:0]          unpack_vreg_addr;
-    logic [1:0][VREG_W-1:0]   unpack_vreg_data;
+    logic [0:0][SLD_OP_W-1:0] unpack_ops;
+    logic [0:0][4:0]          unpack_vreg_addr;
+    logic [0:0][VREG_W-1:0]   unpack_vreg_data;
     vproc_vregunpack #(
         .MAX_VPORT_W          ( VREG_W                               ),
         .MAX_VADDR_W          ( 5                                    ),
-        .VPORT_CNT            ( 2                                    ),
+        .VPORT_CNT            ( 1                                    ),
         .VPORT_W              ( UNPACK_VPORT_W                       ),
         .VADDR_W              ( UNPACK_VADDR_W                       ),
-        .VPORT_ADDR_ZERO      ( 2'b10                                ),
-        .VPORT_BUFFER         ( 2'b01                                ),
+        .VPORT_ADDR_ZERO      ( 1'b0                                 ),
+        .VPORT_BUFFER         ( 1'b1                                 ),
         .MAX_OP_W             ( SLD_OP_W                             ),
-        .OP_CNT               ( 2                                    ),
+        .OP_CNT               ( 1                                    ),
         .OP_W                 ( UNPACK_OP_W                          ),
         .OP_STAGE             ( UNPACK_OP_STAGE                      ),
         .OP_SRC               ( UNPACK_OP_SRC                        ),
-        .OP_ADDR_OFFSET_OP0   ( 2'b00                                ),
-        .OP_MASK              ( 2'b10                                ),
-        .OP_XREG              ( 2'b00                                ),
-        .OP_NARROW            ( 2'b00                                ),
-        .OP_ALLOW_ELEMWISE    ( 2'b00                                ),
-        .OP_ALWAYS_ELEMWISE   ( 2'b00                                ),
-        .OP_HOLD_FLAG         ( 2'b00                                ),
+        .OP_ADDR_OFFSET_OP0   ( 1'b0                                 ),
+        .OP_MASK              ( 1'b0                                 ),
+        .OP_XREG              ( 1'b0                                 ),
+        .OP_NARROW            ( 1'b0                                 ),
+        .OP_ALLOW_ELEMWISE    ( 1'b0                                 ),
+        .OP_ALWAYS_ELEMWISE   ( 1'b0                                 ),
+        .OP_HOLD_FLAG         ( 1'b0                                 ),
         .UNPACK_STAGES        ( 2                                    ),
         .FLAGS_T              ( unpack_flags                         ),
         .CTRL_DATA_W          ( $bits(sld_state)                     ),
@@ -567,11 +561,19 @@ module vproc_sld #(
     assign vreg_rd_addr_o = unpack_vreg_addr[0];
     always_comb begin
         unpack_vreg_data[0] = vreg_rd_i;
-        unpack_vreg_data[1] = vreg_mask_i;
     end
     logic [SLD_OP_W-1:0] operand;
-    assign operand      = unpack_ops[0];
-    assign v0msk_part_d = unpack_ops[1][SLD_OP_W/8-1:0];
+    assign operand = unpack_ops[0];
+
+    logic [VREG_W-1:0] v0msk_q, v0msk_d;
+    always_ff @(posedge clk_i) begin
+        v0msk_q <= v0msk_d;
+    end
+    always_comb begin
+        v0msk_d = state_ex_d.first_cycle ? vreg_mask_i : v0msk_q;
+    end
+    logic [VMSK_W-1:0] v0msk_part;
+    assign v0msk_part = v0msk_q[state_ex_d.count_store.part.mul[2:0]*VMSK_W +: VMSK_W];
 
     // extract operands, substitute with rs1 when invalid to accomodate 1up and 1down operations
     logic [SLD_COUNTER_W-1:0] vl_cnt;
@@ -605,20 +607,20 @@ module vproc_sld #(
         write_mask_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex_q.eew)
             VSEW_8: begin
-                write_mask_d = v0msk_part_q;
+                write_mask_d = v0msk_part;
             end
             VSEW_16: begin
                 for (int i = 0; i < VREG_W / 16; i++) begin
-                    write_mask_d[i*2  ] = v0msk_part_q[i];
-                    write_mask_d[i*2+1] = v0msk_part_q[i];
+                    write_mask_d[i*2  ] = v0msk_part[i];
+                    write_mask_d[i*2+1] = v0msk_part[i];
                 end
             end
             VSEW_32: begin
                 for (int i = 0; i < VREG_W / 32; i++) begin
-                    write_mask_d[i*4  ] = v0msk_part_q[i];
-                    write_mask_d[i*4+1] = v0msk_part_q[i];
-                    write_mask_d[i*4+2] = v0msk_part_q[i];
-                    write_mask_d[i*4+3] = v0msk_part_q[i];
+                    write_mask_d[i*4  ] = v0msk_part[i];
+                    write_mask_d[i*4+1] = v0msk_part[i];
+                    write_mask_d[i*4+2] = v0msk_part[i];
+                    write_mask_d[i*4+3] = v0msk_part[i];
                 end
             end
             default: ;
