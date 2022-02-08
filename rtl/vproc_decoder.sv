@@ -201,7 +201,8 @@ module vproc_decoder #(
                     mode_o.cfg.agnostic = rs2_o.r.xval[7:6];
                     mode_o.cfg.vlmax    = 1'b0;
                     mode_o.cfg.keep_vl  = 1'b0;
-                    if (instr_vs1 == '0) begin
+                    // handle special AVL encodings when rs1 is x0
+                    if ((instr_vs1 == '0) & (instr_i[31:30] != 2'b11)) begin
                         mode_o.cfg.vlmax   = instr_vd != '0; // set vl to VLMAX if rs1 is x0
                         mode_o.cfg.keep_vl = instr_vd == '0; // keep vl if rs1 and rd are x0
                     end
