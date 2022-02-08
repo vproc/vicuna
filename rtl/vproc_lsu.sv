@@ -124,6 +124,7 @@ module vproc_lsu #(
         op_regs              rs2;
         logic                vs2_fetch;
         logic                vs2_shift;
+        logic                v0msk_shift;
         logic [4:0]          vd;
         logic                vs3_fetch;
         logic                vs3_shift;
@@ -226,6 +227,7 @@ module vproc_lsu #(
             state_d.rs2         = rs2_i;
             state_d.vs2_fetch   = rs2_i.vreg;
             state_d.vs2_shift   = 1'b1;
+            state_d.v0msk_shift = 1'b1;
             state_d.vd          = vd_i;
             state_d.vs3_fetch   = mode_i.store;
             state_d.vs3_shift   = 1'b1;
@@ -261,8 +263,22 @@ module vproc_lsu #(
                     state_d.vd[2:0]   = state_q.vd[2:0] + 3'b1;
                     state_d.vs3_fetch = state_q.mode.store;
                 end
-                state_d.vs2_shift = (state_q.count.part.stri == '1) | (state_q.mode.stride == LSU_UNITSTRIDE);
+                unique case (state_q.mode.eew)
+                    VSEW_8:  state_d.vs2_shift = state_q.count.val[1:0] == '1;
+                    VSEW_16: state_d.vs2_shift = state_q.count.val[1  ];
+                    VSEW_32: state_d.vs2_shift = 1'b1;
+                    default: ;
+                endcase
                 state_d.vs3_shift = (state_q.count.part.stri == '1) | (state_q.mode.stride == LSU_UNITSTRIDE);
+                unique case (state_q.mode.eew)
+                    VSEW_8:  state_d.v0msk_shift = 1'b1;
+                    VSEW_16: state_d.v0msk_shift = state_q.count.val[                         LSU_STRI_COUNTER_EXT_W];
+                    VSEW_32: state_d.v0msk_shift = state_q.count.val[LSU_STRI_COUNTER_EXT_W+1:LSU_STRI_COUNTER_EXT_W] == '1;
+                    default: ;
+                endcase
+                if ((state_q.mode.stride != LSU_UNITSTRIDE) & (state_q.count.val[LSU_STRI_COUNTER_EXT_W-1:0] != '1)) begin
+                    state_d.v0msk_shift = 1'b0;
+                end
             end
         end
     end
@@ -272,40 +288,27 @@ module vproc_lsu #(
     // LSU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    logic                           state_vreg_ready,   state_vs2_ready,   state_vs3_ready,   state_req_ready,   lsu_queue_ready;
-    logic         state_init_stall,                                                           state_req_stall;
-    logic         state_init_valid, state_vreg_valid_q, state_vs2_valid_q, state_vs3_valid_q, state_req_valid_q, state_rdata_valid_q, state_vd_valid_q;
-    lsu_state     state_init,       state_vreg_q,       state_vs2_q,       state_vs3_q,       state_req_q;
-    lsu_state_red state_rdata_d,    state_rdata_q,      state_vd_q;
+    logic                           state_req_ready,   lsu_queue_ready;
+    logic         state_init_stall, state_req_stall;
+    logic         state_init_valid, state_req_valid_q, state_req_valid_d, state_rdata_valid_q, state_vd_valid_q;
+    lsu_state     state_init,       state_req_q,       state_req_d;
+    lsu_state_red state_rdata_d,                                          state_rdata_q,       state_vd_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vd_store   = state_q.count.val[LSU_COUNTER_W-4:0] == '1;
     end
-    assign pipeline_ready = state_vreg_ready & ~state_init_stall;
+    logic unpack_ready;
+    assign pipeline_ready = unpack_ready & ~state_init_stall;
 
-    assign pending_load_o  = (state_init_valid   & ~state_init.mode.store  ) |
-                             (state_vreg_valid_q & ~state_vreg_q.mode.store) |
-                             (state_vs2_valid_q  & ~state_vs2_q.mode.store ) |
-                             (state_vs3_valid_q  & ~state_vs3_q.mode.store ) |
-                             (state_req_valid_q  & ~state_req_q.mode.store );
-    assign pending_store_o = (state_init_valid   &  state_init.mode.store  ) |
-                             (state_vreg_valid_q &  state_vreg_q.mode.store) |
-                             (state_vs2_valid_q  &  state_vs2_q.mode.store ) |
-                             (state_vs3_valid_q  &  state_vs3_q.mode.store ) |
-                             (state_req_valid_q  &  state_req_q.mode.store );
-
-    // common vreg read register:
-    logic [VREG_W-1:0] vreg_rd_q, vreg_rd_d;
-
-    // source vreg shift registers:
-    logic [VREG_W-1:0] vs2_shift_q,   vs2_shift_d;
-    logic [VREG_W-1:0] vs3_shift_q,   vs3_shift_d;
-    logic [VREG_W-1:0] v0msk_shift_q, v0msk_shift_d;
-
-    // temporary buffer for vs2 while fetching vs3:
-    logic [31:0] vs2_tmp_q, vs2_tmp_d;
+    lsu_state unpack_flags_any, unpack_flags_all;
+    assign pending_load_o  = (state_init_valid  & ~state_init.mode.store      ) |
+                             (                    ~unpack_flags_all.mode.store) |
+                             (state_req_valid_q & ~state_req_q.mode.store     );
+    assign pending_store_o = (state_init_valid  &  state_init.mode.store      ) |
+                             (                     unpack_flags_any.mode.store) |
+                             (state_req_valid_q &  state_req_q.mode.store     );
 
     // request address:
     logic [31:0] req_addr_q, req_addr_d;
@@ -345,77 +348,6 @@ module vproc_lsu #(
     logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
-        if (BUF_VREG) begin
-            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vreg_valid
-                if (~async_rst_ni) begin
-                    state_vreg_valid_q <= 1'b0;
-                end
-                else if (~sync_rst_ni) begin
-                    state_vreg_valid_q <= 1'b0;
-                end
-                else if (state_vreg_ready) begin
-                    state_vreg_valid_q <= state_init_valid & ~state_init_stall;
-                end
-            end
-            always_ff @(posedge clk_i) begin : vproc_lsu_stage_vreg
-                // Note: state_init_valid is omitted here since vreg buffering
-                // may need to proceed for one extra cycle after the
-                // instruction has left state_init
-                if (state_vreg_ready) begin
-                    state_vreg_q <= state_init;
-                    vreg_rd_q    <= vreg_rd_d;
-                end
-            end
-            assign state_vreg_ready = ~state_vreg_valid_q | state_vs2_ready;
-        end else begin
-            always_comb begin
-                state_vreg_valid_q = state_init_valid & ~state_init_stall;
-                state_vreg_q       = state_init;
-                vreg_rd_q          = vreg_rd_d;
-            end
-            assign state_vreg_ready = state_vs2_ready;
-        end
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs2_valid
-            if (~async_rst_ni) begin
-                state_vs2_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vs2_valid_q <= 1'b0;
-            end
-            else if (state_vs2_ready) begin
-                state_vs2_valid_q <= state_vreg_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_lsu_stage_vs2
-            if (state_vs2_ready & state_vreg_valid_q) begin
-                state_vs2_q <= state_vreg_q;
-                vs2_shift_q <= vs2_shift_d;
-            end
-        end
-        assign state_vs2_ready = ~state_vs2_valid_q | state_vs3_ready;
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vs3_valid
-            if (~async_rst_ni) begin
-                state_vs3_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vs3_valid_q <= 1'b0;
-            end
-            else if (state_vs3_ready) begin
-                state_vs3_valid_q <= state_vs2_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_lsu_stage_vs3
-            if (state_vs3_ready & state_vs2_valid_q) begin
-                state_vs3_q   <= state_vs2_q;
-                vs3_shift_q   <= vs3_shift_d;
-                v0msk_shift_q <= v0msk_shift_d;
-                vs2_tmp_q     <= vs2_tmp_d;
-            end
-        end
-        assign state_vs3_ready = ~state_vs3_valid_q | state_req_ready;
-
         if (BUF_REQUEST) begin
              always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_req_valid
                 if (~async_rst_ni) begin
@@ -425,12 +357,12 @@ module vproc_lsu #(
                     state_req_valid_q <= 1'b0;
                 end
                 else if (state_req_ready) begin
-                    state_req_valid_q <= state_vs3_valid_q;
+                    state_req_valid_q <= state_req_valid_d;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_req
-                if (state_req_ready & state_vs3_valid_q) begin
-                    state_req_q <= state_vs3_q;
+                if (state_req_ready & state_req_valid_d) begin
+                    state_req_q <= state_req_d;
                     req_addr_q  <= req_addr_d;
                     wdata_buf_q <= wdata_buf_d;
                     wmask_buf_q <= wmask_buf_d;
@@ -441,8 +373,8 @@ module vproc_lsu #(
             assign state_req_ready = ~state_req_valid_q | (xif_mem_if.mem_valid & xif_mem_if.mem_ready) | (~state_req_stall & ~xif_mem_if.mem_valid);
         end else begin
             always_comb begin
-                state_req_valid_q = state_vs3_valid_q;
-                state_req_q       = state_vs3_q;
+                state_req_valid_q = state_req_valid_d;
+                state_req_q       = state_req_d;
                 req_addr_q        = req_addr_d;
                 wdata_buf_q       = wdata_buf_d;
                 wmask_buf_q       = wmask_buf_d;
@@ -602,141 +534,151 @@ module vproc_lsu #(
     end
     // Note: vs3 is read in the second cycle; the v0 mask has no extra buffer
     // and is always read in state_vs2
+    logic [31:0] unpack_pend_rd;
     assign vreg_pend_rd_o = ((
             ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                        : '0) |
             ((state_init_valid & state_init.mode.store ) ? pend_vs3                        : '0) |
             ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init.mode.masked} : '0)
         ) & ~vreg_pend_wr_q) |
-    ((            state_vreg_valid_q & state_vreg_q.vs3_fetch  ) ? (32'h1 << state_vreg_q.vd)        : '0) |
-    ((~BUF_VREG & state_vs2_valid_q  & state_vs2_q.vs3_fetch   ) ? (32'h1 << state_vs2_q.vd )        : '0) |
-    ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_q.mode.masked} : '0) |
-    ((            state_vs2_valid_q  & state_vs2_q.first_cycle ) ? {31'b0, state_vs2_q.mode.masked}  : '0);
+    unpack_pend_rd;
 
 
     ///////////////////////////////////////////////////////////////////////////
     // LSU READ/WRITE:
 
-    // source register addressing and read:
-    assign vreg_rd_addr_o = state_init.vs2_fetch ? state_init.rs2.r.vaddr : state_init.vd;
-    assign vreg_rd_d      = vreg_rd_i;
-
-    // operand shift registers assignment:
-    fetch_info vs2_info, vs3_info;
+    unpack_flags [2:0]       unpack_op_flags;
+    logic        [2:0][4 :0] unpack_op_vaddr;
+    logic        [2:0][31:0] unpack_op_xval;
     always_comb begin
-        vs2_info.shift = state_vreg_q.vs2_shift;
-        vs2_info.fetch = state_vreg_q.vs2_fetch;
-        vs3_info.shift = state_vs2_q.vs3_shift;
-        vs3_info.fetch = state_vs2_q.vs3_fetch;
+        unpack_op_flags  [0]          = unpack_flags'('0);
+        unpack_op_flags  [0].shift    = state_init.vs2_shift;
+        unpack_op_flags  [0].load     = state_init.vs2_fetch;
+        unpack_op_flags  [0].elemwise = '0;
+        unpack_op_vaddr  [0]          = state_init.rs2.r.vaddr;
+        unpack_op_xval   [0]          = '0;
+        unpack_op_flags  [1]          = unpack_flags'('0);
+        unpack_op_flags  [1].shift    = state_init.vs3_shift;
+        unpack_op_flags  [1].load     = state_init.vs3_fetch;
+        unpack_op_flags  [1].elemwise = '0;
+        unpack_op_vaddr  [1]          = state_init.vd;
+        unpack_op_xval   [1]          = '0;
+        unpack_op_flags  [2]          = unpack_flags'('0);
+        unpack_op_flags  [2].shift    = state_init.v0msk_shift;
+        unpack_op_flags  [2].load     = state_init.first_cycle & state_init.mode.masked;
+        unpack_op_flags  [2].elemwise = state_init.mode.stride != LSU_UNITSTRIDE;
+        unpack_op_vaddr  [2]          = '0;
+        unpack_op_xval   [2]          = '0;
     end
-    //`VREGSHIFT_OPERAND_VSEW(VREG_W, 32, vs2_info, 1'b0, state_vreg_q.mode.eew, vreg_rd_q, vs2_shift_q, vs2_shift_d)
-    `VREGSHIFT_OPERAND_VSEW(VREG_W, VMEM_W, vs3_info, 1'b0, state_vs2_q.mode.eew, vreg_rd_q, vs3_shift_q, vs3_shift_d)
+
+    localparam int unsigned UNPACK_VPORT_W [2] = '{VREG_W,VREG_W};
+    localparam int unsigned UNPACK_VADDR_W [2] = '{5,5};
+    localparam int unsigned UNPACK_OP_W    [3] = '{32,VMEM_W,VMEM_W/8};
+    localparam int unsigned UNPACK_OP_STAGE[3] = '{1,2,2};
+    localparam int unsigned UNPACK_OP_SRC  [3] = '{0,0,1};
+
+    logic [2:0][VMEM_W-1:0] unpack_ops;
+    logic [1:0][4:0]        unpack_vreg_addr;
+    logic [1:0][VREG_W-1:0] unpack_vreg_data;
+    vproc_vregunpack #(
+        .MAX_VPORT_W          ( VREG_W                               ),
+        .MAX_VADDR_W          ( 5                                    ),
+        .VPORT_CNT            ( 2                                    ),
+        .VPORT_W              ( UNPACK_VPORT_W                       ),
+        .VADDR_W              ( UNPACK_VADDR_W                       ),
+        .VPORT_ADDR_ZERO      ( 2'b10                                ),
+        .VPORT_BUFFER         ( 2'b01                                ),
+        .MAX_OP_W             ( VMEM_W                               ),
+        .OP_CNT               ( 3                                    ),
+        .OP_W                 ( UNPACK_OP_W                          ),
+        .OP_STAGE             ( UNPACK_OP_STAGE                      ),
+        .OP_SRC               ( UNPACK_OP_SRC                        ),
+        .OP_ADDR_OFFSET_OP0   ( 3'b000                               ),
+        .OP_MASK              ( 3'b100                               ),
+        .OP_XREG              ( 3'b000                               ),
+        .OP_NARROW            ( 3'b000                               ),
+        .OP_ALLOW_ELEMWISE    ( 3'b110                               ),
+        .OP_ALWAYS_ELEMWISE   ( 3'b001                               ),
+        .OP_HOLD_FLAG         ( 3'b000                               ),
+        .UNPACK_STAGES        ( 3                                    ),
+        .FLAGS_T              ( unpack_flags                         ),
+        .CTRL_DATA_W          ( $bits(lsu_state)                     ),
+        .DONT_CARE_ZERO       ( DONT_CARE_ZERO                       )
+    ) lsu_unpack (
+        .clk_i                ( clk_i                                ),
+        .async_rst_ni         ( async_rst_ni                         ),
+        .sync_rst_ni          ( sync_rst_ni                          ),
+        .vreg_rd_addr_o       ( unpack_vreg_addr                     ),
+        .vreg_rd_data_i       ( unpack_vreg_data                     ),
+        .pipe_in_valid_i      ( state_init_valid & ~state_init_stall ),
+        .pipe_in_ready_o      ( unpack_ready                         ),
+        .pipe_in_ctrl_i       ( state_init                           ),
+        .pipe_in_eew_i        ( state_init.mode.eew                  ),
+        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
+        .pipe_in_op_vaddr_i   ( unpack_op_vaddr                      ),
+        .pipe_in_op_xval_i    ( unpack_op_xval                       ),
+        .pipe_out_valid_o     ( state_req_valid_d                    ),
+        .pipe_out_ready_i     ( state_req_ready                      ),
+        .pipe_out_ctrl_o      ( state_req_d                          ),
+        .pipe_out_op_data_o   ( unpack_ops                           ),
+        .pending_vreg_reads_o ( unpack_pend_rd                       ),
+        .stage_valid_any_o    (                                      ),
+        .ctrl_flags_any_o     ( unpack_flags_any                     ),
+        .ctrl_flags_all_o     ( unpack_flags_all                     )
+    );
+    assign vreg_rd_addr_o = unpack_vreg_addr[0];
     always_comb begin
-        vs2_shift_d = vreg_rd_q;
-        if (~state_vreg_q.vs2_fetch) begin
-            //vs2_shift_d = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (state_vreg_q.mode.eew)
-                VSEW_8:  vs2_shift_d[VREG_W-9 :0] = vs2_shift_q[VREG_W-1:8 ];
-                VSEW_16: vs2_shift_d[VREG_W-17:0] = vs2_shift_q[VREG_W-1:16];
-                VSEW_32: vs2_shift_d[VREG_W-33:0] = vs2_shift_q[VREG_W-1:32];
+        unpack_vreg_data[0] = vreg_rd_i;
+        unpack_vreg_data[1] = vreg_mask_i;
+    end
+    logic [31        :0] vs2_data;
+    logic [VMEM_W  -1:0] vs3_data;
+    logic [VMEM_W/8-1:0] vmsk_data;
+    assign vs2_data  = unpack_ops[0][31:0];
+    assign vs3_data  = unpack_ops[1];
+    assign vmsk_data = unpack_ops[2][VMEM_W/8-1:0];
+
+    // compose memory address:
+    always_comb begin
+        req_addr_d = state_req_d.rs1.r.xval;
+        if (state_req_d.mode.stride == LSU_INDEXED) begin
+            req_addr_d = DONT_CARE_ZERO ? '0 : 'x;
+            unique case (state_req_d.mode.eew)
+                VSEW_8:  req_addr_d = state_req_d.rs1.r.xval + {24'b0, vs2_data[7 :0]};
+                VSEW_16: req_addr_d = state_req_d.rs1.r.xval + {16'b0, vs2_data[15:0]};
+                VSEW_32: req_addr_d = state_req_d.rs1.r.xval +         vs2_data[31:0] ;
                 default: ;
             endcase
         end
     end
-    always_comb begin
-        //vs3_shift_d   = vreg_rd_q;
-        v0msk_shift_d = vreg_mask_i;
-        //if (~state_vs2_q.vs3_fetch) begin
-        //    if (state_vs2_q.mode.stride == LSU_UNITSTRIDE) begin
-        //        vs3_shift_d[VREG_W-VMEM_W-1:0] = vs3_shift_q[VREG_W-1:VMEM_W];
-        //    end else begin
-        //        //vs3_shift_d = DONT_CARE_ZERO ? '0 : 'x;
-        //        unique case (state_vs2_q.mode.eew)
-        //            VSEW_8:  vs3_shift_d[VREG_W-9 :0] = vs3_shift_q[VREG_W-1:8 ];
-        //            VSEW_16: vs3_shift_d[VREG_W-17:0] = vs3_shift_q[VREG_W-1:16];
-        //            VSEW_32: vs3_shift_d[VREG_W-33:0] = vs3_shift_q[VREG_W-1:32];
-        //        endcase
-        //    end
-        //end
-        if (~state_vs2_q.first_cycle) begin
-            if (state_vs2_q.mode.stride == LSU_UNITSTRIDE) begin
-                v0msk_shift_d = DONT_CARE_ZERO ? '0 : 'x;
-                unique case (state_vs2_q.mode.eew)
-                    VSEW_8:  v0msk_shift_d[VREG_W-(VMEM_W/8 )-1:0] = v0msk_shift_q[VREG_W-1:VMEM_W/8 ];
-                    VSEW_16: v0msk_shift_d[VREG_W-(VMEM_W/16)-1:0] = v0msk_shift_q[VREG_W-1:VMEM_W/16];
-                    VSEW_32: v0msk_shift_d[VREG_W-(VMEM_W/32)-1:0] = v0msk_shift_q[VREG_W-1:VMEM_W/32];
-                    default: ;
-                endcase
-            end else begin
-                v0msk_shift_d[VREG_W-2:0] = v0msk_shift_q[VREG_W-1:1];
-            end
-        end
-    end
-    always_comb begin
-        vs2_tmp_d = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_vs2_q.mode.eew)
-            VSEW_8:  vs2_tmp_d = {24'b0, vs2_shift_q[7 :0]};
-            VSEW_16: vs2_tmp_d = {16'b0, vs2_shift_q[15:0]};
-            VSEW_32: vs2_tmp_d =         vs2_shift_q[31:0] ;
-            default: ;
-        endcase
-    end
 
-    // compose memory address:
-    assign req_addr_d = (state_vs3_q.mode.stride == LSU_INDEXED) ? state_vs3_q.rs1.r.xval + vs2_tmp_q : state_vs3_q.rs1.r.xval;
-
-    // convert element mask to byte mask
-    logic [VMEM_W/8-1:0] byte_mask;
-    always_comb begin
-        byte_mask = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_vs3_q.mode.eew)
-            VSEW_8: begin
-                byte_mask = v0msk_shift_q[VMEM_W/8-1:0];
-            end
-            VSEW_16: begin
-                for (int i = 0; i < VMEM_W / 16; i++) begin
-                    byte_mask[i*2]   = v0msk_shift_q[i];
-                    byte_mask[i*2+1] = v0msk_shift_q[i];
-                end
-            end
-            VSEW_32: begin
-                for (int i = 0; i < VMEM_W / 32; i++) begin
-                    byte_mask[i*4]   = v0msk_shift_q[i];
-                    byte_mask[i*4+1] = v0msk_shift_q[i];
-                    byte_mask[i*4+2] = v0msk_shift_q[i];
-                    byte_mask[i*4+3] = v0msk_shift_q[i];
-                end
-            end
-            default: ;
-        endcase
-    end
-    assign vmsk_tmp_d = byte_mask;
+    assign vmsk_tmp_d = vmsk_data;
 
     // write data conversion and masking:
     logic [VREG_W-1:0] wdata_unit_vl_mask;
     logic              wdata_stri_mask;
-    assign wdata_unit_vl_mask =   state_vs3_q.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_vs3_q.vl));
-    assign wdata_stri_mask    = (~state_vs3_q.vl_0 & (state_vs3_q.count.val <= state_vs3_q.vl)) & (state_vs3_q.mode.masked ? v0msk_shift_q[0] : 1'b1);
+    assign wdata_unit_vl_mask =   state_req_d.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_req_d.vl));
+    assign wdata_stri_mask    = (~state_req_d.vl_0 & (state_req_d.count.val <= state_req_d.vl)) & (state_req_d.mode.masked ? vmsk_data[0] : 1'b1);
     always_comb begin
         wdata_buf_d = DONT_CARE_ZERO ? '0 : 'x;
         wmask_buf_d = DONT_CARE_ZERO ? '0 : 'x;
-        if (state_vs3_q.mode.stride == LSU_UNITSTRIDE) begin
-            wdata_buf_d = vs3_shift_q[VMEM_W-1:0];
-            wmask_buf_d = (state_vs3_q.mode.masked ? byte_mask : '1) & wdata_unit_vl_mask[state_vs3_q.count.val[LSU_COUNTER_W-1:LSU_STRI_COUNTER_EXT_W]*VMEM_W/8 +: VMEM_W/8];
+        if (state_req_d.mode.stride == LSU_UNITSTRIDE) begin
+            wdata_buf_d = vs3_data[VMEM_W-1:0];
+            wmask_buf_d = (state_req_d.mode.masked ? vmsk_data : '1) & wdata_unit_vl_mask[state_req_d.count.val[LSU_COUNTER_W-1:LSU_STRI_COUNTER_EXT_W]*VMEM_W/8 +: VMEM_W/8];
         end else begin
-            unique case (state_vs3_q.mode.eew)
+            unique case (state_req_d.mode.eew)
                 VSEW_8: begin
                     for (int i = 0; i < VMEM_W / 8 ; i++)
-                        wdata_buf_d[i*8  +: 8 ] = vs3_shift_q[7 :0];
+                        wdata_buf_d[i*8  +: 8 ] = vs3_data[7 :0];
                     wmask_buf_d = {{VMEM_W/8-1{1'b0}},    wdata_stri_mask  } <<  req_addr_d[$clog2(VMEM_W/8)-1:0]                                    ;
                 end
                 VSEW_16: begin
                     for (int i = 0; i < VMEM_W / 16; i++)
-                        wdata_buf_d[i*16 +: 16] = vs3_shift_q[15:0];
+                        wdata_buf_d[i*16 +: 16] = vs3_data[15:0];
                     wmask_buf_d = {{VMEM_W/8-2{1'b0}}, {2{wdata_stri_mask}}} << (req_addr_d[$clog2(VMEM_W/8)-1:0] & ({$clog2(VMEM_W/8){1'b1}} << 1));
                 end
                 VSEW_32: begin
                     for (int i = 0; i < VMEM_W / 32; i++)
-                        wdata_buf_d[i*32 +: 32] = vs3_shift_q[31:0];
+                        wdata_buf_d[i*32 +: 32] = vs3_data[31:0];
                     wmask_buf_d = {{VMEM_W/8-4{1'b0}}, {4{wdata_stri_mask}}} << (req_addr_d[$clog2(VMEM_W/8)-1:0] & ({$clog2(VMEM_W/8){1'b1}} << 2));
                 end
                 default: ;

@@ -513,45 +513,43 @@ module vproc_mul #(
     ///////////////////////////////////////////////////////////////////////////
     // MUL REGISTER READ/WRITE:
 
-    fetch_info [3:0]       unpack_op_fetch;
-    logic      [3:0][4 :0] unpack_op_vaddr;
-    logic      [3:0]       unpack_op_vreg;
-    logic      [3:0][31:0] unpack_op_xval;
-    logic      [3:0]       unpack_op_narrow;
-    logic      [3:0]       unpack_op_sigext;
+    unpack_flags [3:0]       unpack_op_flags;
+    logic        [3:0][4 :0] unpack_op_vaddr;
+    logic        [3:0][31:0] unpack_op_xval;
     always_comb begin
-        unpack_op_fetch  [0].shift    = state_init.vs1_shift;
-        unpack_op_fetch  [0].fetch    = state_init.vs1_fetch;
-        unpack_op_fetch  [0].elemwise = '0;
+        unpack_op_flags  [0]          = unpack_flags'('0);
+        unpack_op_flags  [0].shift    = state_init.vs1_shift;
+        unpack_op_flags  [0].load     = state_init.vs1_fetch;
+        unpack_op_flags  [0].vreg     = state_init.rs1.vreg;
+        unpack_op_flags  [0].elemwise = '0;
+        unpack_op_flags  [0].narrow   = state_init.vs1_narrow;
+        unpack_op_flags  [0].sigext   = state_init.mode.op1_signed;
         unpack_op_vaddr  [0]          = state_init.rs1.r.vaddr;
-        unpack_op_vreg   [0]          = state_init.rs1.vreg;
         unpack_op_xval   [0]          = state_init.rs1.r.xval;
-        unpack_op_narrow [0]          = state_init.vs1_narrow;
-        unpack_op_sigext [0]          = state_init.mode.op1_signed;
-        unpack_op_fetch  [1].shift    = state_init.vs2_shift;
-        unpack_op_fetch  [1].fetch    = state_init.vs2_fetch;
-        unpack_op_fetch  [1].elemwise = '0;
+        unpack_op_flags  [1]          = unpack_flags'('0);
+        unpack_op_flags  [1].shift    = state_init.vs2_shift;
+        unpack_op_flags  [1].load     = state_init.vs2_fetch;
+        unpack_op_flags  [1].elemwise = '0;
+        unpack_op_flags  [1].narrow   = state_init.vs2_narrow;
+        unpack_op_flags  [1].sigext   = state_init.mode.op2_signed;
         unpack_op_vaddr  [1]          = state_init.mode.op2_is_vd ? state_init.vd : state_init.rs2.r.vaddr;
-        unpack_op_vreg   [1]          = '0;
         unpack_op_xval   [1]          = '0;
-        unpack_op_narrow [1]          = state_init.vs2_narrow;
-        unpack_op_sigext [1]          = state_init.mode.op2_signed;
-        unpack_op_fetch  [2].shift    = 1'b1;
-        unpack_op_fetch  [2].fetch    = state_init.vs3_fetch;
-        unpack_op_fetch  [2].elemwise = '0;
+        unpack_op_flags  [2]          = unpack_flags'('0);
+        unpack_op_flags  [2].shift    = 1'b1;
+        unpack_op_flags  [2].load     = state_init.vs3_fetch;
+        unpack_op_flags  [2].elemwise = '0;
+        unpack_op_flags  [2].narrow   = '0;
+        unpack_op_flags  [2].sigext   = '0;
         unpack_op_vaddr  [2]          = state_init.mode.op2_is_vd ? state_init.rs2.r.vaddr : state_init.vd;
-        unpack_op_vreg   [2]          = '0;
         unpack_op_xval   [2]          = '0;
-        unpack_op_narrow [2]          = '0;
-        unpack_op_sigext [2]          = '0;
-        unpack_op_fetch  [3].shift    = state_init.v0msk_shift;
-        unpack_op_fetch  [3].fetch    = state_init.first_cycle & state_init.mode.masked;
-        unpack_op_fetch  [3].elemwise = '0;
+        unpack_op_flags  [3]          = unpack_flags'('0);
+        unpack_op_flags  [3].shift    = state_init.v0msk_shift;
+        unpack_op_flags  [3].load     = state_init.first_cycle & state_init.mode.masked;
+        unpack_op_flags  [3].elemwise = '0;
+        unpack_op_flags  [3].narrow   = '0;
+        unpack_op_flags  [3].sigext   = '0;
         unpack_op_vaddr  [3]          = '0;
-        unpack_op_vreg   [3]          = '0;
         unpack_op_xval   [3]          = '0;
-        unpack_op_narrow [3]          = '0;
-        unpack_op_sigext [3]          = '0;
     end
 
     localparam int unsigned UNPACK_VPORT_W [3] = '{VREG_W,VREG_W,VREG_W};
@@ -576,13 +574,15 @@ module vproc_mul #(
         .OP_W                 ( UNPACK_OP_W                          ),
         .OP_STAGE             ( UNPACK_OP_STAGE                      ),
         .OP_SRC               ( UNPACK_OP_SRC                        ),
+        .OP_ADDR_OFFSET_OP0   ( 4'b0000                              ),
         .OP_MASK              ( 4'b1000                              ),
         .OP_XREG              ( 4'b0001                              ),
         .OP_NARROW            ( 4'b0011                              ),
         .OP_ALLOW_ELEMWISE    ( 4'b0000                              ),
         .OP_ALWAYS_ELEMWISE   ( 4'b0000                              ),
+        .OP_HOLD_FLAG         ( 4'b0000                              ),
         .UNPACK_STAGES        ( 3                                    ),
-        .LOAD_T               ( fetch_info                           ),
+        .FLAGS_T              ( unpack_flags                         ),
         .CTRL_DATA_W          ( $bits(mul_state)                     ),
         .DONT_CARE_ZERO       ( DONT_CARE_ZERO                       )
     ) mul_unpack (
@@ -595,13 +595,9 @@ module vproc_mul #(
         .pipe_in_ready_o      ( unpack_ready                         ),
         .pipe_in_ctrl_i       ( state_init                           ),
         .pipe_in_eew_i        ( state_init.eew                       ),
-        .pipe_in_op_fetch_i   ( unpack_op_fetch                      ),
+        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
         .pipe_in_op_vaddr_i   ( unpack_op_vaddr                      ),
-        .pipe_in_op_vreg_i    ( unpack_op_vreg                       ),
         .pipe_in_op_xval_i    ( unpack_op_xval                       ),
-        .pipe_in_op_narrow_i  ( unpack_op_narrow                     ),
-        .pipe_in_op_element_i ( '0                                   ),
-        .pipe_in_op_sigext_i  ( unpack_op_sigext                     ),
         .pipe_out_valid_o     ( state_ex1_valid_d                    ),
         .pipe_out_ready_i     ( state_ex1_ready                      ),
         .pipe_out_ctrl_o      ( state_ex1_d                          ),

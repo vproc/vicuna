@@ -257,38 +257,14 @@ typedef struct packed {
 
 // operand fetch info structure
 typedef struct packed {
-    logic       vreg;
-    logic [4:0] base_addr;
-    logic [4:0] vreg_addr;
-    logic       narrow;
-    logic       fetch;
-    logic       shift;
-    logic       elemwise;
-} fetch_info;
-
-function automatic fetch_info fetch_init (
-        input logic       vreg,
-        input logic [4:0] base_addr
-    );
-    fetch_init.vreg      = vreg;
-    fetch_init.base_addr = base_addr;
-endfunction
-
-function automatic fetch_info fetch_update_addr (
-        input fetch_info  info,
-        input logic [2:0] mul
-    );
-    fetch_update_addr           = info;
-    fetch_update_addr.vreg_addr = info.base_addr | {2'b00, mul};
-endfunction
-
-function automatic fetch_info fetch_prepare_shift (
-        input fetch_info info,
-        input logic      fetch
-    );
-    fetch_prepare_shift       = info;
-    fetch_prepare_shift.fetch = info.vreg & fetch;
-endfunction
+    logic load;
+    logic shift;
+    logic hold;
+    logic vreg;
+    logic elemwise;
+    logic narrow;
+    logic sigext;
+} unpack_flags;
 
 // result store info structure
 typedef struct packed {

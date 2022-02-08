@@ -218,29 +218,19 @@ module vproc_alu #(
     // ALU PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    logic                        state_vreg_ready,   state_vs1_ready,   state_vs2_ready,   state_ex1_ready,   state_ex2_ready,   state_res_ready,   state_vd_ready;
-    logic     state_init_stall,                                                                                                                     state_vd_stall;
-    logic     state_init_valid,  state_vreg_valid_q, state_vs1_valid_q, state_vs2_valid_q, state_ex1_valid_q, state_ex2_valid_q, state_res_valid_q, state_vd_valid_q;
-    logic     state_init_masked, state_vreg_masked,  state_vs1_masked;
-    alu_state state_init,        state_vreg_q,       state_vs1_q,       state_vs2_q,       state_ex1_q,       state_ex2_q,       state_res_q,       state_vd_q;
+    logic                        state_ex1_ready,                      state_ex2_ready,   state_res_ready,   state_vd_ready;
+    logic     state_init_stall,                                                           state_vd_stall;
+    logic     state_init_valid,  state_ex1_valid_q, state_ex1_valid_d, state_ex2_valid_q, state_res_valid_q, state_vd_valid_q;
+    logic     state_init_masked;
+    alu_state state_init,        state_ex1_q,       state_ex1_d,       state_ex2_q,       state_res_q,       state_vd_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vd_store   = (state_q.count.part.low == '1) & (~state_q.vd_narrow | state_q.count.part.mul[0]);
     end
-    assign pipeline_ready = state_vreg_ready & ~state_init_stall;
-
-    // common vreg read register:
-    logic [VREG_W-1:0] vreg_rd_q, vreg_rd_d;
-
-    // operand shift registers:
-    logic [VREG_W-1:0] vs1_shift_q,   vs1_shift_d;
-    logic [VREG_W-1:0] vs2_shift_q,   vs2_shift_d;
-    logic [VREG_W-1:0] v0msk_shift_q, v0msk_shift_d;
-
-    // temporary buffer for vs1 while fetching vs2:
-    logic [ALU_OP_W-1:0] vs1_tmp_q, vs1_tmp_d;
+    logic unpack_ready;
+    assign pipeline_ready = unpack_ready & ~state_init_stall;
 
     // operands and result:
     logic [ALU_OP_W*9/8-1:0] operand1_q,     operand1_d;
@@ -277,77 +267,6 @@ module vproc_alu #(
     logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
-        if (BUF_VREG) begin
-            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_vreg_valid
-                if (~async_rst_ni) begin
-                    state_vreg_valid_q <= 1'b0;
-                end
-                else if (~sync_rst_ni) begin
-                    state_vreg_valid_q <= 1'b0;
-                end
-                else if (state_vreg_ready) begin
-                    state_vreg_valid_q <= state_init_valid & ~state_init_stall;
-                end
-            end
-            always_ff @(posedge clk_i) begin : vproc_alu_stage_vreg
-                // Note: state_init_valid is omitted here since vreg buffering
-                // may need to proceed for one extra cycle after the
-                // instruction has left state_init
-                if (state_vreg_ready) begin
-                    state_vreg_q <= state_init;
-                    vreg_rd_q    <= vreg_rd_d;
-                end
-            end
-            assign state_vreg_ready = ~state_vreg_valid_q | state_vs1_ready;
-        end else begin
-            always_comb begin
-                state_vreg_valid_q = state_init_valid & ~state_init_stall;
-                state_vreg_q       = state_init;
-                vreg_rd_q          = vreg_rd_d;
-            end
-            assign state_vreg_ready = state_vs1_ready;
-        end
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_vs1_valid
-            if (~async_rst_ni) begin
-                state_vs1_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vs1_valid_q <= 1'b0;
-            end
-            else if (state_vs1_ready) begin
-                state_vs1_valid_q <= state_vreg_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_alu_stage_vs1
-            if (state_vs1_ready & state_vreg_valid_q) begin
-                state_vs1_q <= state_vreg_q;
-                vs1_shift_q <= vs1_shift_d;
-            end
-        end
-        assign state_vs1_ready = ~state_vs1_valid_q | state_vs2_ready;
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_vs2_valid
-            if (~async_rst_ni) begin
-                state_vs2_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vs2_valid_q <= 1'b0;
-            end
-            else if (state_vs2_ready) begin
-                state_vs2_valid_q <= state_vs1_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_alu_stage_vs2
-            if (state_vs2_ready & state_vs1_valid_q) begin
-                state_vs2_q   <= state_vs1_q;
-                vs2_shift_q   <= vs2_shift_d;
-                v0msk_shift_q <= v0msk_shift_d;
-                vs1_tmp_q     <= vs1_tmp_d;
-            end
-        end
-        assign state_vs2_ready = ~state_vs2_valid_q | state_ex1_ready;
-
         if (BUF_OPERANDS) begin
             always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_ex1_valid
                 if (~async_rst_ni) begin
@@ -357,12 +276,12 @@ module vproc_alu #(
                     state_ex1_valid_q <= 1'b0;
                 end
                 else if (state_ex1_ready) begin
-                    state_ex1_valid_q <= state_vs2_valid_q;
+                    state_ex1_valid_q <= state_ex1_valid_d;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_alu_stage_ex1
-                if (state_ex1_ready & state_vs2_valid_q) begin
-                    state_ex1_q    <= state_vs2_q;
+                if (state_ex1_ready & state_ex1_valid_d) begin
+                    state_ex1_q    <= state_ex1_d;
                     operand1_q     <= operand1_d;
                     operand2_q     <= operand2_d;
                     operand_mask_q <= operand_mask_d;
@@ -371,8 +290,8 @@ module vproc_alu #(
             assign state_ex1_ready = ~state_ex1_valid_q | state_ex2_ready;
         end else begin
             always_comb begin
-                state_ex1_valid_q = state_vs2_valid_q;
-                state_ex1_q       = state_vs2_q;
+                state_ex1_valid_q = state_ex1_valid_d;
+                state_ex1_q       = state_ex1_d;
                 operand1_q        = operand1_d;
                 operand2_q        = operand2_d;
                 operand_mask_q    = operand_mask_d;
@@ -564,222 +483,203 @@ module vproc_alu #(
     end
     // Determine whether there is a pending read of v0 as a mask
     assign state_init_masked = state_init.mode.op_mask   != ALU_MASK_NONE;
-    assign state_vreg_masked = state_vreg_q.mode.op_mask != ALU_MASK_NONE;
-    assign state_vs1_masked  = state_vs1_q.mode.op_mask  != ALU_MASK_NONE;
     // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
     // and is always read in state_vs1
+    logic [31:0] unpack_pend_rd;
     assign vreg_pend_rd_o = ((
             ((state_init_valid & state_init.rs1.vreg   ) ? pend_vs1                   : '0) |
             ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                   : '0) |
             ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init_masked} : '0)
         ) & ~vreg_pend_wr_q) |
-    ((            state_vreg_valid_q & state_vreg_q.vs2_fetch  ) ? (32'h1 << state_vreg_q.rs2.r.vaddr) : '0) |
-    ((~BUF_VREG & state_vs1_valid_q  & state_vs1_q.vs2_fetch   ) ? (32'h1 << state_vs1_q.rs2.r.vaddr ) : '0) |
-    ((            state_vreg_valid_q & state_vreg_q.first_cycle) ? {31'b0, state_vreg_masked}          : '0) |
-    ((            state_vs1_valid_q  & state_vs1_q.first_cycle ) ? {31'b0, state_vs1_masked }          : '0);
+    unpack_pend_rd;
 
 
     ///////////////////////////////////////////////////////////////////////////
     // ALU REGISTER READ/WRITE AND CONVERSION
 
-    // source register addressing and read:
-    assign vreg_rd_addr_o = (state_init.count.part.low[0] == 1'b0) ? state_init.rs1.r.vaddr : state_init.rs2.r.vaddr;
-    assign vreg_rd_d      = vreg_rd_i;
-
-    // operand shift registers assignment:
-    fetch_info vs1_info, vs2_info, v0msk_info;
+    unpack_flags [2:0]       unpack_op_flags;
+    logic        [2:0][4 :0] unpack_op_vaddr;
+    logic        [2:0][31:0] unpack_op_xval;
     always_comb begin
-        vs1_info.shift  = state_vreg_q.vs1_shift;
-        vs1_info.fetch  = state_vreg_q.vs1_fetch;
-        vs2_info.shift  = state_vs1_q.vs2_shift;
-        vs2_info.fetch  = state_vs1_q.vs2_fetch;
-        v0msk_info.shift = state_vs1_q.v0msk_shift;
-        v0msk_info.fetch = state_vs1_q.first_cycle;
+        unpack_op_flags  [0]          = unpack_flags'('0);
+        unpack_op_flags  [0].shift    = state_init.vs1_shift;
+        unpack_op_flags  [0].load     = state_init.vs1_fetch;
+        unpack_op_flags  [0].vreg     = state_init.rs1.vreg;
+        unpack_op_flags  [0].elemwise = '0;
+        unpack_op_flags  [0].narrow   = state_init.vs1_narrow;
+        unpack_op_flags  [0].sigext   = state_init.mode.sigext;
+        unpack_op_vaddr  [0]          = state_init.rs1.r.vaddr;
+        unpack_op_xval   [0]          = state_init.rs1.r.xval;
+        unpack_op_flags  [1]          = unpack_flags'('0);
+        unpack_op_flags  [1].shift    = state_init.vs2_shift;
+        unpack_op_flags  [1].load     = state_init.vs2_fetch;
+        unpack_op_flags  [1].elemwise = '0;
+        unpack_op_flags  [1].narrow   = state_init.vs2_narrow;
+        unpack_op_flags  [1].sigext   = state_init.mode.sigext;
+        unpack_op_vaddr  [1]          = state_init.rs2.r.vaddr;
+        unpack_op_xval   [1]          = '0;
+        unpack_op_flags  [2]          = unpack_flags'('0);
+        unpack_op_flags  [2].shift    = state_init.v0msk_shift;
+        unpack_op_flags  [2].load     = state_init.first_cycle & state_init_masked;
+        unpack_op_flags  [2].elemwise = '0;
+        unpack_op_vaddr  [2]          = '0;
+        unpack_op_xval   [2]          = '0;
     end
-    `VREGSHIFT_OPERAND_NARROW(VREG_W, ALU_OP_W, vs1_info, vreg_rd_q, vs1_shift_q, vs1_shift_d)
-    `VREGSHIFT_OPERAND_NARROW(VREG_W, ALU_OP_W, vs2_info, vreg_rd_q, vs2_shift_q, vs2_shift_d)
-    `VREGSHIFT_OPMASK(VREG_W, ALU_OP_W, v0msk_info, state_vs1_q.eew, vreg_mask_i, v0msk_shift_q, v0msk_shift_d)
-    assign vs1_tmp_d = vs1_shift_q[ALU_OP_W-1:0];
 
-    // conversion from source registers to operands:
-    logic [ALU_OP_W-1:0] operand1_src;
+    localparam int unsigned UNPACK_VPORT_W [2] = '{VREG_W,VREG_W};
+    localparam int unsigned UNPACK_VADDR_W [2] = '{5,5};
+    localparam int unsigned UNPACK_OP_W    [3] = '{ALU_OP_W,ALU_OP_W,ALU_OP_W/8};
+    localparam int unsigned UNPACK_OP_STAGE[3] = '{1,2,2};
+    localparam int unsigned UNPACK_OP_SRC  [3] = '{0,0,1};
+
+    logic [2:0][ALU_OP_W-1:0] unpack_ops;
+    logic [1:0][4:0]          unpack_vreg_addr;
+    logic [1:0][VREG_W-1:0]   unpack_vreg_data;
+    vproc_vregunpack #(
+        .MAX_VPORT_W          ( VREG_W                               ),
+        .MAX_VADDR_W          ( 5                                    ),
+        .VPORT_CNT            ( 2                                    ),
+        .VPORT_W              ( UNPACK_VPORT_W                       ),
+        .VADDR_W              ( UNPACK_VADDR_W                       ),
+        .VPORT_ADDR_ZERO      ( 2'b10                                ),
+        .VPORT_BUFFER         ( 2'b01                                ),
+        .MAX_OP_W             ( ALU_OP_W                             ),
+        .OP_CNT               ( 3                                    ),
+        .OP_W                 ( UNPACK_OP_W                          ),
+        .OP_STAGE             ( UNPACK_OP_STAGE                      ),
+        .OP_SRC               ( UNPACK_OP_SRC                        ),
+        .OP_ADDR_OFFSET_OP0   ( 3'b000                               ),
+        .OP_MASK              ( 3'b100                               ),
+        .OP_XREG              ( 3'b001                               ),
+        .OP_NARROW            ( 3'b011                               ),
+        .OP_ALLOW_ELEMWISE    ( 3'b000                               ),
+        .OP_ALWAYS_ELEMWISE   ( 3'b000                               ),
+        .OP_HOLD_FLAG         ( 3'b000                               ),
+        .UNPACK_STAGES        ( 3                                    ),
+        .FLAGS_T              ( unpack_flags                         ),
+        .CTRL_DATA_W          ( $bits(alu_state)                     ),
+        .DONT_CARE_ZERO       ( DONT_CARE_ZERO                       )
+    ) alu_unpack (
+        .clk_i                ( clk_i                                ),
+        .async_rst_ni         ( async_rst_ni                         ),
+        .sync_rst_ni          ( sync_rst_ni                          ),
+        .vreg_rd_addr_o       ( unpack_vreg_addr                     ),
+        .vreg_rd_data_i       ( unpack_vreg_data                     ),
+        .pipe_in_valid_i      ( state_init_valid & ~state_init_stall ),
+        .pipe_in_ready_o      ( unpack_ready                         ),
+        .pipe_in_ctrl_i       ( state_init                           ),
+        .pipe_in_eew_i        ( state_init.eew                       ),
+        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
+        .pipe_in_op_vaddr_i   ( unpack_op_vaddr                      ),
+        .pipe_in_op_xval_i    ( unpack_op_xval                       ),
+        .pipe_out_valid_o     ( state_ex1_valid_d                    ),
+        .pipe_out_ready_i     ( state_ex1_ready                      ),
+        .pipe_out_ctrl_o      ( state_ex1_d                          ),
+        .pipe_out_op_data_o   ( unpack_ops                           ),
+        .pending_vreg_reads_o ( unpack_pend_rd                       ),
+        .stage_valid_any_o    (                                      ),
+        .ctrl_flags_any_o     (                                      ),
+        .ctrl_flags_all_o     (                                      )
+    );
+    assign vreg_rd_addr_o = unpack_vreg_addr[0];
     always_comb begin
-        operand1_src = DONT_CARE_ZERO ? '0 : 'x;
-        if (state_vs2_q.rs1.vreg) begin
-            operand1_src = vs1_tmp_q;
-        end else begin
-            unique case (state_vs2_q.eew)
-                VSEW_8: begin
-                    for (int i = 0; i < ALU_OP_W / 8; i++) begin
-                        operand1_src[8 *i +: 8 ] = state_vs2_q.rs1.r.xval[7 :0];
-                    end
-                end
-                VSEW_16: begin
-                    for (int i = 0; i < ALU_OP_W / 16; i++) begin
-                        operand1_src[16*i +: 16] = state_vs2_q.rs1.r.xval[15:0];
-                    end
-                end
-                VSEW_32: begin
-                    for (int i = 0; i < ALU_OP_W / 32; i++) begin
-                        operand1_src[32*i +: 32] = state_vs2_q.rs1.r.xval[31:0];
-                    end
-                end
-                default: ;
-            endcase
-        end
+        unpack_vreg_data[0] = vreg_rd_i;
+        unpack_vreg_data[1] = vreg_mask_i;
     end
-    logic [ALU_OP_W*9/8-1:0] operand1;
+    logic [ALU_OP_W-1:0] operand1, operand2;
+    assign operand1       = unpack_ops[0];
+    assign operand2       = unpack_ops[1];
+    assign operand_mask_d = unpack_ops[2][ALU_OP_W/8-1:0];
+
+    logic [ALU_OP_W*9/8-1:0] operand1_9bpb;
     always_comb begin
-        operand1 = DONT_CARE_ZERO ? '0 : 'x;
+        operand1_9bpb = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 8; i++) begin
-            if (~state_vs2_q.mode.shift_op) begin
-                operand1[9*i+1 +: 8] = operand1_src[8*i +: 8];
+            if (~state_ex1_d.mode.shift_op) begin
+                operand1_9bpb[9*i+1 +: 8] = operand1[8*i +: 8];
             end else begin
-                operand1[9*i   +: 8] = operand1_src[8*i +: 8];
-                unique case (state_vs2_q.eew)
+                operand1_9bpb[9*i   +: 8] = operand1[8*i +: 8];
+                unique case (state_ex1_d.eew)
                     VSEW_8: begin
-                        operand1[9*i+8] =                  state_vs2_q.mode.sigext & operand1_src[8*i+7];
+                        operand1_9bpb[9*i+8] =                  state_ex1_d.mode.sigext & operand1[8*i+7];
                     end
                     VSEW_16: begin
-                        operand1[9*i+8] = ((i & 1) == 1) ? state_vs2_q.mode.sigext & operand1_src[8*i+7] : operand1_src[8*i+8];
+                        operand1_9bpb[9*i+8] = ((i & 1) == 1) ? state_ex1_d.mode.sigext & operand1[8*i+7] : operand1[8*i+8];
                     end
                     VSEW_32: begin
-                        operand1[9*i+8] = ((i & 3) == 3) ? state_vs2_q.mode.sigext & operand1_src[8*i+7] : operand1_src[8*i+8];
+                        operand1_9bpb[9*i+8] = ((i & 3) == 3) ? state_ex1_d.mode.sigext & operand1[8*i+7] : operand1[8*i+8];
                     end
                     default: ;
                 endcase
             end
         end
-        if (state_vs2_q.rs1.vreg & state_vs2_q.vs1_narrow) begin
-            operand1 = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (state_vs2_q.eew)
-                VSEW_16: begin
-                    for (int i = 0; i < ALU_OP_W / 16; i++) begin
-                        operand1[18*i+1  +: 8] = vs1_tmp_q[8 *i +: 8 ];
-                        operand1[18*i+10 +: 8] = {8{state_vs2_q.mode.sigext & vs1_tmp_q[8 *i + 7 ]}};
-                    end
-                end
-                VSEW_32: begin
-                    for (int i = 0; i < ALU_OP_W / 32; i++) begin
-                        operand1[36*i+1  +: 8] = vs1_tmp_q[16*i   +: 8];
-                        operand1[36*i+10 +: 8] = vs1_tmp_q[16*i+8 +: 8];
-                        operand1[36*i+19 +: 8] = {8{state_vs2_q.mode.sigext & vs1_tmp_q[16*i + 15]}};
-                        operand1[36*i+28 +: 8] = {8{state_vs2_q.mode.sigext & vs1_tmp_q[16*i + 15]}};
-                    end
-                end
-                default: ;
-            endcase
-        end
     end
-    logic [ALU_OP_W*9/8-1:0] operand2;
+    logic [ALU_OP_W*9/8-1:0] operand2_9bpb;
     always_comb begin
-        operand2 = DONT_CARE_ZERO ? '0 : 'x;
+        operand2_9bpb = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < ALU_OP_W / 8; i++) begin
-            if (~state_vs2_q.mode.shift_op) begin
-                operand2[9*i+1 +: 8] = vs2_shift_q[8*i +: 8];
+            if (~state_ex1_d.mode.shift_op) begin
+                operand2_9bpb[9*i+1 +: 8] = operand2[8*i +: 8];
             end else begin
-                operand2[9*i   +: 8] = vs2_shift_q[8*i +: 8];
-                unique case (state_vs2_q.eew)
+                operand2_9bpb[9*i   +: 8] = operand2[8*i +: 8];
+                unique case (state_ex1_d.eew)
                     VSEW_8: begin
-                        operand2[9*i+8] =                  state_vs2_q.mode.sigext & vs2_shift_q[8*i+7];
+                        operand2_9bpb[9*i+8] =                  state_ex1_d.mode.sigext & operand2[8*i+7];
                     end
                     VSEW_16: begin
-                        operand2[9*i+8] = ((i & 1) == 1) ? state_vs2_q.mode.sigext & vs2_shift_q[8*i+7] : vs2_shift_q[8*i+8];
+                        operand2_9bpb[9*i+8] = ((i & 1) == 1) ? state_ex1_d.mode.sigext & operand2[8*i+7] : operand2[8*i+8];
                     end
                     VSEW_32: begin
-                        operand2[9*i+8] = ((i & 3) == 3) ? state_vs2_q.mode.sigext & vs2_shift_q[8*i+7] : vs2_shift_q[8*i+8];
+                        operand2_9bpb[9*i+8] = ((i & 3) == 3) ? state_ex1_d.mode.sigext & operand2[8*i+7] : operand2[8*i+8];
                     end
                     default: ;
                 endcase
             end
         end
-        if (state_vs2_q.vs2_narrow) begin
-            operand2 = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (state_vs2_q.eew)
-                VSEW_16: begin
-                    for (int i = 0; i < ALU_OP_W / 16; i++) begin
-                        operand2[18*i+1  +: 8] = vs2_shift_q[8 *i +: 8 ];
-                        operand2[18*i+10 +: 8] = {8{state_vs2_q.mode.sigext & vs2_shift_q[8 *i + 7 ]}};
-                    end
-                end
-                VSEW_32: begin
-                    for (int i = 0; i < ALU_OP_W / 32; i++) begin
-                        operand2[36*i+1  +: 8] = vs2_shift_q[16*i   +: 8];
-                        operand2[36*i+10 +: 8] = vs2_shift_q[16*i+8 +: 8];
-                        operand2[36*i+19 +: 8] = {8{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}};
-                        operand2[36*i+28 +: 8] = {8{state_vs2_q.mode.sigext & vs2_shift_q[16*i + 15]}};
-                    end
-                end
-                default: ;
-            endcase
-        end
-    end
-    always_comb begin
-        operand_mask_d = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_vs2_q.eew)
-            VSEW_8: begin
-                operand_mask_d = v0msk_shift_q[ALU_OP_W/8-1:0];
-            end
-            VSEW_16: begin
-                for (int i = 0; i < ALU_OP_W / 16; i++) begin
-                    operand_mask_d[i*2]   = v0msk_shift_q[i];
-                    operand_mask_d[i*2+1] = v0msk_shift_q[i];
-                end
-            end
-            VSEW_32: begin
-                for (int i = 0; i < ALU_OP_W / 32; i++) begin
-                    operand_mask_d[i*4]   = v0msk_shift_q[i];
-                    operand_mask_d[i*4+1] = v0msk_shift_q[i];
-                    operand_mask_d[i*4+2] = v0msk_shift_q[i];
-                    operand_mask_d[i*4+3] = v0msk_shift_q[i];
-                end
-            end
-            default: ;
-        endcase
     end
 
     logic [ALU_OP_W/8-1:0] carry_in_mask;
     always_comb begin
         carry_in_mask = '0;
         for (int i = 0; i < ALU_OP_W / 8; i++) begin
-            if (state_vs2_q.mode.op_mask == ALU_MASK_CARRY) begin
+            if (state_ex1_d.mode.op_mask == ALU_MASK_CARRY) begin
                 carry_in_mask[i] = operand_mask_d[i];
             end
-            if (state_vs2_q.mode.shift_op) begin
+            if (state_ex1_d.mode.shift_op) begin
                 // Select carry in for averaging add/subtract rounding; the averaging add/subtract
                 // instructions shift the result of the add/subtract right by one bit.  The result
                 // is rounded based on its least significant bit as well as the bit that is shifted
                 // out, depending on the rounding mode.  The carry in has the effect of rounding up
                 // the result if the bit that is shifted out was set.
-                unique case (state_vs2_q.vxrm)
+                unique case (state_ex1_d.vxrm)
                     // round-to-nearest-up: always carry in
-                    VXRM_RNU: carry_in_mask[i] =  operand1[9*i] | operand2[9*i];
+                    VXRM_RNU: carry_in_mask[i] =  operand1_9bpb[9*i] | operand2_9bpb[9*i];
                     // round-to-nearest-even: carry in if the shifted result (w/o carry) would be odd
-                    VXRM_RNE: carry_in_mask[i] = (operand1[9*i] | operand2[9*i]) & (operand1[9*i+1] != operand2[9*i+1]);
+                    VXRM_RNE: carry_in_mask[i] = (operand1_9bpb[9*i] | operand2_9bpb[9*i]) & (operand1_9bpb[9*i+1] != operand2_9bpb[9*i+1]);
                     // round-down: no carry in
-                    VXRM_RDN: carry_in_mask[i] =  operand1[9*i] & operand2[9*i];
+                    VXRM_RDN: carry_in_mask[i] =  operand1_9bpb[9*i] & operand2_9bpb[9*i];
                     // round-to-odd: carry in if the shifted result (w/o carry) would be even
-                    VXRM_ROD: carry_in_mask[i] = (operand1[9*i] | operand2[9*i]) & (operand1[9*i+1] == operand2[9*i+1]);
+                    VXRM_ROD: carry_in_mask[i] = (operand1_9bpb[9*i] | operand2_9bpb[9*i]) & (operand1_9bpb[9*i+1] == operand2_9bpb[9*i+1]);
                     default: ;
                 endcase
             end
         end
     end
     logic state_vs2_subtract;
-    assign state_vs2_subtract = state_vs2_q.mode.inv_op1 | state_vs2_q.mode.inv_op2;
+    assign state_vs2_subtract = state_ex1_d.mode.inv_op1 | state_ex1_d.mode.inv_op2;
     always_comb begin
-        operand1_d = state_vs2_q.mode.inv_op1 ? ~operand1 : operand1;
-        operand2_d = state_vs2_q.mode.inv_op2 ? ~operand2 : operand2;
+        operand1_d = state_ex1_d.mode.inv_op1 ? ~operand1_9bpb : operand1_9bpb;
+        operand2_d = state_ex1_d.mode.inv_op2 ? ~operand2_9bpb : operand2_9bpb;
         for (int i = 0; i < ALU_OP_W / 32; i++) begin
             // operands carry logic for fracturable adder
             operand1_d[36*i   ] =                                 carry_in_mask[i*4  ] ^ state_vs2_subtract;
-            operand1_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+1] ^ state_vs2_subtract) : 1'b1;
-            operand1_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (carry_in_mask[i*4+2] ^ state_vs2_subtract) : 1'b1;
-            operand1_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+3] ^ state_vs2_subtract) : 1'b1;
+            operand1_d[36*i+9 ] = (state_ex1_d.eew == VSEW_8 ) ? (carry_in_mask[i*4+1] ^ state_vs2_subtract) : 1'b1;
+            operand1_d[36*i+18] = (state_ex1_d.eew != VSEW_32) ? (carry_in_mask[i*4+2] ^ state_vs2_subtract) : 1'b1;
+            operand1_d[36*i+27] = (state_ex1_d.eew == VSEW_8 ) ? (carry_in_mask[i*4+3] ^ state_vs2_subtract) : 1'b1;
             operand2_d[36*i   ] = 1'b1;
-            operand2_d[36*i+9 ] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+1] ^ state_vs2_subtract) : 1'b0;
-            operand2_d[36*i+18] = (state_vs2_q.eew != VSEW_32) ? (carry_in_mask[i*4+2] ^ state_vs2_subtract) : 1'b0;
-            operand2_d[36*i+27] = (state_vs2_q.eew == VSEW_8 ) ? (carry_in_mask[i*4+3] ^ state_vs2_subtract) : 1'b0;
+            operand2_d[36*i+9 ] = (state_ex1_d.eew == VSEW_8 ) ? (carry_in_mask[i*4+1] ^ state_vs2_subtract) : 1'b0;
+            operand2_d[36*i+18] = (state_ex1_d.eew != VSEW_32) ? (carry_in_mask[i*4+2] ^ state_vs2_subtract) : 1'b0;
+            operand2_d[36*i+27] = (state_ex1_d.eew == VSEW_8 ) ? (carry_in_mask[i*4+3] ^ state_vs2_subtract) : 1'b0;
         end
     end
 
