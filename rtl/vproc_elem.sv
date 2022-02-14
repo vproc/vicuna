@@ -287,6 +287,7 @@ module vproc_elem #(
 
     elem_counter vd_count_d;
     logic        vd_store_d;
+    logic [4:0]  vd_vd_d;
 
     // operands and result:
     //logic [31:0] elem_q,           elem_d;
@@ -311,8 +312,7 @@ module vproc_elem #(
     logic [VMSK_W-1:0] vreg_wr_mask_q [WRITE_BUFFER_SZ], vreg_wr_mask_d;
     logic [VREG_W-1:0] vreg_wr_q      [WRITE_BUFFER_SZ], vreg_wr_d;
     logic              vreg_wr_clear_q[WRITE_BUFFER_SZ], vreg_wr_clear_d;
-    logic [4:0]        vreg_wr_base_q [WRITE_BUFFER_SZ], vreg_wr_base_d;
-    cfg_emul           vreg_wr_emul_q [WRITE_BUFFER_SZ], vreg_wr_emul_d;
+    logic [1:0]        vreg_wr_clear_cnt_q[WRITE_BUFFER_SZ], vreg_wr_clear_cnt_d;
 
     // hazard clear registers
     logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
@@ -368,6 +368,7 @@ module vproc_elem #(
                 state_vd_q           <= state_res_q;
                 state_vd_q.count     <= vd_count_d;
                 state_vd_q.vd_store  <= vd_store_d;
+                state_vd_q.vd        <= vd_vd_d;
                 vd_shift_q           <= vd_shift_d;
                 vdmsk_shift_q        <= vdmsk_shift_d;
                 has_valid_result_q   <= has_valid_result_d;
@@ -382,16 +383,14 @@ module vproc_elem #(
                 vreg_wr_mask_q [0] <= vreg_wr_mask_d;
                 vreg_wr_q      [0] <= vreg_wr_d;
                 vreg_wr_clear_q[0] <= vreg_wr_clear_d;
-                vreg_wr_base_q [0] <= vreg_wr_base_d;
-                vreg_wr_emul_q [0] <= vreg_wr_emul_d;
+                vreg_wr_clear_cnt_q[0] <= vreg_wr_clear_cnt_d;
                 for (int i = 1; i < MAX_WR_DELAY; i++) begin
                     vreg_wr_en_q   [i] <= vreg_wr_en_q   [i-1];
                     vreg_wr_addr_q [i] <= vreg_wr_addr_q [i-1];
                     vreg_wr_mask_q [i] <= vreg_wr_mask_q [i-1];
                     vreg_wr_q      [i] <= vreg_wr_q      [i-1];
                     vreg_wr_clear_q[i] <= vreg_wr_clear_q[i-1];
-                    vreg_wr_base_q [i] <= vreg_wr_base_q [i-1];
-                    vreg_wr_emul_q [i] <= vreg_wr_emul_q [i-1];
+                    vreg_wr_clear_cnt_q[i] <= vreg_wr_clear_cnt_q[i-1];
                 end
             end
         end
@@ -417,29 +416,19 @@ module vproc_elem #(
     end
 
     // write hazard clearing
+    logic       pend_clear;
+    logic [1:0] pend_clear_cnt;
+    logic [4:0] pend_clear_addr;
+    logic [4:0] pend_clear_addr_mask;
+    assign pend_clear           = (MAX_WR_DELAY == 0) ? vreg_wr_clear_d     : vreg_wr_clear_q    [MAX_WR_DELAY-1];
+    assign pend_clear_cnt       = (MAX_WR_DELAY == 0) ? vreg_wr_clear_cnt_d : vreg_wr_clear_cnt_q[MAX_WR_DELAY-1];
+    assign pend_clear_addr      = (MAX_WR_DELAY == 0) ? vreg_wr_addr_d      : vreg_wr_addr_q     [MAX_WR_DELAY-1];
+    assign pend_clear_addr_mask = 5'b11111 << pend_clear_cnt;
     always_comb begin
-        if (MAX_WR_DELAY == 0) begin
-            clear_wr_hazards_d = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (vreg_wr_emul_d)
-                EMUL_1: clear_wr_hazards_d = 32'h00000001 << {vreg_wr_base_d                           };
-                EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_d                [4:1], 1'b0};
-                EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_d                [4:2], 2'b0};
-                EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_d                [4:3], 3'b0};
-                default: ;
-            endcase
-            if (~vreg_wr_clear_d) begin
-                clear_wr_hazards_d = '0;
-            end
-        end else begin
-            unique case (vreg_wr_emul_q[MAX_WR_DELAY-1])
-                EMUL_1: clear_wr_hazards_d = 32'h00000001 << {vreg_wr_base_q[MAX_WR_DELAY-1]           };
-                EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_q[MAX_WR_DELAY-1][4:1], 1'b0};
-                EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_q[MAX_WR_DELAY-1][4:2], 2'b0};
-                EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_q[MAX_WR_DELAY-1][4:3], 3'b0};
-                default: ;
-            endcase
-            if (~vreg_wr_clear_q[MAX_WR_DELAY-1]) begin
-                clear_wr_hazards_d = '0;
+        clear_wr_hazards_d = '0;
+        if (pend_clear) begin
+            for (int i = 0; i < 32; i++) begin
+                clear_wr_hazards_d[i] = (5'(i) & pend_clear_addr_mask) == (pend_clear_addr & pend_clear_addr_mask);
             end
         end
     end
@@ -740,15 +729,24 @@ module vproc_elem #(
         end
     end
     assign vd_store_d = ~state_res_q.mode.xreg & result_valid_q & (vd_count_d.part.low == '1);
+    always_comb begin
+        vd_vd_d = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_res_q.emul)
+            EMUL_1: vd_vd_d = state_res_q.vd;
+            EMUL_2: vd_vd_d = state_res_q.vd | {4'b0, vd_count_d.part.mul[0:0]};
+            EMUL_4: vd_vd_d = state_res_q.vd | {3'b0, vd_count_d.part.mul[1:0]};
+            EMUL_8: vd_vd_d = state_res_q.vd | {2'b0, vd_count_d.part.mul[2:0]};
+            default: ;
+        endcase
+    end
 
     //
     assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall & ~instr_killed_i[state_vd_q.id];
-    assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count.part.mul[2:0]};
+    assign vreg_wr_addr_d  = state_vd_q.vd;
     assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
     assign vreg_wr_d       = vd_shift_q;
     assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg & ~state_vd_stall;
-    assign vreg_wr_base_d  = state_vd_q.vd;
-    assign vreg_wr_emul_d  = state_vd_q.emul;
+    assign vreg_wr_clear_cnt_d = state_vd_q.emul; // TODO reductions always have EMUL == 1
 
 
     ///////////////////////////////////////////////////////////////////////////
