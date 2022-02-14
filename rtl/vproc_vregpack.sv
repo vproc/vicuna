@@ -125,11 +125,13 @@ module vproc_vregpack #(
             stage_state_d.eew            = pipe_in_eew_i;
             stage_state_d.res_flags      = pipe_in_res_flags_i;
             stage_state_d.res_vaddr      = pipe_in_res_vaddr_i;
-            stage_state_d.res_buffer     = res_buffer_next;
-            stage_state_d.msk_buffer     = msk_buffer_next;
             stage_state_d.pend_clear     = pipe_in_pend_clear_i;
             stage_state_d.pend_clear_cnt = pipe_in_pend_clear_cnt_i;
             stage_state_d.instr_done     = pipe_in_instr_done_i;
+            if (pipe_in_valid_i) begin
+                stage_state_d.res_buffer = res_buffer_next;
+                stage_state_d.msk_buffer = msk_buffer_next;
+            end
         end
     end
 
@@ -165,7 +167,7 @@ module vproc_vregpack #(
             vreg_wr_mask_q     [i] <= vreg_wr_mask_q     [i-1];
             vreg_wr_q          [i] <= vreg_wr_q          [i-1];
             vreg_wr_clear_q    [i] <= vreg_wr_clear_q    [i-1];
-            vreg_wr_clear_cnt_q[i] <= vreg_wr_clear_cnt_d[i-1];
+            vreg_wr_clear_cnt_q[i] <= vreg_wr_clear_cnt_q[i-1];
         end
     end
 
@@ -233,16 +235,16 @@ module vproc_vregpack #(
         else if ((RES_ALLOW_ELEMWISE & pipe_in_res_flags_i.elemwise) | RES_ALWAYS_ELEMWISE) begin
             unique case (pipe_in_eew_i)
                 VSEW_8: begin
-                    res_default = {pipe_in_res_data_i[7 :0], res_buffer[VPORT_W  -1:VPORT_W  -RES_W  +8 ]};
-                    msk_default = {pipe_in_res_mask_i[0 :0], msk_buffer[VPORT_W/8-1:VPORT_W/8-RES_W/8+1 ]};
+                    res_default = {pipe_in_res_data_i[7 :0]  , res_buffer[VPORT_W  -1:VPORT_W  -RES_W  +8 ]};
+                    msk_default = {   pipe_in_res_mask_i[0]  , msk_buffer[VPORT_W/8-1:VPORT_W/8-RES_W/8+1 ]};
                 end
                 VSEW_16: begin
-                    res_default = {pipe_in_res_data_i[15:0], res_buffer[VPORT_W  -1:VPORT_W  -RES_W  +16]};
-                    msk_default = {pipe_in_res_mask_i[1 :0], msk_buffer[VPORT_W/8-1:VPORT_W/8-RES_W/8+2 ]};
+                    res_default = {pipe_in_res_data_i[15:0]  , res_buffer[VPORT_W  -1:VPORT_W  -RES_W  +16]};
+                    msk_default = {{2{pipe_in_res_mask_i[0]}}, msk_buffer[VPORT_W/8-1:VPORT_W/8-RES_W/8+2 ]};
                 end
                 VSEW_32: begin
-                    res_default = {pipe_in_res_data_i[31:0], {RES_W  -32{1'b0}}} | (res_buffer[VPORT_W  -1 -: RES_W  ] >> 32);
-                    msk_default = {pipe_in_res_mask_i[3 :0], {RES_W/8-4 {1'b0}}} | (msk_buffer[VPORT_W/8-1 -: RES_W/8] >> 4 );
+                    res_default = {pipe_in_res_data_i[31:0]  , {RES_W  -32{1'b0}}} | (res_buffer[VPORT_W  -1 -: RES_W  ] >> 32);
+                    msk_default = {{4{pipe_in_res_mask_i[0]}}, {RES_W/8-4 {1'b0}}} | (msk_buffer[VPORT_W/8-1 -: RES_W/8] >> 4 );
                 end
                 default: ;
             endcase
