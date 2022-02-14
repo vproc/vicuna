@@ -1187,24 +1187,28 @@ module vproc_decoder #(
                         {6'b001110, 3'b011},        // vslideup VI
                         {6'b001110, 3'b100}: begin  // vslideup VX
                             unit_o            = UNIT_SLD;
-                            mode_o.sld.op     = SLD_UP;
+                            mode_o.sld.dir    = SLD_UP;
+                            mode_o.sld.slide1 = 1'b0;
                             mode_o.sld.masked = instr_masked;
                         end
                         {6'b001111, 3'b011},        // vslidedown VI
                         {6'b001111, 3'b100}: begin  // vslidedown VX
                             unit_o            = UNIT_SLD;
-                            mode_o.sld.op     = SLD_DOWN;
+                            mode_o.sld.dir    = SLD_DOWN;
+                            mode_o.sld.slide1 = 1'b0;
                             mode_o.sld.masked = instr_masked;
                         end
                         {6'b001110, 3'b110}: begin  // vslide1up VX
                             unit_o            = UNIT_SLD;
-                            mode_o.sld.op     = SLD_1UP;
+                            mode_o.sld.dir    = SLD_UP;
+                            mode_o.sld.slide1 = 1'b1;
                             mode_o.sld.masked = instr_masked;
                             rd_o.vreg         = 1'b1;
                         end
                         {6'b001111, 3'b110}: begin  // vslide1down VX
                             unit_o            = UNIT_SLD;
-                            mode_o.sld.op     = SLD_1DOWN;
+                            mode_o.sld.dir    = SLD_DOWN;
+                            mode_o.sld.slide1 = 1'b1;
                             mode_o.sld.masked = instr_masked;
                         end
 

@@ -167,16 +167,15 @@ typedef struct packed {
 `endif
 } op_mode_mul;
 
-typedef enum logic [1:0] {
+typedef enum logic [0:0] {
     SLD_UP,
-    SLD_DOWN,
-    SLD_1UP,
-    SLD_1DOWN
-} opcode_sld;
+    SLD_DOWN
+} opcode_sld_dir;
 
 typedef struct packed {
-    logic       masked;
-    opcode_sld  op;
+    logic          masked;
+    opcode_sld_dir dir;    // slide direction
+    logic          slide1; // slide 1 element
 `ifdef VPROC_OP_MODE_UNION
     logic [9:0] unused;
 `endif
