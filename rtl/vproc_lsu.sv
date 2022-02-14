@@ -293,9 +293,9 @@ module vproc_lsu #(
     // pass state information along pipeline:
     logic                           state_req_ready,   lsu_queue_ready;
     logic         state_init_stall, state_req_stall;
-    logic         state_init_valid, state_req_valid_q, state_req_valid_d, state_rdata_valid_q, state_vd_valid_q;
+    logic         state_init_valid, state_req_valid_q, state_req_valid_d, state_rdata_valid_q;
     lsu_state     state_init,       state_req_q,       state_req_d;
-    lsu_state_red state_rdata_d,                                          state_rdata_q,       state_vd_q;
+    lsu_state_red state_rdata_d,                                          state_rdata_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
@@ -334,21 +334,6 @@ module vproc_lsu #(
     logic [       VMEM_W   -1:0] rdata_buf_q, rdata_buf_d;
     logic [$clog2(VMEM_W/8)-1:0] rdata_off_q, rdata_off_d;
     logic [       VMEM_W/8 -1:0] rmask_buf_q, rmask_buf_d;
-
-    // load data shift register:
-    logic [VREG_W-1:0] vd_shift_q,    vd_shift_d;
-    logic [VMSK_W-1:0] vdmsk_shift_q, vdmsk_shift_d;
-
-    // vreg write buffers
-    localparam WRITE_BUFFER_SZ = (MAX_WR_DELAY > 0) ? MAX_WR_DELAY : 1;
-    logic              vreg_wr_en_q   [WRITE_BUFFER_SZ], vreg_wr_en_d;
-    logic [4:0]        vreg_wr_addr_q [WRITE_BUFFER_SZ], vreg_wr_addr_d;
-    logic [VMSK_W-1:0] vreg_wr_mask_q [WRITE_BUFFER_SZ], vreg_wr_mask_d;
-    logic [VREG_W-1:0] vreg_wr_q      [WRITE_BUFFER_SZ], vreg_wr_d;
-    logic              vreg_wr_clear_q[WRITE_BUFFER_SZ], vreg_wr_clear_d;
-
-    // hazard clear registers
-    logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
         if (BUF_REQUEST) begin
@@ -432,71 +417,7 @@ module vproc_lsu #(
                 mem_exccode_q <= mem_exccode_d;
             end
         end
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_lsu_stage_vd_valid
-            if (~async_rst_ni) begin
-                state_vd_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vd_valid_q <= 1'b0;
-            end
-            else begin
-                state_vd_valid_q <= state_rdata_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_lsu_stage_vd
-            if (state_rdata_valid_q) begin
-                state_vd_q    <= state_rdata_q;
-                vd_shift_q    <= vd_shift_d;
-                vdmsk_shift_q <= vdmsk_shift_d;
-            end
-        end
-
-        if (MAX_WR_DELAY > 0) begin
-            always_ff @(posedge clk_i) begin : vproc_lsu_wr_delay
-                vreg_wr_en_q   [0] <= vreg_wr_en_d;
-                vreg_wr_addr_q [0] <= vreg_wr_addr_d;
-                vreg_wr_mask_q [0] <= vreg_wr_mask_d;
-                vreg_wr_q      [0] <= vreg_wr_d;
-                vreg_wr_clear_q[0] <= vreg_wr_clear_d;
-                for (int i = 1; i < MAX_WR_DELAY; i++) begin
-                    vreg_wr_en_q   [i] <= vreg_wr_en_q   [i-1];
-                    vreg_wr_addr_q [i] <= vreg_wr_addr_q [i-1];
-                    vreg_wr_mask_q [i] <= vreg_wr_mask_q [i-1];
-                    vreg_wr_q      [i] <= vreg_wr_q      [i-1];
-                    vreg_wr_clear_q[i] <= vreg_wr_clear_q[i-1];
-                end
-            end
-        end
-
-        always_ff @(posedge clk_i) begin
-            clear_wr_hazards_q <= clear_wr_hazards_d;
-        end
     endgenerate
-
-    always_comb begin
-        vreg_wr_en_o   = vreg_wr_en_d;
-        vreg_wr_addr_o = vreg_wr_addr_d;
-        vreg_wr_mask_o = vreg_wr_mask_d;
-        vreg_wr_o      = vreg_wr_d;
-        for (int i = 0; i < MAX_WR_DELAY; i++) begin
-            if ((((i + 1) & (i + 2)) == 0) & vreg_wr_en_q[i]) begin
-                vreg_wr_en_o   = 1'b1;
-                vreg_wr_addr_o = vreg_wr_addr_q[i];
-                vreg_wr_mask_o = vreg_wr_mask_q[i];
-                vreg_wr_o      = vreg_wr_q     [i];
-            end
-        end
-    end
-
-    // write hazard clearing
-    always_comb begin
-        clear_wr_hazards_d     = vreg_wr_clear_d                 ? (32'b1 << vreg_wr_addr_d                ) : 32'b0;
-        if (MAX_WR_DELAY > 0) begin
-            clear_wr_hazards_d = vreg_wr_clear_q[MAX_WR_DELAY-1] ? (32'b1 << vreg_wr_addr_q[MAX_WR_DELAY-1]) : 32'b0;
-        end
-    end
-    assign clear_wr_hazards_o = clear_wr_hazards_q;
 
     // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
@@ -782,37 +703,83 @@ module vproc_lsu #(
     assign rdata_unit_vdmsk   = (state_rdata_q.mode.masked ? rmask_buf_q : {VMEM_W/8{1'b1}}) & rdata_unit_vl_mask[state_rdata_q.count.val[LSU_COUNTER_W-1:LSU_STRI_COUNTER_EXT_W]*VMEM_W/8 +: VMEM_W/8];
     logic rdata_stri_vdmsk;
     assign rdata_stri_vdmsk = (~state_rdata_q.vl_0 & (state_rdata_q.count.val <= state_rdata_q.vl)) & (state_rdata_q.mode.masked ? rmask_buf_q[0] : 1'b1);
+
+    pack_flags pack_res_flags;
     always_comb begin
-        vd_shift_d    = DONT_CARE_ZERO ? '0 : 'x;
-        vdmsk_shift_d = DONT_CARE_ZERO ? '0 : 'x;
+        pack_res_flags       = pack_flags'('0);
+        pack_res_flags.store = state_rdata_q.vd_store & ~state_rdata_q.exc;
         if (state_rdata_q.mode.stride == LSU_UNITSTRIDE) begin
-            vd_shift_d    = {rdata_buf_q     , vd_shift_q   [VREG_W-1:VMEM_W  ]};
-            vdmsk_shift_d = {rdata_unit_vdmsk, vdmsk_shift_q[VMSK_W-1:VMEM_W/8]};
+            pack_res_flags.shift    = 1'b1;
+            pack_res_flags.elemwise = 1'b0;
         end else begin
+            pack_res_flags.shift = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_rdata_q.mode.eew)
-                VSEW_8: begin
-                    vd_shift_d    = {rdata_buf_q[{3'b000, rdata_off_q                                  } * 8 +: 8 ], vd_shift_q   [VREG_W-1:8 ]};
-                    vdmsk_shift_d = {   rdata_stri_vdmsk                                                           , vdmsk_shift_q[VMSK_W-1:1 ]};
-                end
-                VSEW_16: begin
-                    vd_shift_d    = {rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 1)} * 8 +: 16], vd_shift_q   [VREG_W-1:16]};
-                    vdmsk_shift_d = {{2{rdata_stri_vdmsk}}                                                         , vdmsk_shift_q[VMSK_W-1:2 ]};
-                end
-                VSEW_32: begin
-                    vd_shift_d    = {rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32], vd_shift_q   [VREG_W-1:32]};
-                    vdmsk_shift_d = {{4{rdata_stri_vdmsk}}                                                         , vdmsk_shift_q[VMSK_W-1:4 ]};
-                end
+                VSEW_8:  pack_res_flags.shift =  state_rdata_q.count.part.stri       == '0;
+                VSEW_16: pack_res_flags.shift = (state_rdata_q.count.part.stri >> 1) == '0;
+                VSEW_32: pack_res_flags.shift = (state_rdata_q.count.part.stri >> 2) == '0;
+                default: ;
+            endcase
+            pack_res_flags.elemwise = 1'b1;
+        end
+    end
+    logic [VMEM_W-1:0] rdata;
+    always_comb begin
+        if (state_rdata_q.mode.stride == LSU_UNITSTRIDE) begin
+            rdata = rdata_buf_q;
+        end else begin
+            rdata = DONT_CARE_ZERO ? '0 : 'x;
+            unique case (state_rdata_q.mode.eew)
+                VSEW_8:  rdata[7 :0] = rdata_buf_q[{3'b000, rdata_off_q                                  } * 8 +: 8 ];
+                VSEW_16: rdata[15:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 1)} * 8 +: 16];
+                VSEW_32: rdata[31:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32];
                 default: ;
             endcase
         end
     end
-
-    //
-    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_q.exc;
-    assign vreg_wr_addr_d  = state_vd_q.vd;
-    assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
-    assign vreg_wr_d       = vd_shift_q;
-    assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.vd_store;
+    logic [VMEM_W/8-1:0] rdata_mask;
+    assign rdata_mask = (state_rdata_q.mode.stride == LSU_UNITSTRIDE) ? rdata_unit_vdmsk : {(VMEM_W/8){rdata_stri_vdmsk}};
+    vproc_vregpack #(
+        .VPORT_W                     ( VREG_W                   ),
+        .VADDR_W                     ( 5                        ),
+        .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS          ),
+        .VPORT_PEND_CLR_BULK         ( '0                       ),
+        .RES_W                       ( VMEM_W                   ),
+        .RES_MASK                    ( '0                       ),
+        .RES_XREG                    ( '0                       ),
+        .RES_NARROW                  ( '0                       ),
+        .RES_ALLOW_ELEMWISE          ( 1'b1                     ),
+        .RES_ALWAYS_ELEMWISE         ( '0                       ),
+        .FLAGS_T                     ( pack_flags               ),
+        .INSTR_ID_W                  ( XIF_ID_W                 ),
+        .INSTR_ID_CNT                ( XIF_ID_CNT               ),
+        .DONT_CARE_ZERO              ( DONT_CARE_ZERO           )
+    ) lsu_pack (
+        .clk_i                       ( clk_i                    ),
+        .async_rst_ni                ( async_rst_ni             ),
+        .sync_rst_ni                 ( sync_rst_ni              ),
+        .pipe_in_valid_i             ( state_rdata_valid_q      ),
+        .pipe_in_ready_o             (                          ),
+        .pipe_in_instr_id_i          ( state_rdata_q.id         ),
+        .pipe_in_eew_i               ( state_rdata_q.mode.eew   ),
+        .pipe_in_res_flags_i         ( pack_res_flags           ),
+        .pipe_in_res_vaddr_i         ( state_rdata_q.vd         ),
+        .pipe_in_res_data_i          ( rdata                    ),
+        .pipe_in_res_mask_i          ( rdata_mask               ),
+        .pipe_in_pend_clear_i        ( state_rdata_q.vd_store   ),
+        .pipe_in_pend_clear_cnt_i    ( '0                       ),
+        .pipe_in_instr_done_i        ( state_rdata_q.last_cycle ),
+        .vreg_wr_valid_o             ( vreg_wr_en_o             ),
+        .vreg_wr_ready_i             ( 1'b1                     ),
+        .vreg_wr_addr_o              ( vreg_wr_addr_o           ),
+        .vreg_wr_be_o                ( vreg_wr_mask_o           ),
+        .vreg_wr_data_o              ( vreg_wr_o                ),
+        .pending_vreg_reads_i        ( '0                       ),
+        .clear_pending_vreg_writes_o ( clear_wr_hazards_o       ),
+        .instr_spec_i                ( '0                       ),
+        .instr_killed_i              ( '0                       ),
+        .instr_done_valid_o          (                          ),
+        .instr_done_id_o             (                          )
+    );
 
 
 `ifdef VPROC_SVA
