@@ -182,6 +182,7 @@ module vproc_sld #(
                 EMUL_8: begin
                     slide_fetch = ((state_q.count.part.mul - slide_count.part.mul) & 4'b1000) == '0;
                 end
+                default: ;
             endcase
         end
     end
@@ -608,7 +609,7 @@ module vproc_sld #(
         operand_high_d      = operand;
         operand_low_d       = DONT_CARE_ZERO ? '0 : 'x;
         operand_low_valid_d = 1'b0;
-        if ((unpack_state.mode.dir == SLD_DOWN) & unpack_state.mode.slide1 & (unpack_state.count.val == unpack_state.vl[CFG_VL_W-1:$clog2(SLD_OP_W/8)])) begin
+        if ((unpack_state.mode.dir == SLD_DOWN) & unpack_state.mode.slide1 & (unpack_state.count.val[SLD_COUNTER_W-2:0] == unpack_state.vl[CFG_VL_W-1:$clog2(SLD_OP_W/8)])) begin
             operand_high_d[31:0] = unpack_state.rs1.r.xval;
         end
         unique case (unpack_state.eew)
@@ -632,7 +633,7 @@ module vproc_sld #(
         if (~unpack_state.first_cycle & state_ex_q.rs2.vreg) begin
             operand_low_valid_d = 1'b1;
             for (int i = 0; i < SLD_OP_W / 8; i++) begin
-                if (~unpack_state.mode.slide1 | (unpack_state.count.val != unpack_state.vl[CFG_VL_W-1:$clog2(SLD_OP_W/8)]) | (i <= unpack_state.vl[$clog2(SLD_OP_W/8)-1:0])) begin
+                if (~unpack_state.mode.slide1 | (unpack_state.count.val[SLD_COUNTER_W-2:0] != unpack_state.vl[CFG_VL_W-1:$clog2(SLD_OP_W/8)]) | (i <= unpack_state.vl[$clog2(SLD_OP_W/8)-1:0])) begin
                     operand_low_d[i*8 +: 8] = operand_high_q[i*8 +: 8];
                 end
             end
@@ -688,4 +689,3 @@ module vproc_sld #(
 `endif
 
 endmodule
-
