@@ -124,6 +124,7 @@ module vproc_lsu #(
         op_regs              rs2;
         logic                vs2_fetch;
         logic                vs2_shift;
+        logic                v0msk_fetch;
         logic                v0msk_shift;
         logic [4:0]          vd;
         logic                vs3_fetch;
@@ -227,6 +228,7 @@ module vproc_lsu #(
             state_d.rs2         = rs2_i;
             state_d.vs2_fetch   = rs2_i.vreg;
             state_d.vs2_shift   = 1'b1;
+            state_d.v0msk_fetch = 1'b1;
             state_d.v0msk_shift = 1'b1;
             state_d.vd          = vd_i;
             state_d.vs3_fetch   = mode_i.store;
@@ -270,6 +272,7 @@ module vproc_lsu #(
                     default: ;
                 endcase
                 state_d.vs3_shift = (state_q.count.part.stri == '1) | (state_q.mode.stride == LSU_UNITSTRIDE);
+                state_d.v0msk_fetch = 1'b0;
                 unique case (state_q.mode.eew)
                     VSEW_8:  state_d.v0msk_shift = 1'b1;
                     VSEW_16: state_d.v0msk_shift = state_q.count.val[                         LSU_STRI_COUNTER_EXT_W];
@@ -500,7 +503,7 @@ module vproc_lsu #(
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
-                              (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
+                              (state_init.v0msk_fetch & state_init.mode.masked & vreg_pend_wr_q[0]);
 
     // Stall vreg writes until pending reads of the destination register are
     // complete and while the instruction is speculative; for the LSU stalling
@@ -538,7 +541,7 @@ module vproc_lsu #(
     assign vreg_pend_rd_o = ((
             ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                        : '0) |
             ((state_init_valid & state_init.mode.store ) ? pend_vs3                        : '0) |
-            ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init.mode.masked} : '0)
+            ((state_init_valid & state_init.v0msk_fetch) ? {31'b0, state_init.mode.masked} : '0)
         ) & ~vreg_pend_wr_q) |
     unpack_pend_rd;
 
@@ -564,7 +567,7 @@ module vproc_lsu #(
         unpack_op_xval   [1]          = '0;
         unpack_op_flags  [2]          = unpack_flags'('0);
         unpack_op_flags  [2].shift    = state_init.v0msk_shift;
-        unpack_op_flags  [2].load     = state_init.first_cycle & state_init.mode.masked;
+        unpack_op_flags  [2].load     = state_init.v0msk_fetch & state_init.mode.masked;
         unpack_op_flags  [2].elemwise = state_init.mode.stride != LSU_UNITSTRIDE;
         unpack_op_vaddr  [2]          = '0;
         unpack_op_xval   [2]          = '0;

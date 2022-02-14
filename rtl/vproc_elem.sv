@@ -120,6 +120,7 @@ module vproc_elem #(
         logic                        vs1_shift;
         op_regs                      rs2;
         logic                        gather_fetch;
+        logic                        v0msk_fetch;
         logic [4:0]                  vd;
         logic                        vd_store;
     } elem_state;
@@ -214,6 +215,7 @@ module vproc_elem #(
             state_d.rs2            = op_reduction ? rs1_i : rs2_i;
             state_d.rs2.vreg       = rs2_i.vreg | op_reduction;
             state_d.gather_fetch   = 1'b1;
+            state_d.v0msk_fetch    = 1'b1;
             state_d.vd             = vd_i;
             vreg_pend_wr_d         = vreg_pend_wr_i;
         end
@@ -261,6 +263,7 @@ module vproc_elem #(
             end else begin
                 state_d.vs1_shift = state_q.count.val[2:0] == '1;
             end
+            state_d.v0msk_fetch = 1'b0;
         end
     end
 
@@ -482,7 +485,7 @@ module vproc_elem #(
     assign state_init_stall = (state_init.vs1_fetch                                                                 & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
                               (state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER) & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               ((state_init.mode.op == ELEM_VRGATHER) & ((state_init_gather_vregs & vreg_pend_wr_q) != '0)) |
-                              (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
+                              (state_init.v0msk_fetch & state_init.mode.masked & vreg_pend_wr_q[0]);
 
     // Stall xreg writes while the instruction is speculative
     assign state_res_stall = state_res_valid_q & state_res_q.mode.xreg & ((state_res_q.mode.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle) & instr_spec_i[state_res_q.id];
@@ -530,7 +533,7 @@ module vproc_elem #(
     assign vreg_pend_rd_o = ((
             ((state_init_valid & state_init.rs1.vreg   ) ? pend_vs1                        : '0) |
             ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                        : '0) |
-            ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init.mode.masked} : '0)
+            ((state_init_valid & state_init.v0msk_fetch) ? {31'b0, state_init.mode.masked} : '0)
         ) & ~vreg_pend_wr_q) |
     pending_gather_vreg_reads_q | unpack_pend_rd;
 
@@ -571,7 +574,7 @@ module vproc_elem #(
         unpack_op_xval   [2]          = '0;
         unpack_op_flags  [3]          = unpack_flags'('0);
         unpack_op_flags  [3].shift    = 1'b1;
-        unpack_op_flags  [3].load     = state_init.first_cycle & state_init.mode.masked;
+        unpack_op_flags  [3].load     = state_init.v0msk_fetch & state_init.mode.masked;
         unpack_op_flags  [3].elemwise = '0;
         unpack_op_vaddr  [3]          = '0;
         unpack_op_xval   [3]          = '0;
