@@ -749,7 +749,7 @@ module vproc_alu #(
     end
 
     // result shift register assignment:
-    store_info vd_info;
+    pack_flags vd_info;
     always_comb begin
         vd_info.shift = ~state_res_q.vd_narrow | ~state_res_q.count.val[0];
     end

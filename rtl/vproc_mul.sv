@@ -226,9 +226,9 @@ module vproc_mul #(
 
     // pass state information along pipeline:
     logic                       state_ex1_ready,                      state_ex2_ready,   state_ex3_ready,   state_res_ready,   state_vd_ready;
-    logic     state_init_stall,                                                                             state_vd_stall;
-    logic     state_init_valid, state_ex1_valid_q, state_ex1_valid_d, state_ex2_valid_q, state_ex3_valid_q, state_res_valid_q, state_vd_valid_q;
-    mul_state state_init,       state_ex1_q,       state_ex1_d,       state_ex2_q,       state_ex3_q,       state_res_q,       state_vd_q;
+    logic     state_init_stall;
+    logic     state_init_valid, state_ex1_valid_q, state_ex1_valid_d, state_ex2_valid_q, state_ex3_valid_q, state_res_valid_q;
+    mul_state state_init,       state_ex1_q,       state_ex1_d,       state_ex2_q,       state_ex3_q,       state_res_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
@@ -248,20 +248,6 @@ module vproc_mul #(
     logic [MUL_OP_W/8-1:0] result_mask1_q, result_mask1_d;
     logic [MUL_OP_W/8-1:0] result_mask2_q, result_mask2_d;
     logic [MUL_OP_W/8-1:0] result_mask3_q, result_mask3_d;
-
-    // result shift register:
-    logic [VREG_W-1:0] vd_shift_q,    vd_shift_d;
-    logic [VMSK_W-1:0] vdmsk_shift_q, vdmsk_shift_d;
-
-    // vreg write buffers
-    localparam WRITE_BUFFER_SZ = (MAX_WR_DELAY > 0) ? MAX_WR_DELAY : 1;
-    logic              vreg_wr_en_q  [WRITE_BUFFER_SZ], vreg_wr_en_d;
-    logic [4:0]        vreg_wr_addr_q[WRITE_BUFFER_SZ], vreg_wr_addr_d;
-    logic [VMSK_W-1:0] vreg_wr_mask_q[WRITE_BUFFER_SZ], vreg_wr_mask_d;
-    logic [VREG_W-1:0] vreg_wr_q     [WRITE_BUFFER_SZ], vreg_wr_d;
-
-    // hazard clear registers
-    logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
         if (BUF_OPERANDS) begin
@@ -385,70 +371,7 @@ module vproc_mul #(
             end
             assign state_res_ready = state_vd_ready;
         end
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_mul_stage_vd_valid
-            if (~async_rst_ni) begin
-                state_vd_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vd_valid_q <= 1'b0;
-            end
-            else if (state_vd_ready) begin
-                state_vd_valid_q <= state_res_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_mul_stage_vd
-            if (state_vd_ready & state_res_valid_q) begin
-                state_vd_q    <= state_res_q;
-                vd_shift_q    <= vd_shift_d;
-                vdmsk_shift_q <= vdmsk_shift_d;
-            end
-        end
-        assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
-
-        if (MAX_WR_DELAY > 0) begin
-            always_ff @(posedge clk_i) begin : vproc_mul_wr_delay
-                vreg_wr_en_q  [0] <= vreg_wr_en_d;
-                vreg_wr_addr_q[0] <= vreg_wr_addr_d;
-                vreg_wr_mask_q[0] <= vreg_wr_mask_d;
-                vreg_wr_q     [0] <= vreg_wr_d;
-                for (int i = 1; i < MAX_WR_DELAY; i++) begin
-                    vreg_wr_en_q  [i] <= vreg_wr_en_q  [i-1];
-                    vreg_wr_addr_q[i] <= vreg_wr_addr_q[i-1];
-                    vreg_wr_mask_q[i] <= vreg_wr_mask_q[i-1];
-                    vreg_wr_q     [i] <= vreg_wr_q     [i-1];
-                end
-            end
-        end
-
-        always_ff @(posedge clk_i) begin
-            clear_wr_hazards_q <= clear_wr_hazards_d;
-        end
     endgenerate
-
-    always_comb begin
-        vreg_wr_en_o   = vreg_wr_en_d;
-        vreg_wr_addr_o = vreg_wr_addr_d;
-        vreg_wr_mask_o = vreg_wr_mask_d;
-        vreg_wr_o      = vreg_wr_d;
-        for (int i = 0; i < MAX_WR_DELAY; i++) begin
-            if ((((i + 1) & (i + 2)) == 0) & vreg_wr_en_q[i]) begin
-                vreg_wr_en_o   = 1'b1;
-                vreg_wr_addr_o = vreg_wr_addr_q[i];
-                vreg_wr_mask_o = vreg_wr_mask_q[i];
-                vreg_wr_o      = vreg_wr_q     [i];
-            end
-        end
-    end
-
-    // write hazard clearing
-    always_comb begin
-        clear_wr_hazards_d     = vreg_wr_en_d                 ? (32'b1 << vreg_wr_addr_d                ) : 32'b0;
-        if (MAX_WR_DELAY > 0) begin
-            clear_wr_hazards_d = vreg_wr_en_q[MAX_WR_DELAY-1] ? (32'b1 << vreg_wr_addr_q[MAX_WR_DELAY-1]) : 32'b0;
-        end
-    end
-    assign clear_wr_hazards_o = clear_wr_hazards_q;
 
     // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
@@ -457,13 +380,6 @@ module vproc_mul #(
                               (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
                               (state_init.v0msk_fetch & state_init.mode.masked & vreg_pend_wr_q[0]);
-
-    // Stall vreg writes until pending reads of the destination register are
-    // complete and while the instruction is speculative
-    assign state_vd_stall = state_vd_q.vd_store & (vreg_pend_rd_i[state_vd_q.vd] | instr_spec_i[state_vd_q.id]);
-
-    assign instr_done_valid_o = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_stall;
-    assign instr_done_id_o    = state_vd_q.id;
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -630,15 +546,53 @@ module vproc_mul #(
     assign result_mask2_d = result_mask1_q;
     assign result_mask3_d = result_mask2_q;
 
-    // result shift register assignment:
-    assign vd_shift_d    = {result_q      , vd_shift_q   [VREG_W-1:MUL_OP_W  ]};
-    assign vdmsk_shift_d = {result_mask3_q, vdmsk_shift_q[VMSK_W-1:MUL_OP_W/8]};
-
-    //
-    assign vreg_wr_en_d   = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall & ~instr_killed_i[state_vd_q.id];
-    assign vreg_wr_addr_d = state_vd_q.vd;
-    assign vreg_wr_mask_d = vreg_wr_en_o ? vdmsk_shift_q : '0;
-    assign vreg_wr_d      = vd_shift_q;
+    pack_flags pack_res_flags;
+    always_comb begin
+        pack_res_flags       = pack_flags'('0);
+        pack_res_flags.store = state_res_q.vd_store;
+    end
+    vproc_vregpack #(
+        .VPORT_W                     ( VREG_W                 ),
+        .VADDR_W                     ( 5                      ),
+        .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS        ),
+        .VPORT_PEND_CLR_BULK         ( '0                     ),
+        .RES_W                       ( MUL_OP_W               ),
+        .RES_MASK                    ( '0                     ),
+        .RES_XREG                    ( '0                     ),
+        .RES_NARROW                  ( '0                     ),
+        .RES_ALLOW_ELEMWISE          ( '0                     ),
+        .RES_ALWAYS_ELEMWISE         ( '0                     ),
+        .FLAGS_T                     ( pack_flags             ),
+        .INSTR_ID_W                  ( XIF_ID_W               ),
+        .INSTR_ID_CNT                ( XIF_ID_CNT             ),
+        .DONT_CARE_ZERO              ( DONT_CARE_ZERO         )
+    ) mul_pack (
+        .clk_i                       ( clk_i                  ),
+        .async_rst_ni                ( async_rst_ni           ),
+        .sync_rst_ni                 ( sync_rst_ni            ),
+        .pipe_in_valid_i             ( state_res_valid_q      ),
+        .pipe_in_ready_o             ( state_vd_ready         ),
+        .pipe_in_instr_id_i          ( state_res_q.id         ),
+        .pipe_in_eew_i               ( state_res_q.eew        ),
+        .pipe_in_res_flags_i         ( pack_res_flags         ),
+        .pipe_in_res_vaddr_i         ( state_res_q.vd         ),
+        .pipe_in_res_data_i          ( result_q               ),
+        .pipe_in_res_mask_i          ( result_mask3_q         ),
+        .pipe_in_pend_clear_i        ( state_res_q.vd_store   ),
+        .pipe_in_pend_clear_cnt_i    ( '0                     ),
+        .pipe_in_instr_done_i        ( state_res_q.last_cycle ),
+        .vreg_wr_valid_o             ( vreg_wr_en_o           ),
+        .vreg_wr_ready_i             ( 1'b1                   ),
+        .vreg_wr_addr_o              ( vreg_wr_addr_o         ),
+        .vreg_wr_be_o                ( vreg_wr_mask_o         ),
+        .vreg_wr_data_o              ( vreg_wr_o              ),
+        .pending_vreg_reads_i        ( vreg_pend_rd_i         ),
+        .clear_pending_vreg_writes_o ( clear_wr_hazards_o     ),
+        .instr_spec_i                ( instr_spec_i           ),
+        .instr_killed_i              ( instr_killed_i         ),
+        .instr_done_valid_o          ( instr_done_valid_o     ),
+        .instr_done_id_o             ( instr_done_id_o        )
+    );
 
 
     ///////////////////////////////////////////////////////////////////////////

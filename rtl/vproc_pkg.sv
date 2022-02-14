@@ -267,8 +267,11 @@ typedef struct packed {
 
 // result store info structure
 typedef struct packed {
-    logic       vreg;
-    logic       shift;
-} store_info;
+    logic store;
+    logic shift;
+    logic mask;
+    logic elemwise;
+    logic narrow;
+} pack_flags;
 
 endpackage
