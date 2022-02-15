@@ -704,46 +704,51 @@ module vproc_lsu #(
     logic rdata_stri_vdmsk;
     assign rdata_stri_vdmsk = (~state_rdata_q.vl_0 & (state_rdata_q.count.val <= state_rdata_q.vl)) & (state_rdata_q.mode.masked ? rmask_buf_q[0] : 1'b1);
 
-    pack_flags pack_res_flags;
+    logic      [0:0] pack_res_store, pack_res_valid;
+    pack_flags [0:0] pack_res_flags;
     always_comb begin
-        pack_res_flags       = pack_flags'('0);
-        pack_res_flags.store = state_rdata_q.vd_store & ~state_rdata_q.exc;
+        pack_res_flags[0] = pack_flags'('0);
+        pack_res_store[0] = state_rdata_q.vd_store & ~state_rdata_q.exc;
+        pack_res_valid[0] = state_rdata_valid_q;
         if (state_rdata_q.mode.stride == LSU_UNITSTRIDE) begin
-            pack_res_flags.shift    = 1'b1;
-            pack_res_flags.elemwise = 1'b0;
+            pack_res_flags[0].shift    = 1'b1;
+            pack_res_flags[0].elemwise = 1'b0;
         end else begin
-            pack_res_flags.shift = DONT_CARE_ZERO ? '0 : 'x;
+            pack_res_flags[0].shift = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_rdata_q.mode.eew)
-                VSEW_8:  pack_res_flags.shift =  state_rdata_q.count.part.stri       == '0;
-                VSEW_16: pack_res_flags.shift = (state_rdata_q.count.part.stri >> 1) == '0;
-                VSEW_32: pack_res_flags.shift = (state_rdata_q.count.part.stri >> 2) == '0;
+                VSEW_8:  pack_res_flags[0].shift =  state_rdata_q.count.part.stri       == '0;
+                VSEW_16: pack_res_flags[0].shift = (state_rdata_q.count.part.stri >> 1) == '0;
+                VSEW_32: pack_res_flags[0].shift = (state_rdata_q.count.part.stri >> 2) == '0;
                 default: ;
             endcase
-            pack_res_flags.elemwise = 1'b1;
+            pack_res_flags[0].elemwise = 1'b1;
         end
     end
-    logic [VMEM_W-1:0] rdata;
+    logic [0:0][VMEM_W-1:0] pack_res_data, pack_res_mask;
     always_comb begin
         if (state_rdata_q.mode.stride == LSU_UNITSTRIDE) begin
-            rdata = rdata_buf_q;
+            pack_res_data[0] = rdata_buf_q;
         end else begin
-            rdata = DONT_CARE_ZERO ? '0 : 'x;
+            pack_res_data[0] = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_rdata_q.mode.eew)
-                VSEW_8:  rdata[7 :0] = rdata_buf_q[{3'b000, rdata_off_q                                  } * 8 +: 8 ];
-                VSEW_16: rdata[15:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 1)} * 8 +: 16];
-                VSEW_32: rdata[31:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32];
+                VSEW_8:  pack_res_data[0][7 :0] = rdata_buf_q[{3'b000, rdata_off_q                                  } * 8 +: 8 ];
+                VSEW_16: pack_res_data[0][15:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 1)} * 8 +: 16];
+                VSEW_32: pack_res_data[0][31:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32];
                 default: ;
             endcase
         end
+        pack_res_mask                  = '0;
+        pack_res_mask[0][VMEM_W/8-1:0] = (state_rdata_q.mode.stride == LSU_UNITSTRIDE) ? rdata_unit_vdmsk : {(VMEM_W/8){rdata_stri_vdmsk}};
     end
-    logic [VMEM_W/8-1:0] rdata_mask;
-    assign rdata_mask = (state_rdata_q.mode.stride == LSU_UNITSTRIDE) ? rdata_unit_vdmsk : {(VMEM_W/8){rdata_stri_vdmsk}};
+    localparam int unsigned PACK_RES_W[1] = '{VMEM_W};
     vproc_vregpack #(
         .VPORT_W                     ( VREG_W                   ),
         .VADDR_W                     ( 5                        ),
         .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS          ),
         .VPORT_PEND_CLR_BULK         ( '0                       ),
-        .RES_W                       ( VMEM_W                   ),
+        .MAX_RES_W                   ( VMEM_W                   ),
+        .RES_CNT                     ( 1                        ),
+        .RES_W                       ( PACK_RES_W               ),
         .RES_MASK                    ( '0                       ),
         .RES_XREG                    ( '0                       ),
         .RES_NARROW                  ( '0                       ),
@@ -762,12 +767,13 @@ module vproc_lsu #(
         .pipe_in_instr_id_i          ( state_rdata_q.id         ),
         .pipe_in_eew_i               ( state_rdata_q.mode.eew   ),
         .pipe_in_vaddr_i             ( state_rdata_q.vd         ),
-        .pipe_in_res_valid_i         ( state_rdata_valid_q      ),
+        .pipe_in_res_store_i         ( pack_res_store           ),
+        .pipe_in_res_valid_i         ( pack_res_valid           ),
         .pipe_in_res_flags_i         ( pack_res_flags           ),
-        .pipe_in_res_data_i          ( rdata                    ),
-        .pipe_in_res_mask_i          ( rdata_mask               ),
-        .pipe_in_pend_clear_i        ( state_rdata_q.vd_store   ),
-        .pipe_in_pend_clear_cnt_i    ( '0                       ),
+        .pipe_in_res_data_i          ( pack_res_data            ),
+        .pipe_in_res_mask_i          ( pack_res_mask            ),
+        .pipe_in_pend_clr_i          ( state_rdata_q.vd_store   ),
+        .pipe_in_pend_clr_cnt_i      ( '0                       ),
         .pipe_in_instr_done_i        ( state_rdata_q.last_cycle ),
         .vreg_wr_valid_o             ( vreg_wr_en_o             ),
         .vreg_wr_ready_i             ( 1'b1                     ),

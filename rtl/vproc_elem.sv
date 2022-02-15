@@ -627,15 +627,17 @@ module vproc_elem #(
 
     logic pack_valid;
     assign pack_valid = state_res_valid_q & ~state_res_stall;
-    pack_flags pack_res_flags;
+    logic      [0:0] pack_res_store, pack_res_valid;
+    pack_flags [0:0] pack_res_flags;
     always_comb begin
-        pack_res_flags       = pack_flags'('0);
-        pack_res_flags.store = state_pack.vd_store;
-        pack_res_flags.shift = DONT_CARE_ZERO ? '0 : 'x;
+        pack_res_flags[0]       = pack_flags'('0);
+        pack_res_store[0]       = state_pack.vd_store;
+        pack_res_valid[0]       = result_valid_q;
+        pack_res_flags[0].shift = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_pack.eew)
-            VSEW_8:  pack_res_flags.shift = state_pack.count.val[1:0] == '0;
-            VSEW_16: pack_res_flags.shift = state_pack.count.val[1:1] == '0;
-            VSEW_32: pack_res_flags.shift = 1'b1;
+            VSEW_8:  pack_res_flags[0].shift = state_pack.count.val[1:0] == '0;
+            VSEW_16: pack_res_flags[0].shift = state_pack.count.val[1:1] == '0;
+            VSEW_32: pack_res_flags[0].shift = 1'b1;
             default: ;
         endcase
     end
@@ -644,12 +646,21 @@ module vproc_elem #(
     assign instr_done = state_pack.last_cycle & ~state_pack.requires_flush;
     logic [1:0] pend_clear_cnt;
     assign pend_clear_cnt = state_pack.emul; // TODO reductions always have destination EMUL == 1
+    logic [0:0][31:0] pack_res_data, pack_res_mask;
+    always_comb begin
+        pack_res_data[0]      = result_q;
+        pack_res_mask         = '0;
+        pack_res_mask[0][3:0] = {4{result_mask_q}};
+    end
+    localparam int unsigned PACK_RES_W[1] = '{32};
     vproc_vregpack #(
         .VPORT_W                     ( VREG_W                ),
         .VADDR_W                     ( 5                     ),
         .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS       ),
         .VPORT_PEND_CLR_BULK         ( 1'b1                  ),
-        .RES_W                       ( 32                    ),
+        .MAX_RES_W                   ( 32                    ),
+        .RES_CNT                     ( 1                     ),
+        .RES_W                       ( PACK_RES_W            ),
         .RES_MASK                    ( '0                    ),
         .RES_XREG                    ( '0                    ),
         .RES_NARROW                  ( '0                    ),
@@ -668,12 +679,13 @@ module vproc_elem #(
         .pipe_in_instr_id_i          ( state_pack.id         ),
         .pipe_in_eew_i               ( state_pack.eew        ),
         .pipe_in_vaddr_i             ( state_pack.vd         ),
-        .pipe_in_res_valid_i         ( result_valid_q        ),
+        .pipe_in_res_store_i         ( pack_res_store        ),
+        .pipe_in_res_valid_i         ( pack_res_valid        ),
         .pipe_in_res_flags_i         ( pack_res_flags        ),
-        .pipe_in_res_data_i          ( result_q              ),
-        .pipe_in_res_mask_i          ( {4{result_mask_q}}    ),
-        .pipe_in_pend_clear_i        ( last_store            ),
-        .pipe_in_pend_clear_cnt_i    ( pend_clear_cnt        ),
+        .pipe_in_res_data_i          ( pack_res_data         ),
+        .pipe_in_res_mask_i          ( pack_res_mask         ),
+        .pipe_in_pend_clr_i          ( last_store            ),
+        .pipe_in_pend_clr_cnt_i      ( pend_clear_cnt        ),
         .pipe_in_instr_done_i        ( instr_done            ),
         .vreg_wr_valid_o             ( vreg_wr_en_o          ),
         .vreg_wr_ready_i             ( 1'b1                  ),

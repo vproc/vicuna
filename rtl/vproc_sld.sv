@@ -559,17 +559,28 @@ module vproc_sld #(
     assign result_vl_mask = vl_mask[state_res_q.count.val[SLD_COUNTER_W-2:0]*SLD_OP_W/8 +: SLD_OP_W/8];
     assign result_mask    = result_mask_q & result_vl_mask & (state_res_q.mode.masked ? write_mask_q : {SLD_OP_W/8{1'b1}});
 
-    pack_flags pack_res_flags;
+    logic      [0:0] pack_res_store, pack_res_valid;
+    pack_flags [0:0] pack_res_flags;
     always_comb begin
-        pack_res_flags       = pack_flags'('0);
-        pack_res_flags.store = state_res_q.vd_store;
+        pack_res_flags[0] = pack_flags'('0);
+        pack_res_store[0] = state_res_q.vd_store;
+        pack_res_valid[0] = state_res_valid_q;
     end
+    logic [0:0][SLD_OP_W-1:0] pack_res_data, pack_res_mask;
+    always_comb begin
+        pack_res_data[0]                 = result_q;
+        pack_res_mask                    = '0;
+        pack_res_mask[0][SLD_OP_W/8-1:0] = result_mask;
+    end
+    localparam int unsigned PACK_RES_W[1] = '{SLD_OP_W};
     vproc_vregpack #(
         .VPORT_W                     ( VREG_W                 ),
         .VADDR_W                     ( 5                      ),
         .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS        ),
         .VPORT_PEND_CLR_BULK         ( '0                     ),
-        .RES_W                       ( SLD_OP_W               ),
+        .MAX_RES_W                   ( SLD_OP_W               ),
+        .RES_CNT                     ( 1                      ),
+        .RES_W                       ( PACK_RES_W             ),
         .RES_MASK                    ( '0                     ),
         .RES_XREG                    ( '0                     ),
         .RES_NARROW                  ( '0                     ),
@@ -588,12 +599,13 @@ module vproc_sld #(
         .pipe_in_instr_id_i          ( state_res_q.id         ),
         .pipe_in_eew_i               ( state_res_q.eew        ),
         .pipe_in_vaddr_i             ( state_res_q.vd         ),
-        .pipe_in_res_valid_i         ( state_res_valid_q      ),
+        .pipe_in_res_store_i         ( pack_res_store         ),
+        .pipe_in_res_valid_i         ( pack_res_valid         ),
         .pipe_in_res_flags_i         ( pack_res_flags         ),
-        .pipe_in_res_data_i          ( result_q               ),
-        .pipe_in_res_mask_i          ( result_mask            ),
-        .pipe_in_pend_clear_i        ( state_res_q.vd_store   ),
-        .pipe_in_pend_clear_cnt_i    ( '0                     ),
+        .pipe_in_res_data_i          ( pack_res_data          ),
+        .pipe_in_res_mask_i          ( pack_res_mask          ),
+        .pipe_in_pend_clr_i          ( state_res_q.vd_store   ),
+        .pipe_in_pend_clr_cnt_i      ( '0                     ),
         .pipe_in_instr_done_i        ( state_res_q.last_cycle ),
         .vreg_wr_valid_o             ( vreg_wr_en_o           ),
         .vreg_wr_ready_i             ( 1'b1                   ),
