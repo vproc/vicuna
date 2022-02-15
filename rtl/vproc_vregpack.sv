@@ -134,9 +134,11 @@ module vproc_vregpack #(
             stage_state_d.pend_clr     = pipe_in_pend_clr_i;
             stage_state_d.pend_clr_cnt = pipe_in_pend_clr_cnt_i;
             stage_state_d.instr_done   = pipe_in_instr_done_i;
-            if (pipe_in_res_valid_i) begin
-                stage_state_d.res_buffer = res_buffer_next;
-                stage_state_d.msk_buffer = msk_buffer_next;
+            for (int i = 0; i < RES_CNT; i++) begin
+                if (pipe_in_res_valid_i[i]) begin
+                    stage_state_d.res_buffer[i] = res_buffer_next[i];
+                    stage_state_d.msk_buffer[i] = msk_buffer_next[i];
+                end
             end
         end
     end
@@ -252,8 +254,8 @@ module vproc_vregpack #(
                 always_comb begin
                     res_elem = DONT_CARE_ZERO ? '0 : 'x;
                     unique case (pipe_in_eew_i)
-                        VSEW_8: begin
-                            res_elem    = pipe_in_res_data_i[i]      | ~pipe_in_res_mask_i[i];
+                        VSEW_8:  for (int j = 0; j < RES_W[i]    ; j++) begin
+                            res_elem[j] = pipe_in_res_data_i[i][  j] | ~pipe_in_res_mask_i[i][  j];
                         end
                         VSEW_16: for (int j = 0; j < RES_W[i] / 2; j++) begin
                             res_elem[j] = pipe_in_res_data_i[i][2*j] | ~pipe_in_res_mask_i[i][2*j];
@@ -318,6 +320,7 @@ module vproc_vregpack #(
                         VSEW_32: for (int j = 0; j < (VPORT_W + 128) / 256; j++) begin
                             msk_buffer_next[i][pipe_in_res_flags_i[i].mul_idx*(VPORT_W/256)+j] = '1;
                         end
+                        default: ;
                     endcase
                 end
 
