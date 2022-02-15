@@ -33,8 +33,9 @@ module vproc_vregpack #(
         output logic                         pipe_in_ready_o,
         input  logic [INSTR_ID_W       -1:0] pipe_in_instr_id_i,       // ID of current instruction
         input  vproc_pkg::cfg_vsew           pipe_in_eew_i,            // current element width
+        input  logic [VADDR_W          -1:0] pipe_in_vaddr_i,          // vreg address for writes
+        input  logic                         pipe_in_res_valid_i,      // result is valid
         input  FLAGS_T                       pipe_in_res_flags_i,      // packing flags of result
-        input  logic [VADDR_W          -1:0] pipe_in_res_vaddr_i,      // vreg addresses of result
         input  logic [RES_W            -1:0] pipe_in_res_data_i,       // result data
         input  logic [RES_W  /8        -1:0] pipe_in_res_mask_i,       // result mask
         input  logic                         pipe_in_pend_clear_i,     // clear pending writes
@@ -84,8 +85,8 @@ module vproc_vregpack #(
     typedef struct packed {
         logic [INSTR_ID_W      -1:0] instr_id;
         cfg_vsew                     eew;
+        logic [VADDR_W         -1:0] vaddr;
         FLAGS_T                      res_flags;
-        logic [VADDR_W         -1:0] res_vaddr;
         logic [VPORT_W         -1:0] res_buffer;
         logic [VPORT_W/8       -1:0] msk_buffer;
         logic                        pend_clear;
@@ -123,12 +124,12 @@ module vproc_vregpack #(
             stage_valid_d                = pipe_in_valid_i;
             stage_state_d.instr_id       = pipe_in_instr_id_i;
             stage_state_d.eew            = pipe_in_eew_i;
+            stage_state_d.vaddr          = pipe_in_vaddr_i;
             stage_state_d.res_flags      = pipe_in_res_flags_i;
-            stage_state_d.res_vaddr      = pipe_in_res_vaddr_i;
             stage_state_d.pend_clear     = pipe_in_pend_clear_i;
             stage_state_d.pend_clear_cnt = pipe_in_pend_clear_cnt_i;
             stage_state_d.instr_done     = pipe_in_instr_done_i;
-            if (pipe_in_valid_i) begin
+            if (pipe_in_res_valid_i) begin
                 stage_state_d.res_buffer = res_buffer_next;
                 stage_state_d.msk_buffer = msk_buffer_next;
             end
@@ -136,7 +137,7 @@ module vproc_vregpack #(
     end
 
     assign stage_stall = stage_state_q.res_flags.store & (
-        pending_vreg_reads_i[stage_state_q.res_vaddr] | instr_spec_i[stage_state_q.instr_id]
+        pending_vreg_reads_i[stage_state_q.vaddr] | instr_spec_i[stage_state_q.instr_id]
     );
     assign stage_ready = ~stage_valid_q | (
         (~stage_state_q.res_flags.store | vreg_wr_ready_i) & ~stage_stall
@@ -172,7 +173,7 @@ module vproc_vregpack #(
     end
 
     assign vreg_wr_en_d        = stage_valid_q & stage_state_q.res_flags.store & ~stage_stall & ~instr_killed_i[stage_state_q.instr_id];
-    assign vreg_wr_addr_d      = stage_state_q.res_vaddr;
+    assign vreg_wr_addr_d      = stage_state_q.vaddr;
     assign vreg_wr_d           = res_buffer;
     assign vreg_wr_mask_d      = msk_buffer;
     assign vreg_wr_clear_d     = stage_valid_q & stage_state_q.pend_clear & ~stage_stall;

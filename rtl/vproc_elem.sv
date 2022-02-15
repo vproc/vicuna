@@ -626,7 +626,7 @@ module vproc_elem #(
     end
 
     logic pack_valid;
-    assign pack_valid = state_res_valid_q & result_valid_q;
+    assign pack_valid = state_res_valid_q & ~state_res_stall;
     pack_flags pack_res_flags;
     always_comb begin
         pack_res_flags       = pack_flags'('0);
@@ -639,8 +639,9 @@ module vproc_elem #(
             default: ;
         endcase
     end
-    logic last_store;
+    logic last_store, instr_done;
     assign last_store = state_pack.last_cycle & ~state_pack.requires_flush & ~state_pack.mode.xreg;
+    assign instr_done = state_pack.last_cycle & ~state_pack.requires_flush;
     logic [1:0] pend_clear_cnt;
     assign pend_clear_cnt = state_pack.emul; // TODO reductions always have destination EMUL == 1
     vproc_vregpack #(
@@ -666,13 +667,14 @@ module vproc_elem #(
         .pipe_in_ready_o             ( state_vd_ready        ),
         .pipe_in_instr_id_i          ( state_pack.id         ),
         .pipe_in_eew_i               ( state_pack.eew        ),
+        .pipe_in_vaddr_i             ( state_pack.vd         ),
+        .pipe_in_res_valid_i         ( result_valid_q        ),
         .pipe_in_res_flags_i         ( pack_res_flags        ),
-        .pipe_in_res_vaddr_i         ( state_pack.vd         ),
         .pipe_in_res_data_i          ( result_q              ),
         .pipe_in_res_mask_i          ( {4{result_mask_q}}    ),
         .pipe_in_pend_clear_i        ( last_store            ),
         .pipe_in_pend_clear_cnt_i    ( pend_clear_cnt        ),
-        .pipe_in_instr_done_i        ( last_store            ),
+        .pipe_in_instr_done_i        ( instr_done            ),
         .vreg_wr_valid_o             ( vreg_wr_en_o          ),
         .vreg_wr_ready_i             ( 1'b1                  ),
         .vreg_wr_addr_o              ( vreg_wr_addr_o        ),
