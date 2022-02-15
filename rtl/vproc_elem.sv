@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-`include "vproc_vregshift.svh"
-
 module vproc_elem #(
         parameter int unsigned          VREG_W          = 128,  // width in bits of vector registers
         parameter int unsigned          VMSK_W          = 16,   // width of vector register masks (= VREG_W / 8)
