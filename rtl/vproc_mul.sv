@@ -575,7 +575,7 @@ module vproc_mul #(
         .pipe_in_instr_id_i          ( state_res_q.id         ),
         .pipe_in_eew_i               ( state_res_q.eew        ),
         .pipe_in_vaddr_i             ( state_res_q.vd         ),
-        .pipe_in_res_valid_i         ( 1'b1                   ),
+        .pipe_in_res_valid_i         ( state_res_valid_q      ),
         .pipe_in_res_flags_i         ( pack_res_flags         ),
         .pipe_in_res_data_i          ( result_q               ),
         .pipe_in_res_mask_i          ( result_mask3_q         ),
