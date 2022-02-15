@@ -270,6 +270,8 @@ typedef struct packed {
     logic       shift;
     logic       elemwise;
     logic       narrow;
+    logic       saturate;
+    logic       sig;
     logic [2:0] mul_idx;
 } pack_flags;
 

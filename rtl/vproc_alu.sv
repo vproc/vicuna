@@ -223,9 +223,9 @@ module vproc_alu #(
     // pass state information along pipeline:
     logic                        state_ex1_ready,                      state_ex2_ready,   state_res_ready,   state_vd_ready;
     logic     state_init_stall,                                                           state_vd_stall;
-    logic     state_init_valid,  state_ex1_valid_q, state_ex1_valid_d, state_ex2_valid_q, state_res_valid_q, state_vd_valid_q;
+    logic     state_init_valid,  state_ex1_valid_q, state_ex1_valid_d, state_ex2_valid_q, state_res_valid_q;
     logic     state_init_masked;
-    alu_state state_init,        state_ex1_q,       state_ex1_d,       state_ex2_q,       state_res_q,       state_vd_q;
+    alu_state state_init,        state_ex1_q,       state_ex1_d,       state_ex2_q,       state_res_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
@@ -251,23 +251,6 @@ module vproc_alu #(
     logic [ALU_OP_W  /8-1:0] cmp_q,              cmp_d;
     logic [ALU_OP_W  /4-1:0] satval_q,           satval_d;
     logic [ALU_OP_W    -1:0] shift_res_q,        shift_res_d;
-
-    // result shift register:
-    logic [VREG_W-1:0] vd_alu_shift_q,    vd_alu_shift_d;
-    logic [VMSK_W-1:0] vdmsk_alu_shift_q, vdmsk_alu_shift_d;
-    logic [VMSK_W-1:0] vd_cmp_shift_q,    vd_cmp_shift_d;
-    logic [VMSK_W-1:0] vdmsk_cmp_q,       vdmsk_cmp_d;
-
-    // vreg write buffers
-    localparam WRITE_BUFFER_SZ = (MAX_WR_DELAY > 0) ? MAX_WR_DELAY : 1;
-    logic              vreg_wr_en_q   [WRITE_BUFFER_SZ], vreg_wr_en_d;
-    logic              vreg_wr_clear_q[WRITE_BUFFER_SZ], vreg_wr_clear_d;
-    logic [4:0]        vreg_wr_addr_q [WRITE_BUFFER_SZ], vreg_wr_addr_d;
-    logic [VMSK_W-1:0] vreg_wr_mask_q [WRITE_BUFFER_SZ], vreg_wr_mask_d;
-    logic [VREG_W-1:0] vreg_wr_q      [WRITE_BUFFER_SZ], vreg_wr_d;
-
-    // hazard clear registers
-    logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
 
     generate
         if (BUF_OPERANDS) begin
@@ -373,74 +356,7 @@ module vproc_alu #(
             end
             assign state_res_ready = state_vd_ready;
         end
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_alu_stage_vd_valid
-            if (~async_rst_ni) begin
-                state_vd_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vd_valid_q <= 1'b0;
-            end
-            else if (state_vd_ready) begin
-                state_vd_valid_q <= state_res_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_alu_stage_vd
-            if (state_vd_ready & state_res_valid_q) begin
-                state_vd_q        <= state_res_q;
-                vd_alu_shift_q    <= vd_alu_shift_d;
-                vdmsk_alu_shift_q <= vdmsk_alu_shift_d;
-                vd_cmp_shift_q    <= vd_cmp_shift_d;
-                vdmsk_cmp_q       <= vdmsk_cmp_d;
-            end
-        end
-        assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
-
-        if (MAX_WR_DELAY > 0) begin
-            always_ff @(posedge clk_i) begin : vproc_alu_wr_delay
-                vreg_wr_en_q   [0] <= vreg_wr_en_d;
-                vreg_wr_clear_q[0] <= vreg_wr_clear_d;
-                vreg_wr_addr_q [0] <= vreg_wr_addr_d;
-                vreg_wr_mask_q [0] <= vreg_wr_mask_d;
-                vreg_wr_q      [0] <= vreg_wr_d;
-                for (int i = 1; i < MAX_WR_DELAY; i++) begin
-                    vreg_wr_en_q   [i] <= vreg_wr_en_q   [i-1];
-                    vreg_wr_clear_q[i] <= vreg_wr_clear_q[i-1];
-                    vreg_wr_addr_q [i] <= vreg_wr_addr_q [i-1];
-                    vreg_wr_mask_q [i] <= vreg_wr_mask_q [i-1];
-                    vreg_wr_q      [i] <= vreg_wr_q      [i-1];
-                end
-            end
-        end
-
-        always_ff @(posedge clk_i) begin
-            clear_wr_hazards_q <= clear_wr_hazards_d;
-        end
     endgenerate
-
-    always_comb begin
-        vreg_wr_en_o   = vreg_wr_en_d;
-        vreg_wr_addr_o = vreg_wr_addr_d;
-        vreg_wr_mask_o = vreg_wr_mask_d;
-        vreg_wr_o      = vreg_wr_d;
-        for (int i = 0; i < MAX_WR_DELAY; i++) begin
-            if ((((i + 1) & (i + 2)) == 0) & vreg_wr_en_q[i]) begin
-                vreg_wr_en_o   = 1'b1;
-                vreg_wr_addr_o = vreg_wr_addr_q[i];
-                vreg_wr_mask_o = vreg_wr_mask_q[i];
-                vreg_wr_o      = vreg_wr_q     [i];
-            end
-        end
-    end
-
-    // write hazard clearing
-    always_comb begin
-        clear_wr_hazards_d     = vreg_wr_clear_d                 ? (32'b1 << vreg_wr_addr_d                ) : 32'b0;
-        if (MAX_WR_DELAY > 0) begin
-            clear_wr_hazards_d = vreg_wr_clear_q[MAX_WR_DELAY-1] ? (32'b1 << vreg_wr_addr_q[MAX_WR_DELAY-1]) : 32'b0;
-        end
-    end
-    assign clear_wr_hazards_o = clear_wr_hazards_q;
 
     // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
@@ -448,13 +364,6 @@ module vproc_alu #(
     assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
                               (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               (state_init.v0msk_fetch & state_init_masked & vreg_pend_wr_q[0]);
-
-    // Stall vreg writes until pending reads of the destination register are
-    // complete and while the instruction is speculative
-    assign state_vd_stall = state_vd_q.vd_store & (vreg_pend_rd_i[state_vd_q.vd] | instr_spec_i[state_vd_q.id]);
-
-    assign instr_done_valid_o = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_stall;
-    assign instr_done_id_o    = state_vd_q.id;
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -703,6 +612,7 @@ module vproc_alu #(
     assign result_mask_d = ((state_ex2_q.mode.op_mask == ALU_MASK_WRITE) ? operand_mask_tmp_q : {(ALU_OP_W/8){1'b1}}) & vl_mask[state_ex2_q.count.val*ALU_OP_W/8 +: ALU_OP_W/8];
 
     // conversion from results to destination registers:
+    /*
     logic [ALU_OP_W  -1:0] vd_alu;
     logic [ALU_OP_W/8-1:0] vdmsk_alu;
     always_comb begin
@@ -736,78 +646,92 @@ module vproc_alu #(
             vdmsk_alu = result_mask_q;
         end
     end
+    */
 
     // The result is inverted for averaging subtract instructions (i.e., instructions for
     // which the operands are shifted right and at least one operand is being inverted).
     // This is required to allow using the carry logic for rounding.
     logic [ALU_OP_W-1:0] vd_alu_finalized;
     always_comb begin
-        vd_alu_finalized = vd_alu;
+        vd_alu_finalized = result_alu_q;
         if (state_res_q.mode.shift_op & (state_res_q.mode.inv_op1 | state_res_q.mode.inv_op2)) begin
-            vd_alu_finalized = ~vd_alu;
+            vd_alu_finalized = ~result_alu_q;
         end
     end
 
-    // result shift register assignment:
-    pack_flags vd_info;
+    logic      [1:0]               pack_res_store, pack_res_valid;
+    pack_flags [1:0]               pack_res_flags;
+    logic      [1:0][ALU_OP_W-1:0] pack_res_data, pack_res_mask;
     always_comb begin
-        vd_info.shift = ~state_res_q.vd_narrow | ~state_res_q.count.val[0];
-    end
-    `VREGSHIFT_RESULT_NARROW(VREG_W, ALU_OP_W, vd_info, vd_alu_finalized, vd_alu_shift_q, vd_alu_shift_d)
-    `VREGSHIFT_RESMASK_NARROW(VREG_W, ALU_OP_W, vd_info, vdmsk_alu, vdmsk_alu_shift_q, vdmsk_alu_shift_d)
+        pack_res_data = '0;
+        pack_res_mask = '0;
 
-    // Inactive elements (tail and masked-off elements) are always handled
-    // according to the undisturbed policy (i.e., inactive elements are
-    // not updated).  However, mask destination values are the only exception,
-    // since these can be written at bit granularity and would require a
-    // dedicated write enable for each bit, rather than a byte enable.
-    // According to the specification mask destination values are always tail-
-    // agnostic, hence inactive elements can be left unchanged or overwritten
-    // with 1s.  Hence, mask destination values are written after one vector
-    // register was processed and all inactive values (according to the mask
-    // `result_mask_q') are overwritten with 1s.
-    always_comb begin
-        vd_cmp_shift_d = DONT_CARE_ZERO ? '0 : 'x;
-        vdmsk_cmp_d    = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_res_q.eew)
-            VSEW_8: begin
-                vd_cmp_shift_d[VMSK_W  -ALU_OP_W/8 -1:0] = vd_cmp_shift_q[VMSK_W  -1:ALU_OP_W/8 ];
-                for (int i = 0; i < ALU_OP_W / 8 ; i++) begin
-                    vd_cmp_shift_d[VMSK_W  -ALU_OP_W/8 +i] = result_cmp_q[  i] | ~result_mask_q[i  ];
-                end
-            end
-            VSEW_16: begin
-                vd_cmp_shift_d[VMSK_W/2-ALU_OP_W/16-1:0] = vd_cmp_shift_q[VMSK_W/2-1:ALU_OP_W/16];
-                for (int i = 0; i < ALU_OP_W / 16; i++) begin
-                    vd_cmp_shift_d[VMSK_W/2-ALU_OP_W/16+i] = result_cmp_q[2*i] | ~result_mask_q[2*i];
-                end
-            end
-            VSEW_32: begin
-                vd_cmp_shift_d[VMSK_W/4-ALU_OP_W/32-1:0] = vd_cmp_shift_q[VMSK_W/4-1:ALU_OP_W/32];
-                if (VMSK_W == 16) begin
-                    vd_cmp_shift_d[VMSK_W/2-1:VMSK_W/4] = '1;
-                end
-                for (int i = 0; i < ALU_OP_W / 32; i++) begin
-                    vd_cmp_shift_d[VMSK_W/4-ALU_OP_W/32+i] = result_cmp_q[4*i] | ~result_mask_q[4*i];
-                end
-            end
-            default: ;
-        endcase
-        unique case (state_res_q.eew)
-            VSEW_8:  vdmsk_cmp_d = {{(VMSK_W*7 )/8 {1'b0}}, {(VMSK_W+7 )/8 {1'b1}}} << ((VMSK_W/8 ) * state_res_q.count.part.mul);
-            VSEW_16: vdmsk_cmp_d = {{(VMSK_W*15)/16{1'b0}}, {(VMSK_W+15)/16{1'b1}}} << ((VMSK_W/16) * state_res_q.count.part.mul);
-            VSEW_32: vdmsk_cmp_d = (VMSK_W == 16) ? 16'h0001 << state_res_q.count.part.mul[2:1] :
-                                   {{(VMSK_W*31)/32{1'b0}}, {(VMSK_W+31)/32{1'b1}}} << ((VMSK_W/32) * state_res_q.count.part.mul);
-            default: ;
-        endcase
-    end
+        pack_res_flags[0]                 = pack_flags'('0);
+        pack_res_store[0]                 = state_res_q.vd_store & ~state_res_q.mode.cmp;
+        pack_res_flags[0].shift           = ~state_res_q.vd_narrow | ~state_res_q.count.val[0];
+        pack_res_flags[0].narrow          = state_res_q.vd_narrow;
+        pack_res_flags[0].saturate        = state_res_q.mode.sat_res;
+        pack_res_flags[0].sig             = state_res_q.mode.sigext;
+        pack_res_valid[0]                 = state_res_valid_q;
+        pack_res_data [0]                 = vd_alu_finalized;
+        pack_res_mask [0][ALU_OP_W/8-1:0] = result_mask_q;
 
-    //
-    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall & ~instr_killed_i[state_vd_q.id];
-    assign vreg_wr_clear_d = state_vd_valid_q & (state_vd_q.mode.cmp ? state_vd_q.last_cycle : state_vd_q.vd_store) & ~state_vd_stall;
-    assign vreg_wr_addr_d  = state_vd_q.vd;
-    assign vreg_wr_mask_d  = vreg_wr_en_o ? (state_vd_q.mode.cmp ? vdmsk_cmp_q : vdmsk_alu_shift_q) : '0;
-    assign vreg_wr_d       = state_vd_q.mode.cmp ? {8{vd_cmp_shift_q}} : vd_alu_shift_q;
+        pack_res_flags[1]                 = pack_flags'('0);
+        pack_res_flags[1].mul_idx         = state_res_q.count.part.mul;
+        pack_res_store[1]                 = state_res_q.vd_store & state_res_q.mode.cmp;
+        pack_res_valid[1]                 = state_res_valid_q;
+        pack_res_data [1][ALU_OP_W/8-1:0] = result_cmp_q;
+        pack_res_mask [1][ALU_OP_W/8-1:0] = result_mask_q;
+    end
+    logic pack_pend_clear;
+    assign pack_pend_clear = state_res_q.mode.cmp ? state_res_q.last_cycle : state_res_q.vd_store;
+    localparam int unsigned PACK_RES_W[2] = '{ALU_OP_W, ALU_OP_W/8};
+    vproc_vregpack #(
+        .VPORT_W                     ( VREG_W                 ),
+        .VADDR_W                     ( 5                      ),
+        .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS        ),
+        .VPORT_PEND_CLR_BULK         ( '0                     ),
+        .MAX_RES_W                   ( ALU_OP_W               ),
+        .RES_CNT                     ( 2                      ),
+        .RES_W                       ( PACK_RES_W             ),
+        .RES_MASK                    ( 2'b10                  ),
+        .RES_XREG                    ( '0                     ),
+        .RES_NARROW                  ( 2'b01                  ),
+        .RES_ALLOW_ELEMWISE          ( '0                     ),
+        .RES_ALWAYS_ELEMWISE         ( '0                     ),
+        .FLAGS_T                     ( pack_flags             ),
+        .INSTR_ID_W                  ( XIF_ID_W               ),
+        .INSTR_ID_CNT                ( XIF_ID_CNT             ),
+        .DONT_CARE_ZERO              ( DONT_CARE_ZERO         )
+    ) alu_pack (
+        .clk_i                       ( clk_i                  ),
+        .async_rst_ni                ( async_rst_ni           ),
+        .sync_rst_ni                 ( sync_rst_ni            ),
+        .pipe_in_valid_i             ( state_res_valid_q      ),
+        .pipe_in_ready_o             ( state_vd_ready         ),
+        .pipe_in_instr_id_i          ( state_res_q.id         ),
+        .pipe_in_eew_i               ( state_res_q.eew        ),
+        .pipe_in_vaddr_i             ( state_res_q.vd         ),
+        .pipe_in_res_store_i         ( pack_res_store         ),
+        .pipe_in_res_valid_i         ( pack_res_valid         ),
+        .pipe_in_res_flags_i         ( pack_res_flags         ),
+        .pipe_in_res_data_i          ( pack_res_data          ),
+        .pipe_in_res_mask_i          ( pack_res_mask          ),
+        .pipe_in_pend_clr_i          ( pack_pend_clear        ),
+        .pipe_in_pend_clr_cnt_i      ( '0                     ),
+        .pipe_in_instr_done_i        ( state_res_q.last_cycle ),
+        .vreg_wr_valid_o             ( vreg_wr_en_o           ),
+        .vreg_wr_ready_i             ( 1'b1                   ),
+        .vreg_wr_addr_o              ( vreg_wr_addr_o         ),
+        .vreg_wr_be_o                ( vreg_wr_mask_o         ),
+        .vreg_wr_data_o              ( vreg_wr_o              ),
+        .pending_vreg_reads_i        ( vreg_pend_rd_i         ),
+        .clear_pending_vreg_writes_o ( clear_wr_hazards_o     ),
+        .instr_spec_i                ( instr_spec_i           ),
+        .instr_killed_i              ( instr_killed_i         ),
+        .instr_done_valid_o          ( instr_done_valid_o     ),
+        .instr_done_id_o             ( instr_done_id_o        )
+    );
 
 
     ///////////////////////////////////////////////////////////////////////////

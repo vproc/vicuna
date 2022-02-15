@@ -239,6 +239,7 @@ module vproc_vregpack #(
     end
 
 
+    logic [RES_CNT-1:0] res_saturated;
     generate
         for (genvar i = 0; i < RES_CNT; i++) begin
             if (RES_MASK[i]) begin
@@ -323,14 +324,16 @@ module vproc_vregpack #(
                         default: ;
                     endcase
                 end
+                assign res_saturated[i] = '0;
 
             end else begin
 
                 logic [RES_W[i]  -1:0] res_default;
                 logic [RES_W[i]/8-1:0] msk_default;
                 always_comb begin
-                    res_default = pipe_in_res_data_i[i][RES_W[i]  -1:0];
-                    msk_default = pipe_in_res_mask_i[i][RES_W[i]/8-1:0];
+                    res_default      = pipe_in_res_data_i[i][RES_W[i]  -1:0];
+                    msk_default      = pipe_in_res_mask_i[i][RES_W[i]/8-1:0];
+                    res_saturated[i] = '0;
                     if ((RES_ALLOW_ELEMWISE[i] & pipe_in_res_flags_i[i].elemwise) | RES_ALWAYS_ELEMWISE[i]) begin
                         res_default = DONT_CARE_ZERO ? '0 : 'x;
                         msk_default = DONT_CARE_ZERO ? '0 : 'x;
@@ -351,8 +354,33 @@ module vproc_vregpack #(
                         endcase
                     end
                     else if (RES_NARROW[i] & pipe_in_res_flags_i[i].narrow) begin
-                        res_default = {pipe_in_res_data_i[i][RES_W[i]/2 -1:0], res_buffer[i][VPORT_W  -1:VPORT_W  -RES_W[i]/2 ]};
-                        msk_default = {pipe_in_res_mask_i[i][RES_W[i]/16-1:0], msk_buffer[i][VPORT_W/8-1:VPORT_W/8-RES_W[i]/16]};
+                        res_default = DONT_CARE_ZERO ? '0 : 'x;
+                        msk_default = DONT_CARE_ZERO ? '0 : 'x;
+                        // lower half is filled with upper part of buffer
+                        res_default[RES_W[i]/2 -1:0] = res_buffer[i][VPORT_W  -1 -: RES_W[i]/2 ];
+                        msk_default[RES_W[i]/16-1:0] = msk_buffer[i][VPORT_W/8-1 -: RES_W[i]/16];
+                        // upper half is filled with narrowed result data
+                        unique case (pipe_in_eew_i)
+                            VSEW_16: for (int j = 0; j < RES_W[i] / 16; j++) begin
+                                res_default[RES_W[i]/2 +j*8  +: 8 ] =    pipe_in_res_data_i[i][j*16 +: 8 ];
+                                msk_default[RES_W[i]/16+j         ] =    pipe_in_res_mask_i[i][j*2];
+                                // saturate value
+                                if (pipe_in_res_flags_i[i].saturate & (pipe_in_res_data_i[i][j*16+8  +: 8 ] != {8 {pipe_in_res_flags_i[i].sig & pipe_in_res_data_i[i][j*16+7 ]}})) begin
+                                    res_default[RES_W[i]/2+j*8  +: 8 ] = pipe_in_res_flags_i[i].sig ? {pipe_in_res_data_i[i][j*16+15], {7 {~pipe_in_res_data_i[i][j*16+15]}}} : '1;
+                                    res_saturated[i]                   = 1'b1;
+                                end
+                            end
+                            VSEW_32: for (int j = 0; j < RES_W[i] / 32; j++) begin
+                                res_default[RES_W[i]/2 +j*16 +: 16] =    pipe_in_res_data_i[i][j*32 +: 16];
+                                msk_default[RES_W[i]/16+j*2  +: 2 ] = {2{pipe_in_res_mask_i[i][j*4]}};
+                                // saturate value
+                                if (pipe_in_res_flags_i[i].saturate & (pipe_in_res_data_i[i][j*32+16 +: 16] != {16{pipe_in_res_flags_i[i].sig & pipe_in_res_data_i[i][j*32+15]}})) begin
+                                    res_default[RES_W[i]/2+j*16 +: 16] = pipe_in_res_flags_i[i].sig ? {pipe_in_res_data_i[i][j*32+31], {15{~pipe_in_res_data_i[i][j*32+31]}}} : '1;
+                                    res_saturated[i]                   = 1'b1;
+                                end
+                            end
+                            default: ;
+                        endcase
                     end
                 end
                 always_comb begin
