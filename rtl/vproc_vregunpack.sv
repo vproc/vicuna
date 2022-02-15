@@ -158,9 +158,11 @@ module vproc_vregunpack
                 stage_valid_d[i] = (i == 1) ? pipe_in_valid_i : stage_valid_q[i-1];
                 stage_state_d[i] = (i == 1) ? stage_0         : stage_state_q[i-1];
 
-                // operand buffer is part of the stage after the respective vreg load
+                // operand buffer is part of the stage after the respective vreg load; this is a
+                // cyclic buffer and thus must only be updated if the associated stage will be valid
+                // in the next cycle (i.e., if the prior stage is currently valid)
                 for (int j = 0; j < OP_CNT; j++) begin
-                    if (i == OP_STAGE[j] + 1) begin
+                    if ((i == OP_STAGE[j] + 1) & stage_valid_q[OP_STAGE[j]]) begin
                         stage_state_d[i].op_buffer[j] = op_buffer_next[j];
                     end
                 end
