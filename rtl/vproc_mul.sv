@@ -430,13 +430,14 @@ module vproc_mul #(
     ///////////////////////////////////////////////////////////////////////////
     // MUL REGISTER READ/WRITE:
 
-    unpack_flags [3:0]       unpack_op_flags;
+    logic        [3:0]       unpack_op_load;
     logic        [3:0][4 :0] unpack_op_vaddr;
+    unpack_flags [3:0]       unpack_op_flags;
     logic        [3:0][31:0] unpack_op_xval;
     always_comb begin
         unpack_op_flags  [0]          = unpack_flags'('0);
         unpack_op_flags  [0].shift    = state_init.vs1_shift;
-        unpack_op_flags  [0].load     = state_init.vs1_fetch;
+        unpack_op_load   [0]          = state_init.vs1_fetch;
         unpack_op_flags  [0].vreg     = state_init.rs1.vreg;
         unpack_op_flags  [0].elemwise = '0;
         unpack_op_flags  [0].narrow   = state_init.vs1_narrow;
@@ -445,7 +446,7 @@ module vproc_mul #(
         unpack_op_xval   [0]          = state_init.rs1.r.xval;
         unpack_op_flags  [1]          = unpack_flags'('0);
         unpack_op_flags  [1].shift    = state_init.vs2_shift;
-        unpack_op_flags  [1].load     = state_init.vs2_fetch;
+        unpack_op_load   [1]          = state_init.vs2_fetch;
         unpack_op_flags  [1].elemwise = '0;
         unpack_op_flags  [1].narrow   = state_init.vs2_narrow;
         unpack_op_flags  [1].sigext   = state_init.mode.op2_signed;
@@ -453,7 +454,7 @@ module vproc_mul #(
         unpack_op_xval   [1]          = '0;
         unpack_op_flags  [2]          = unpack_flags'('0);
         unpack_op_flags  [2].shift    = 1'b1;
-        unpack_op_flags  [2].load     = state_init.vs3_fetch;
+        unpack_op_load   [2]          = state_init.vs3_fetch;
         unpack_op_flags  [2].elemwise = '0;
         unpack_op_flags  [2].narrow   = '0;
         unpack_op_flags  [2].sigext   = '0;
@@ -461,7 +462,7 @@ module vproc_mul #(
         unpack_op_xval   [2]          = '0;
         unpack_op_flags  [3]          = unpack_flags'('0);
         unpack_op_flags  [3].shift    = state_init.v0msk_shift;
-        unpack_op_flags  [3].load     = state_init.v0msk_fetch & state_init.mode.masked;
+        unpack_op_load   [3]          = state_init.v0msk_fetch & state_init.mode.masked;
         unpack_op_flags  [3].elemwise = '0;
         unpack_op_flags  [3].narrow   = '0;
         unpack_op_flags  [3].sigext   = '0;
@@ -512,8 +513,9 @@ module vproc_mul #(
         .pipe_in_ready_o      ( unpack_ready                         ),
         .pipe_in_ctrl_i       ( state_init                           ),
         .pipe_in_eew_i        ( state_init.eew                       ),
-        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
+        .pipe_in_op_load_i    ( unpack_op_load                       ),
         .pipe_in_op_vaddr_i   ( unpack_op_vaddr                      ),
+        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
         .pipe_in_op_xval_i    ( unpack_op_xval                       ),
         .pipe_out_valid_o     ( state_ex1_valid_d                    ),
         .pipe_out_ready_i     ( state_ex1_ready                      ),

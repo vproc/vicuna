@@ -256,7 +256,6 @@ typedef struct packed {
 
 // operand fetch info structure
 typedef struct packed {
-    logic load;
     logic shift;
     logic hold;
     logic vreg;

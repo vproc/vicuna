@@ -430,13 +430,14 @@ module vproc_elem #(
     ///////////////////////////////////////////////////////////////////////////
     // ELEM REGISTER READ/WRITE:
 
-    unpack_flags [3:0]       unpack_op_flags;
+    logic        [3:0]       unpack_op_load;
     logic        [3:0][4 :0] unpack_op_vaddr;
+    unpack_flags [3:0]       unpack_op_flags;
     logic        [3:0][31:0] unpack_op_xval;
     always_comb begin
         unpack_op_flags  [0]          = unpack_flags'('0);
         unpack_op_flags  [0].shift    = state_init.vs1_shift & state_init.gather_fetch;
-        unpack_op_flags  [0].load     = state_init.vs1_fetch;
+        unpack_op_load   [0]          = state_init.vs1_fetch;
         unpack_op_flags  [0].hold     = ~state_init.gather_fetch;
         unpack_op_flags  [0].elemwise = '0;
         unpack_op_flags  [0].narrow   = state_init.vs1_narrow;
@@ -451,19 +452,19 @@ module vproc_elem #(
             VSEW_32: unpack_op_flags[1].shift = state_init.count[6:0] == '0;
             default: ;
         endcase
-        unpack_op_flags  [1].load     = state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER);
+        unpack_op_load   [1]          = state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER);
         unpack_op_flags  [1].elemwise = '0;
         unpack_op_vaddr  [1]          = state_init.rs2.r.vaddr;
         unpack_op_xval   [1]          = '0;
         unpack_op_flags  [2]          = unpack_flags'('0);
         unpack_op_flags  [2].shift    = 1'b1;
-        unpack_op_flags  [2].load     = state_init.gather_fetch & (state_init.mode.op == ELEM_VRGATHER);
+        unpack_op_load   [2]          = state_init.gather_fetch & (state_init.mode.op == ELEM_VRGATHER);
         unpack_op_flags  [2].elemwise = '0;
         unpack_op_vaddr  [2]          = '0;
         unpack_op_xval   [2]          = '0;
         unpack_op_flags  [3]          = unpack_flags'('0);
         unpack_op_flags  [3].shift    = 1'b1;
-        unpack_op_flags  [3].load     = state_init.v0msk_fetch & state_init.mode.masked;
+        unpack_op_load   [3]          = state_init.v0msk_fetch & state_init.mode.masked;
         unpack_op_flags  [3].elemwise = '0;
         unpack_op_vaddr  [3]          = '0;
         unpack_op_xval   [3]          = '0;
@@ -512,8 +513,9 @@ module vproc_elem #(
         .pipe_in_ready_o      ( unpack_ready                         ),
         .pipe_in_ctrl_i       ( state_init                           ),
         .pipe_in_eew_i        ( state_init.eew                       ),
-        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
+        .pipe_in_op_load_i    ( unpack_op_load                       ),
         .pipe_in_op_vaddr_i   ( unpack_op_vaddr                      ),
+        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
         .pipe_in_op_xval_i    ( unpack_op_xval                       ),
         .pipe_out_valid_o     ( state_ex_valid_q                     ),
         .pipe_out_ready_i     ( state_ex_ready                       ),

@@ -47,8 +47,9 @@ module vproc_vregunpack
         output logic                                  pipe_in_ready_o,
         input  logic               [CTRL_DATA_W-1:0]  pipe_in_ctrl_i,       // pipeline control sigs
         input  vproc_pkg::cfg_vsew                    pipe_in_eew_i,        // current element width
-        input  FLAGS_T [OP_CNT-1:0]                   pipe_in_op_flags_i,   // unpack flags of ops
+        input  logic   [OP_CNT-1:0]                   pipe_in_op_load_i,    // load signals of ops
         input  logic   [OP_CNT-1:0][MAX_VADDR_W-1:0]  pipe_in_op_vaddr_i,   // vreg addresses of ops
+        input  FLAGS_T [OP_CNT-1:0]                   pipe_in_op_flags_i,   // unpack flags of ops
         input  logic   [OP_CNT-1:0][31           :0]  pipe_in_op_xval_i,    // X reg values for ops
 
         // pipeline out
@@ -98,8 +99,9 @@ module vproc_vregunpack
     typedef struct packed {
         logic               [CTRL_DATA_W-1:0] ctrl;
         cfg_vsew                              eew;
-        FLAGS_T [OP_CNT-1:0]                  op_flags;
+        logic   [OP_CNT-1:0]                  op_load;
         logic   [OP_CNT-1:0][MAX_VADDR_W-1:0] op_vaddr;
+        FLAGS_T [OP_CNT-1:0]                  op_flags;
         logic   [OP_CNT-1:0][31           :0] op_xval;
         logic   [OP_CNT-1:0][MAX_VPORT_W-1:0] op_buffer;
         logic   [OP_CNT-1:0][MAX_OP_W   -1:0] op_data;
@@ -107,12 +109,13 @@ module vproc_vregunpack
 
     vregunpack_state_t stage_0;
     always_comb begin
-        stage_0            = vregunpack_state_t'(DONT_CARE_ZERO ? '0 : 'x);
-        stage_0.ctrl       = pipe_in_ctrl_i;
-        stage_0.eew        = pipe_in_eew_i;
-        stage_0.op_flags   = pipe_in_op_flags_i;
-        stage_0.op_vaddr   = pipe_in_op_vaddr_i;
-        stage_0.op_xval    = pipe_in_op_xval_i;
+        stage_0          = vregunpack_state_t'(DONT_CARE_ZERO ? '0 : 'x);
+        stage_0.ctrl     = pipe_in_ctrl_i;
+        stage_0.eew      = pipe_in_eew_i;
+        stage_0.op_load  = pipe_in_op_load_i;
+        stage_0.op_vaddr = pipe_in_op_vaddr_i;
+        stage_0.op_flags = pipe_in_op_flags_i;
+        stage_0.op_xval  = pipe_in_op_xval_i;
     end
 
     // Unpack stage signals.  Note that stage 0 gets assigned the input values and hence is not an
@@ -222,7 +225,7 @@ module vproc_vregunpack
             localparam int unsigned ADDR_STAGE = VPORT_BUFFER[OP_SRC[i]] ? OP_STAGE[i] - 1 :
                                                                            OP_STAGE[i];
             assign op_addressing[i] = stage_valid[ADDR_STAGE] &
-                                      stage_state[ADDR_STAGE].op_flags[i].load &
+                                      stage_state[ADDR_STAGE].op_load[i] &
                                       (~OP_XREG[i] | stage_state[ADDR_STAGE].op_flags[i].vreg);
             if (OP_ADDR_OFFSET_OP0[i]) begin
                 // get address offset from operand 0
@@ -298,6 +301,7 @@ module vproc_vregunpack
     end
 
     // Load signals, vregs, current buffers, and unpack settings of operands and masks
+    logic    [OP_CNT-1:0]                  op_load;
     FLAGS_T  [OP_CNT-1:0]                  op_load_flags;
     cfg_vsew [OP_CNT-1:0]                  op_load_eew;
     logic    [OP_CNT-1:0][MAX_VPORT_W-1:0] op_buffer;
@@ -306,6 +310,7 @@ module vproc_vregunpack
     logic    [OP_CNT-1:0][31           :0] op_xval;
     always_comb begin
         for (int i = 0; i < OP_CNT; i++) begin
+            op_load         [i] = stage_state[OP_STAGE[i]    ].op_load[i];
             op_load_flags   [i] = stage_state[OP_STAGE[i]    ].op_flags[i];
             op_load_eew     [i] = stage_state[OP_STAGE[i]    ].eew;
             op_buffer       [i] = stage_state[OP_STAGE[i] + 1].op_buffer[i];
@@ -388,7 +393,7 @@ module vproc_vregunpack
                          op_buffer[i][VPORT_W[OP_SRC[i]]        -1:OP_W[i]];
                 end
                 // load signal overrides all others and moves vreg value into buffer
-                if (op_load_flags[i].load) begin
+                if (op_load[i]) begin
                     op_buffer_next[i][VPORT_W[OP_SRC[i]]-1:0] =
                       op_vreg_data[i][VPORT_W[OP_SRC[i]]-1:0];
                 end
@@ -496,7 +501,7 @@ module vproc_vregunpack
                     pend_vreg_reads[i][j] = '0;
                     for (int k = 0; k < OP_CNT; k++) begin
                         if ((j == OP_SRC[k]) & (i <= OP_STAGE[k]) & ~OP_ADDR_OFFSET_OP0[k]) begin
-                            if (stage_valid[i] & stage_state[i].op_flags[k].load & (
+                            if (stage_valid[i] & stage_state[i].op_load [k] & (
                                 ~OP_XREG[k]    | stage_state[i].op_flags[k].vreg)
                             ) begin
                                 if (VPORT_ADDR_ZERO[j]) begin

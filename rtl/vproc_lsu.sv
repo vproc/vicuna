@@ -468,25 +468,26 @@ module vproc_lsu #(
     ///////////////////////////////////////////////////////////////////////////
     // LSU READ/WRITE:
 
-    unpack_flags [2:0]       unpack_op_flags;
+    logic        [2:0]       unpack_op_load;
     logic        [2:0][4 :0] unpack_op_vaddr;
+    unpack_flags [2:0]       unpack_op_flags;
     logic        [2:0][31:0] unpack_op_xval;
     always_comb begin
         unpack_op_flags  [0]          = unpack_flags'('0);
         unpack_op_flags  [0].shift    = state_init.vs2_shift;
-        unpack_op_flags  [0].load     = state_init.vs2_fetch;
+        unpack_op_load   [0]          = state_init.vs2_fetch;
         unpack_op_flags  [0].elemwise = '0;
         unpack_op_vaddr  [0]          = state_init.rs2.r.vaddr;
         unpack_op_xval   [0]          = '0;
         unpack_op_flags  [1]          = unpack_flags'('0);
         unpack_op_flags  [1].shift    = state_init.vs3_shift;
-        unpack_op_flags  [1].load     = state_init.vs3_fetch;
+        unpack_op_load   [1]          = state_init.vs3_fetch;
         unpack_op_flags  [1].elemwise = '0;
         unpack_op_vaddr  [1]          = state_init.vd;
         unpack_op_xval   [1]          = '0;
         unpack_op_flags  [2]          = unpack_flags'('0);
         unpack_op_flags  [2].shift    = state_init.v0msk_shift;
-        unpack_op_flags  [2].load     = state_init.v0msk_fetch & state_init.mode.masked;
+        unpack_op_load   [2]          = state_init.v0msk_fetch & state_init.mode.masked;
         unpack_op_flags  [2].elemwise = state_init.mode.stride != LSU_UNITSTRIDE;
         unpack_op_vaddr  [2]          = '0;
         unpack_op_xval   [2]          = '0;
@@ -535,8 +536,9 @@ module vproc_lsu #(
         .pipe_in_ready_o      ( unpack_ready                         ),
         .pipe_in_ctrl_i       ( state_init                           ),
         .pipe_in_eew_i        ( state_init.mode.eew                  ),
-        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
+        .pipe_in_op_load_i    ( unpack_op_load                       ),
         .pipe_in_op_vaddr_i   ( unpack_op_vaddr                      ),
+        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
         .pipe_in_op_xval_i    ( unpack_op_xval                       ),
         .pipe_out_valid_o     ( state_req_valid_d                    ),
         .pipe_out_ready_i     ( state_req_ready                      ),
