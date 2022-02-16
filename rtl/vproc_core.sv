@@ -836,13 +836,14 @@ module vproc_core #(
     logic [VMSK_W-1:0] alu_wr_mask;
     logic [4:0]        alu_wr_addr;
     logic              alu_wr_en;
-    vproc_alu #(
+    vproc_pipeline #(
         .VREG_W             ( VREG_W                        ),
         .VMSK_W             ( VMSK_W                        ),
         .CFG_VL_W           ( CFG_VL_W                      ),
-        .ALU_OP_W           ( ALU_OP_W                      ),
         .XIF_ID_W           ( XIF_ID_W                      ),
         .XIF_ID_CNT         ( XIF_ID_CNT                    ),
+        .UNIT               ( UNIT_ALU                      ),
+        .OP_W               ( ALU_OP_W                      ),
         .MAX_WR_ATTEMPTS    ( 2                             ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO                )
     ) alu (
@@ -857,7 +858,7 @@ module vproc_core #(
         .vl_0_i             ( queue_data_q.vl_0             ),
         .op_rdy_i           ( op_rdy_alu                    ),
         .op_ack_o           ( op_ack_alu                    ),
-        .mode_i             ( queue_data_q.mode.alu         ),
+        .mode_i             ( queue_data_q.mode             ),
         .widenarrow_i       ( queue_data_q.widenarrow       ),
         .rs1_i              ( queue_data_q.rs1              ),
         .rs2_i              ( queue_data_q.rs2              ),
