@@ -873,7 +873,9 @@ module vproc_core #(
         .instr_done_id_o    ( instr_complete_id   [1]       ),
         .vreg_mask_i        ( vreg_mask                     ),
         .vreg_rd_i          ( vregfile_rd_data[2]           ),
+        .vreg_rd3_i         ( '0                            ),
         .vreg_rd_addr_o     ( vregfile_rd_addr[2]           ),
+        .vreg_rd3_addr_o    (                               ),
         .vreg_wr_o          ( alu_wr_data                   ),
         .vreg_wr_addr_o     ( alu_wr_addr                   ),
         .vreg_wr_mask_o     ( alu_wr_mask                   ),
@@ -939,13 +941,14 @@ module vproc_core #(
     logic [VMSK_W-1:0] sld_wr_mask;
     logic [4:0]        sld_wr_addr;
     logic              sld_wr_en;
-    vproc_sld #(
+    vproc_pipeline #(
         .VREG_W             ( VREG_W                   ),
         .VMSK_W             ( VMSK_W                   ),
         .CFG_VL_W           ( CFG_VL_W                 ),
-        .SLD_OP_W           ( SLD_OP_W                 ),
         .XIF_ID_W           ( XIF_ID_W                 ),
         .XIF_ID_CNT         ( XIF_ID_CNT               ),
+        .UNIT               ( UNIT_SLD                 ),
+        .OP_W               ( SLD_OP_W                 ),
         .MAX_WR_ATTEMPTS    ( 2                        ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO           )
     ) sld (
@@ -955,11 +958,13 @@ module vproc_core #(
         .id_i               ( queue_data_q.id          ),
         .vsew_i             ( queue_data_q.vsew        ),
         .emul_i             ( queue_data_q.emul        ),
+        .vxrm_i             ( queue_data_q.vxrm        ),
         .vl_i               ( queue_data_q.vl          ),
         .vl_0_i             ( queue_data_q.vl_0        ),
         .op_rdy_i           ( op_rdy_sld               ),
         .op_ack_o           ( op_ack_sld               ),
         .mode_i             ( queue_data_q.mode.sld    ),
+        .widenarrow_i       ( queue_data_q.widenarrow  ),
         .rs1_i              ( queue_data_q.rs1         ),
         .rs2_i              ( queue_data_q.rs2         ),
         .vd_i               ( queue_data_q.rd.addr     ),
@@ -973,7 +978,9 @@ module vproc_core #(
         .instr_done_id_o    ( instr_complete_id   [3]  ),
         .vreg_mask_i        ( vreg_mask                ),
         .vreg_rd_i          ( vregfile_rd_data[5]      ),
+        .vreg_rd3_i         ( '0                       ),
         .vreg_rd_addr_o     ( vregfile_rd_addr[5]      ),
+        .vreg_rd3_addr_o    (                          ),
         .vreg_wr_o          ( sld_wr_data              ),
         .vreg_wr_addr_o     ( sld_wr_addr              ),
         .vreg_wr_mask_o     ( sld_wr_mask              ),
