@@ -117,6 +117,7 @@ module vproc_elem #(
         logic                        vs1_fetch;
         logic                        vs1_shift;
         op_regs                      rs2;
+        logic                        vs2_shift;
         logic                        gather_fetch;
         logic                        v0msk_fetch;
         logic [4:0]                  vd;
@@ -261,6 +262,13 @@ module vproc_elem #(
             end else begin
                 state_d.vs1_shift = state_q.count.val[2:0] == '1;
             end
+            state_d.vs2_shift = DONT_CARE_ZERO ? '0 : 'x;
+            case (state_q.eew)
+                VSEW_8:  state_d.vs2_shift = 5'(state_q.count) == '1;
+                VSEW_16: state_d.vs2_shift = 6'(state_q.count) == '1;
+                VSEW_32: state_d.vs2_shift = 7'(state_q.count) == '1;
+                default: ;
+            endcase
             state_d.v0msk_fetch = 1'b0;
         end
     end
@@ -445,13 +453,7 @@ module vproc_elem #(
         unpack_op_vaddr  [0]          = state_init.rs1.r.vaddr;
         unpack_op_xval   [0]          = '0;
         unpack_op_flags  [1]          = unpack_flags'('0);
-        unpack_op_flags  [1].shift    = DONT_CARE_ZERO ? '0 : 'x;
-        case (state_init.eew)
-            VSEW_8:  unpack_op_flags[1].shift = state_init.count[4:0] == '0;
-            VSEW_16: unpack_op_flags[1].shift = state_init.count[5:0] == '0;
-            VSEW_32: unpack_op_flags[1].shift = state_init.count[6:0] == '0;
-            default: ;
-        endcase
+        unpack_op_flags  [1].shift    = state_init.vs2_shift;
         unpack_op_load   [1]          = state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER);
         unpack_op_flags  [1].elemwise = '0;
         unpack_op_vaddr  [1]          = state_init.rs2.r.vaddr;
