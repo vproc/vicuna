@@ -472,13 +472,13 @@ module vproc_pipeline #(
                 VSEW_32: state_d.v0msk_shift = state_q.count.val[1:0] == '1;
                 default: ;
             endcase
-            if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride != LSU_UNITSTRIDE) & (state_q.count_stride != '1)) begin
+            if ((UNIT == UNIT_LSU) & (state_q.count_stride != '1)) begin
                 state_d.v0msk_shift = 1'b0;
             end
             if ((UNIT == UNIT_SLD) & (state_q.count.part.low == slide_count.part.low)) begin
                 state_d.rs2.vreg = slide_fetch; // set vs2 valid bit after fetch
             end
-            state_d.vs3_shift = (UNIT == UNIT_LSU) & ((state_q.count_stride == '1) | (state_q.mode.lsu.stride == LSU_UNITSTRIDE));
+            state_d.vs3_shift = (UNIT == UNIT_LSU) & (state_q.count_stride == '1);
         end
     end
 
