@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-`include "vproc_vregshift.svh"
-
 module vproc_elem #(
         parameter int unsigned          VREG_W          = 128,  // width in bits of vector registers
         parameter int unsigned          VMSK_W          = 16,   // width of vector register masks (= VREG_W / 8)
@@ -120,6 +118,7 @@ module vproc_elem #(
         logic                        vs1_shift;
         op_regs                      rs2;
         logic                        gather_fetch;
+        logic                        v0msk_fetch;
         logic [4:0]                  vd;
         logic                        vd_store;
     } elem_state;
@@ -214,6 +213,7 @@ module vproc_elem #(
             state_d.rs2            = op_reduction ? rs1_i : rs2_i;
             state_d.rs2.vreg       = rs2_i.vreg | op_reduction;
             state_d.gather_fetch   = 1'b1;
+            state_d.v0msk_fetch    = 1'b1;
             state_d.vd             = vd_i;
             vreg_pend_wr_d         = vreg_pend_wr_i;
         end
@@ -261,6 +261,7 @@ module vproc_elem #(
             end else begin
                 state_d.vs1_shift = state_q.count.val[2:0] == '1;
             end
+            state_d.v0msk_fetch = 1'b0;
         end
     end
 
@@ -269,192 +270,35 @@ module vproc_elem #(
     // ELEM PIPELINE BUFFERS:
 
     // pass state information along pipeline:
-    logic                        state_vreg_ready,   state_vs1_ready,   state_vsm_ready,   state_gather_ready,   state_ex_ready,   state_res_ready,   state_vd_ready;
-    logic      state_init_stall,                                                                                                   state_res_stall,   state_vd_stall;
-    logic      state_init_valid, state_vreg_valid_q, state_vs1_valid_q, state_vsm_valid_q, state_gather_valid_q, state_ex_valid_q, state_res_valid_q, state_vd_valid_q;
-    elem_state state_init,       state_vreg_q,       state_vs1_q,       state_vsm_q,       state_gather_q,       state_ex_q,       state_res_q,       state_vd_q;
+    logic                        state_ex_ready,   state_res_ready,   state_vd_ready;
+    logic      state_init_stall,                   state_res_stall;
+    logic      state_init_valid, state_ex_valid_q, state_res_valid_q;
+    elem_state state_init,       state_ex_q,       state_res_q;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
         state_init.last_cycle = state_valid_q & last_cycle;
         state_init.vl_mask    = ~state_q.vl_0 & (state_q.count.val <= state_q.vl);
     end
-    assign pipeline_ready = state_vreg_ready & ~state_init_stall;
-
-    elem_counter vd_count_d;
-    logic        vd_store_d;
-
-    // vreg read register:
-    logic [VREG_W-1:0] vreg_rd_q, vreg_rd_d;
-
-    // operand shift register:
-    logic [VREG_W-1:0] vs1_shift_q,    vs1_shift_d;
-    logic [VREG_W-1:0] vsm_shift_q,    vsm_shift_d;
-    logic [VREG_W-1:0] gather_shift_q, gather_shift_d;
-    logic [VREG_W-1:0] v0msk_shift_q,  v0msk_shift_d;
-
-    // temporary buffer for vs1 while fetching vsm:
-    logic [31:0] vs1_tmp_q, vs1_tmp_d;
-
-    // temporary buffers for elem, mask, and reduct init while fetching gather:
-    logic [31:0] elem_tmp_q,    elem_tmp_d;
-    logic        mask_tmp_q,    mask_tmp_d;
-    logic [31:0] redinit_tmp_q, redinit_tmp_d;
+    logic unpack_ready;
+    assign pipeline_ready = unpack_ready & ~state_init_stall;
 
     // operands and result:
-    logic [31:0] elem_q,           elem_d;
-    logic        elem_idx_valid_q, elem_idx_valid_d;
-    logic        mask_q,           mask_d;
-    logic [31:0] redinit_q,        redinit_d;
+    //logic [31:0] elem_q,           elem_d;
+    //logic        elem_idx_valid_q, elem_idx_valid_d;
+    //logic        mask_q,           mask_d;
+    //logic [31:0] redinit_q,        redinit_d;
     logic [31:0] result_q,         result_d;
     logic        result_mask_q,    result_mask_d;
     logic        result_valid_q,   result_valid_d;
 
     // track whether there are any valid results:
-    logic has_valid_result_q, has_valid_result_d;
-
-    // result shift register:
-    logic [VREG_W-1:0] vd_shift_q,    vd_shift_d;
-    logic [VMSK_W-1:0] vdmsk_shift_q, vdmsk_shift_d;
-
-    // vreg write buffers
-    localparam WRITE_BUFFER_SZ = (MAX_WR_DELAY > 0) ? MAX_WR_DELAY : 1;
-    logic              vreg_wr_en_q   [WRITE_BUFFER_SZ], vreg_wr_en_d;
-    logic [4:0]        vreg_wr_addr_q [WRITE_BUFFER_SZ], vreg_wr_addr_d;
-    logic [VMSK_W-1:0] vreg_wr_mask_q [WRITE_BUFFER_SZ], vreg_wr_mask_d;
-    logic [VREG_W-1:0] vreg_wr_q      [WRITE_BUFFER_SZ], vreg_wr_d;
-    logic              vreg_wr_clear_q[WRITE_BUFFER_SZ], vreg_wr_clear_d;
-    logic [4:0]        vreg_wr_base_q [WRITE_BUFFER_SZ], vreg_wr_base_d;
-    cfg_emul           vreg_wr_emul_q [WRITE_BUFFER_SZ], vreg_wr_emul_d;
-
-    // hazard clear registers
-    logic [31:0] clear_wr_hazards_q, clear_wr_hazards_d;
+    logic        has_valid_result_q, has_valid_result_d;
+    elem_counter vd_count_q,         vd_count_d;
+    logic                            vd_store_d;
+    logic [4:0]                      vd_vd_d;
 
     generate
-        if (BUF_VREG) begin
-            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_stage_vreg_valid
-                if (~async_rst_ni) begin
-                    state_vreg_valid_q <= 1'b0;
-                end
-                else if (~sync_rst_ni) begin
-                    state_vreg_valid_q <= 1'b0;
-                end
-                else if (state_vreg_ready) begin
-                    state_vreg_valid_q <= state_init_valid & ~state_init_stall;
-                end
-            end
-            always_ff @(posedge clk_i) begin : vproc_elem_stage_vreg
-                // Note: state_init_valid is omitted here since vreg buffering
-                // may need to proceed for some extra cycle after the
-                // instruction has left state_init
-                if (state_vreg_ready) begin
-                    state_vreg_q <= state_init;
-                    vreg_rd_q    <= vreg_rd_d;
-                end
-            end
-            assign state_vreg_ready = ~state_vreg_valid_q | state_vs1_ready;
-        end else begin
-            always_comb begin
-                state_vreg_valid_q = state_init_valid & ~state_init_stall;
-                state_vreg_q       = state_init;
-                vreg_rd_q          = vreg_rd_d;
-            end
-            assign state_vreg_ready = state_vs1_ready;
-        end
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_stage_vs1_valid
-            if (~async_rst_ni) begin
-                state_vs1_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vs1_valid_q <= 1'b0;
-            end
-            else if (state_vs1_ready) begin
-                state_vs1_valid_q <= state_vreg_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_elem_stage_vs1
-            if (state_vs1_ready & state_vreg_valid_q) begin
-                state_vs1_q <= state_vreg_q;
-                vs1_shift_q <= vs1_shift_d;
-            end
-        end
-        assign state_vs1_ready = ~state_vs1_valid_q | state_vsm_ready;
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_stage_vsm_valid
-            if (~async_rst_ni) begin
-                state_vsm_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vsm_valid_q <= 1'b0;
-            end
-            else if (state_vsm_ready) begin
-                state_vsm_valid_q <= state_vs1_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_elem_stage_vsm
-            if (state_vsm_ready & state_vs1_valid_q) begin
-                state_vsm_q <= state_vs1_q;
-                vs1_tmp_q   <= vs1_tmp_d;
-                vsm_shift_q <= vsm_shift_d;
-            end
-        end
-        assign state_vsm_ready = ~state_vsm_valid_q | state_gather_ready;
-
-        if (BUF_VREG) begin
-            always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_stage_gather_valid
-                if (~async_rst_ni) begin
-                    state_gather_valid_q <= 1'b0;
-                end
-                else if (~sync_rst_ni) begin
-                    state_gather_valid_q <= 1'b0;
-                end
-                else if (state_gather_ready) begin
-                    state_gather_valid_q <= state_vsm_valid_q;
-                end
-            end
-            always_ff @(posedge clk_i) begin : vproc_elem_stage_gather
-                if (state_gather_ready & state_vsm_valid_q) begin
-                    state_gather_q <= state_vsm_q;
-                    elem_tmp_q     <= elem_tmp_d;
-                    mask_tmp_q     <= mask_tmp_d;
-                    redinit_tmp_q  <= redinit_tmp_d;
-                end
-            end
-            assign state_gather_ready = ~state_gather_valid_q | state_ex_ready;
-        end else begin
-            always_comb begin
-                state_gather_valid_q = state_vsm_valid_q;
-                state_gather_q       = state_vsm_q;
-                elem_tmp_q           = elem_tmp_d;
-                mask_tmp_q           = mask_tmp_d;
-                redinit_tmp_q        = redinit_tmp_d;
-            end
-            assign state_gather_ready = state_ex_ready;
-        end
-
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_stage_ex_valid
-            if (~async_rst_ni) begin
-                state_ex_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_ex_valid_q <= 1'b0;
-            end
-            else if (state_ex_ready) begin
-                state_ex_valid_q <= state_gather_valid_q;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_elem_stage_ex
-            if (state_ex_ready & state_gather_valid_q) begin
-                state_ex_q       <= state_gather_q;
-                elem_q           <= elem_d;
-                elem_idx_valid_q <= elem_idx_valid_d;
-                mask_q           <= mask_d;
-                redinit_q        <= redinit_d;
-                gather_shift_q   <= gather_shift_d;
-                v0msk_shift_q    <= v0msk_shift_d;
-            end
-        end
         assign state_ex_ready = ~state_ex_valid_q | state_res_ready;
 
         if (BUF_RESULTS) begin
@@ -489,100 +333,15 @@ module vproc_elem #(
             assign state_res_ready = state_vd_ready & ~state_res_stall;
         end
 
-        always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_elem_stage_vd_valid
-            if (~async_rst_ni) begin
-                state_vd_valid_q <= 1'b0;
-            end
-            else if (~sync_rst_ni) begin
-                state_vd_valid_q <= 1'b0;
-            end
-            else if (state_vd_ready) begin
-                state_vd_valid_q <= state_res_valid_q & ~state_res_stall;
-            end
-        end
-        always_ff @(posedge clk_i) begin : vproc_elem_stage_vd
-            if (state_vd_ready & state_res_valid_q) begin
-                state_vd_q           <= state_res_q;
-                state_vd_q.count     <= vd_count_d;
-                state_vd_q.vd_store  <= vd_store_d;
-                vd_shift_q           <= vd_shift_d;
-                vdmsk_shift_q        <= vdmsk_shift_d;
-                has_valid_result_q   <= has_valid_result_d;
-            end
-        end
-        assign state_vd_ready = ~state_vd_valid_q | ~state_vd_stall;
-
-        if (MAX_WR_DELAY > 0) begin
-            always_ff @(posedge clk_i) begin : vproc_elem_wr_delay
-                vreg_wr_en_q   [0] <= vreg_wr_en_d;
-                vreg_wr_addr_q [0] <= vreg_wr_addr_d;
-                vreg_wr_mask_q [0] <= vreg_wr_mask_d;
-                vreg_wr_q      [0] <= vreg_wr_d;
-                vreg_wr_clear_q[0] <= vreg_wr_clear_d;
-                vreg_wr_base_q [0] <= vreg_wr_base_d;
-                vreg_wr_emul_q [0] <= vreg_wr_emul_d;
-                for (int i = 1; i < MAX_WR_DELAY; i++) begin
-                    vreg_wr_en_q   [i] <= vreg_wr_en_q   [i-1];
-                    vreg_wr_addr_q [i] <= vreg_wr_addr_q [i-1];
-                    vreg_wr_mask_q [i] <= vreg_wr_mask_q [i-1];
-                    vreg_wr_q      [i] <= vreg_wr_q      [i-1];
-                    vreg_wr_clear_q[i] <= vreg_wr_clear_q[i-1];
-                    vreg_wr_base_q [i] <= vreg_wr_base_q [i-1];
-                    vreg_wr_emul_q [i] <= vreg_wr_emul_q [i-1];
-                end
-            end
-        end
-
         always_ff @(posedge clk_i) begin
-            clear_wr_hazards_q <= clear_wr_hazards_d;
+            if (state_vd_ready) begin
+                vd_count_q         <= vd_count_d;
+                has_valid_result_q <= has_valid_result_d;
+            end
         end
     endgenerate
 
-    always_comb begin
-        vreg_wr_en_o   = vreg_wr_en_d;
-        vreg_wr_addr_o = vreg_wr_addr_d;
-        vreg_wr_mask_o = vreg_wr_mask_d;
-        vreg_wr_o      = vreg_wr_d;
-        for (int i = 0; i < MAX_WR_DELAY; i++) begin
-            if ((((i + 1) & (i + 2)) == 0) & vreg_wr_en_q[i]) begin
-                vreg_wr_en_o   = 1'b1;
-                vreg_wr_addr_o = vreg_wr_addr_q[i];
-                vreg_wr_mask_o = vreg_wr_mask_q[i];
-                vreg_wr_o      = vreg_wr_q     [i];
-            end
-        end
-    end
-
-    // write hazard clearing
-    always_comb begin
-        if (MAX_WR_DELAY == 0) begin
-            clear_wr_hazards_d = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (vreg_wr_emul_d)
-                EMUL_1: clear_wr_hazards_d = 32'h00000001 << {vreg_wr_base_d                           };
-                EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_d                [4:1], 1'b0};
-                EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_d                [4:2], 2'b0};
-                EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_d                [4:3], 3'b0};
-                default: ;
-            endcase
-            if (~vreg_wr_clear_d) begin
-                clear_wr_hazards_d = '0;
-            end
-        end else begin
-            unique case (vreg_wr_emul_q[MAX_WR_DELAY-1])
-                EMUL_1: clear_wr_hazards_d = 32'h00000001 << {vreg_wr_base_q[MAX_WR_DELAY-1]           };
-                EMUL_2: clear_wr_hazards_d = 32'h00000003 << {vreg_wr_base_q[MAX_WR_DELAY-1][4:1], 1'b0};
-                EMUL_4: clear_wr_hazards_d = 32'h0000000F << {vreg_wr_base_q[MAX_WR_DELAY-1][4:2], 2'b0};
-                EMUL_8: clear_wr_hazards_d = 32'h000000FF << {vreg_wr_base_q[MAX_WR_DELAY-1][4:3], 3'b0};
-                default: ;
-            endcase
-            if (~vreg_wr_clear_q[MAX_WR_DELAY-1]) begin
-                clear_wr_hazards_d = '0;
-            end
-        end
-    end
-    assign clear_wr_hazards_o = clear_wr_hazards_q;
-
-    logic [31:0] state_init_gather_vregs, state_vsm_gather_vregs, state_gather_gather_vregs;
+    logic [31:0] state_init_gather_vregs;
     always_comb begin
         state_init_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_init.emul)
@@ -592,22 +351,28 @@ module vproc_elem #(
             EMUL_8: state_init_gather_vregs = 32'hFF << {state_init.rs2.r.vaddr[4:3], 3'b0};
             default: ;
         endcase
-        state_vsm_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_vsm_q.emul)
-            EMUL_1: state_vsm_gather_vregs = 32'h01 <<  state_vsm_q.rs2.r.vaddr;
-            EMUL_2: state_vsm_gather_vregs = 32'h03 << {state_vsm_q.rs2.r.vaddr[4:1], 1'b0};
-            EMUL_4: state_vsm_gather_vregs = 32'h0F << {state_vsm_q.rs2.r.vaddr[4:2], 2'b0};
-            EMUL_8: state_vsm_gather_vregs = 32'hFF << {state_vsm_q.rs2.r.vaddr[4:3], 3'b0};
-            default: ;
-        endcase
-        state_gather_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_gather_q.emul)
-            EMUL_1: state_gather_gather_vregs = 32'h01 <<  state_gather_q.rs2.r.vaddr;
-            EMUL_2: state_gather_gather_vregs = 32'h03 << {state_gather_q.rs2.r.vaddr[4:1], 1'b0};
-            EMUL_4: state_gather_gather_vregs = 32'h0F << {state_gather_q.rs2.r.vaddr[4:2], 2'b0};
-            EMUL_8: state_gather_gather_vregs = 32'hFF << {state_gather_q.rs2.r.vaddr[4:3], 3'b0};
-            default: ;
-        endcase
+    end
+
+    logic [31:0] pending_gather_vreg_reads_q, pending_gather_vreg_reads_d;
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin
+        if (~async_rst_ni) begin
+            pending_gather_vreg_reads_q <= '0;
+        end
+        else if (~sync_rst_ni) begin
+            pending_gather_vreg_reads_q <= '0;
+        end
+        else begin
+            pending_gather_vreg_reads_q <= pending_gather_vreg_reads_d;
+        end
+    end
+    always_comb begin
+        pending_gather_vreg_reads_d = pending_gather_vreg_reads_q;
+        if (state_ex_valid_q & state_ex_q.last_cycle) begin
+            pending_gather_vreg_reads_d = '0;
+        end
+        if (state_init_valid & ~state_init_stall & (state_init.mode.op == ELEM_VRGATHER)) begin
+            pending_gather_vreg_reads_d |= state_init_gather_vregs;
+        end
     end
 
     // Stall vreg reads until pending writes are complete; note that vreg read
@@ -616,17 +381,10 @@ module vproc_elem #(
     assign state_init_stall = (state_init.vs1_fetch                                                                 & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
                               (state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER) & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                               ((state_init.mode.op == ELEM_VRGATHER) & ((state_init_gather_vregs & vreg_pend_wr_q) != '0)) |
-                              (state_init.first_cycle & state_init.mode.masked & vreg_pend_wr_q[0]);
+                              (state_init.v0msk_fetch & state_init.mode.masked & vreg_pend_wr_q[0]);
 
     // Stall xreg writes while the instruction is speculative
     assign state_res_stall = state_res_valid_q & state_res_q.mode.xreg & ((state_res_q.mode.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle) & instr_spec_i[state_res_q.id];
-
-    // Stall vreg writes until pending reads of the destination register are
-    // complete and while the instruction is speculative
-    assign state_vd_stall = state_vd_q.vd_store & (vreg_pend_rd_i[state_vd_q.vd] | instr_spec_i[state_vd_q.id]);
-
-    assign instr_done_valid_o = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_stall;
-    assign instr_done_id_o    = state_vd_q.id;
 
     // pending vreg reads
     // Note: The pipeline might stall while reading a vreg, hence a vreg has to
@@ -660,147 +418,150 @@ module vproc_elem #(
     end
     // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
     // and is always read in state_gather/state_vsm
+    logic [31:0] unpack_pend_rd;
     assign vreg_pend_rd_o = ((
             ((state_init_valid & state_init.rs1.vreg   ) ? pend_vs1                        : '0) |
             ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                        : '0) |
-            ((state_init_valid & state_init.first_cycle) ? {31'b0, state_init.mode.masked} : '0)
+            ((state_init_valid & state_init.v0msk_fetch) ? {31'b0, state_init.mode.masked} : '0)
         ) & ~vreg_pend_wr_q) |
-    ((            state_vreg_valid_q   & state_vreg_q.rs2.vreg & state_vreg_q.first_cycle & (state_vreg_q.mode.op   != ELEM_VRGATHER)) ? (32'h1 << state_vreg_q.rs2.r.vaddr) : '0) |
-    ((~BUF_VREG & state_vs1_valid_q    & state_vs1_q.rs2.vreg  & state_vs1_q.first_cycle  & (state_vs1_q.mode.op    != ELEM_VRGATHER)) ? (32'h1 << state_vs1_q.rs2.r.vaddr ) : '0) |
-    // Note: The gather vreg group is added to the pending reads only from
-    // the init state and from the state right before reading. There is no
-    // need to add it for each intermediate stage, since the gather
-    // operation takes enough cycles that these two stages cover all the
-    // intermediate stages.
-    (( BUF_VREG & state_vsm_valid_q    &                                                    (state_vsm_q.mode.op    == ELEM_VRGATHER)) ? state_vsm_gather_vregs              : '0) |
-    ((~BUF_VREG & state_gather_valid_q &                                                    (state_gather_q.mode.op == ELEM_VRGATHER)) ? state_gather_gather_vregs           : '0) |
-    ((            state_vreg_valid_q   & state_vreg_q.first_cycle                                                                    ) ? {31'b0, state_vreg_q.mode.masked}   : '0) |
-    ((            state_vs1_valid_q    & state_vs1_q.first_cycle                                                                     ) ? {31'b0, state_vs1_q.mode.masked}    : '0) |
-    ((            state_vsm_valid_q    & state_vsm_q.first_cycle                                                                     ) ? {31'b0, state_vsm_q.mode.masked}    : '0) |
-    ((            state_gather_valid_q & state_gather_q.first_cycle                                                                  ) ? {31'b0, state_gather_q.mode.masked} : '0);
+    pending_gather_vreg_reads_q | unpack_pend_rd;
 
 
     ///////////////////////////////////////////////////////////////////////////
     // ELEM REGISTER READ/WRITE:
 
-    // source register addressing and read:
-    //assign vreg_rd_addr_o = state_init.vs1_fetch ? state_init.rs1.r.vaddr : state_init.rs2.r.vaddr;
+    logic        [3:0]       unpack_op_load;
+    logic        [3:0][4 :0] unpack_op_vaddr;
+    unpack_flags [3:0]       unpack_op_flags;
+    logic        [3:0][31:0] unpack_op_xval;
     always_comb begin
-        vreg_rd_addr_o = DONT_CARE_ZERO ? '0 : 'x;
-        // fetch vs1 when the corresponding flag is set
-        if (state_init.vs1_fetch) begin
-            vreg_rd_addr_o = state_init.rs1.r.vaddr;
-        end
-        // fetch vs2 in the cycle following vs1 (used as mask for mask and
-        // permutation instructions and as initalization element in reductions)
-        else if (state_vreg_q.mode.op != ELEM_VRGATHER) begin
-            vreg_rd_addr_o = BUF_VREG ? state_vreg_q.rs2.r.vaddr : state_vs1_q.rs2.r.vaddr;
-        end
-        // otherwise fetch the register corresponding to the gather index
-        else begin
-            vreg_rd_addr_o = state_vsm_q.rs2.r.vaddr | {2'b0, vs1_tmp_q[$clog2(VREG_W/8)+2:$clog2(VREG_W/8)]};
-        end
-    end
-    assign vreg_rd_d = vreg_rd_i;
-
-    // operand shift registers assignment:
-    fetch_info vs1_info;
-    cfg_vsew   vs1_eew;
-    always_comb begin
-        vs1_info.shift  = state_vreg_q.vs1_shift & state_vreg_q.gather_fetch;
-        vs1_info.fetch  = state_vreg_q.vs1_fetch;
-        vs1_eew         = state_vreg_q.eew;
-        if (state_vreg_q.vs1_narrow) begin
-            vs1_eew = DONT_CARE_ZERO ? cfg_vsew'('0) : cfg_vsew'('x);
-            case (state_vreg_q.eew)
-                VSEW_16: vs1_eew = VSEW_8;
-                VSEW_32: vs1_eew = VSEW_16;
-                default: ;
-            endcase
-        end
-    end
-    `VREGSHIFT_OPERAND_VSEW(VREG_W, 32, vs1_info, ~state_vreg_q.gather_fetch, vs1_eew, vreg_rd_q, vs1_shift_q, vs1_shift_d)
-
-    always_comb begin
-        vs1_tmp_d = vs1_shift_q[31:0];
-        if (state_vs1_q.vs1_narrow) begin
-            vs1_tmp_d = DONT_CARE_ZERO ? '0 : 'x;
-            case (state_vs1_q.eew)
-                VSEW_16: vs1_tmp_d[15:0] = {{8 {state_vs1_q.mode.sigext & vs1_shift_q[7 ]}}, vs1_shift_q[7 :0]};
-                VSEW_32: vs1_tmp_d[31:0] = {{16{state_vs1_q.mode.sigext & vs1_shift_q[15]}}, vs1_shift_q[15:0]};
-                default: ;
-            endcase
-        end
-        if (state_vs1_q.mode.op == ELEM_VRGATHER) begin
-            unique case (state_vs1_q.eew)
-                VSEW_8:  vs1_tmp_d = {24'b0                                              , vs1_shift_q[7 :0]       };
-                VSEW_16: vs1_tmp_d = {15'b0                                              , vs1_shift_q[15:0], 1'b0 };
-                VSEW_32: vs1_tmp_d = {vs1_shift_q[31] | vs1_shift_q[30] | vs1_shift_q[29], vs1_shift_q[28:0], 2'b00};
-                default: ;
-            endcase
-        end
-        vsm_shift_d = vreg_rd_q;
-        if (~state_vs1_q.first_cycle) begin
-            vsm_shift_d[VREG_W-2:0] = vsm_shift_q[VREG_W-1:1];
-        end
+        unpack_op_flags  [0]          = unpack_flags'('0);
+        unpack_op_flags  [0].shift    = state_init.vs1_shift & state_init.gather_fetch;
+        unpack_op_load   [0]          = state_init.vs1_fetch;
+        unpack_op_flags  [0].hold     = ~state_init.gather_fetch;
+        unpack_op_flags  [0].elemwise = '0;
+        unpack_op_flags  [0].narrow   = state_init.vs1_narrow;
+        unpack_op_flags  [0].sigext   = state_init.mode.sigext;
+        unpack_op_vaddr  [0]          = state_init.rs1.r.vaddr;
+        unpack_op_xval   [0]          = '0;
+        unpack_op_flags  [1]          = unpack_flags'('0);
+        unpack_op_flags  [1].shift    = DONT_CARE_ZERO ? '0 : 'x;
+        case (state_init.eew)
+            VSEW_8:  unpack_op_flags[1].shift = state_init.count[4:0] == '0;
+            VSEW_16: unpack_op_flags[1].shift = state_init.count[5:0] == '0;
+            VSEW_32: unpack_op_flags[1].shift = state_init.count[6:0] == '0;
+            default: ;
+        endcase
+        unpack_op_load   [1]          = state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.op != ELEM_VRGATHER);
+        unpack_op_flags  [1].elemwise = '0;
+        unpack_op_vaddr  [1]          = state_init.rs2.r.vaddr;
+        unpack_op_xval   [1]          = '0;
+        unpack_op_flags  [2]          = unpack_flags'('0);
+        unpack_op_flags  [2].shift    = 1'b1;
+        unpack_op_load   [2]          = state_init.gather_fetch & (state_init.mode.op == ELEM_VRGATHER);
+        unpack_op_flags  [2].elemwise = '0;
+        unpack_op_vaddr  [2]          = '0;
+        unpack_op_xval   [2]          = '0;
+        unpack_op_flags  [3]          = unpack_flags'('0);
+        unpack_op_flags  [3].shift    = 1'b1;
+        unpack_op_load   [3]          = state_init.v0msk_fetch & state_init.mode.masked;
+        unpack_op_flags  [3].elemwise = '0;
+        unpack_op_vaddr  [3]          = '0;
+        unpack_op_xval   [3]          = '0;
     end
 
-    // gather shift register assignment
-    assign elem_tmp_d    = vs1_tmp_q;
-    assign mask_tmp_d    = vsm_shift_q[0];
-    assign redinit_tmp_d = vsm_shift_q[31:0];
-    always_comb begin
-        gather_shift_d = vreg_rd_q;
-        v0msk_shift_d  = vreg_mask_i;
-        if (~state_gather_q.gather_fetch) begin
-            gather_shift_d[VREG_W-GATHER_OP_W-1:0] = gather_shift_q[VREG_W-1:GATHER_OP_W];
-        end
-        if (~state_gather_q.first_cycle) begin
-            if (result_valid_d) begin
-                v0msk_shift_d[VREG_W-2:0] = v0msk_shift_q[VREG_W-1:1];
-            end else begin
-                v0msk_shift_d             = v0msk_shift_q;
-            end
-        end
-    end
+    localparam int unsigned UNPACK_VPORT_W [2] = '{VREG_W,VREG_W};
+    localparam int unsigned UNPACK_VADDR_W [2] = '{5,5};
+    localparam int unsigned UNPACK_OP_W    [4] = '{32,32,GATHER_OP_W,1};
+    localparam int unsigned UNPACK_OP_STAGE[4] = '{1,2,3,3};
+    localparam int unsigned UNPACK_OP_SRC  [4] = '{0,0,0,1};
 
-    assign elem_d    = elem_tmp_q;
-    assign mask_d    = mask_tmp_q;
-    assign redinit_d = redinit_tmp_q;
+    logic [3:0][GATHER_OP_W-1:0] unpack_ops;
+    logic [1:0][4:0]             unpack_vreg_addr;
+    logic [1:0][VREG_W-1:0]      unpack_vreg_data;
+    vproc_vregunpack #(
+        .MAX_VPORT_W          ( VREG_W                               ),
+        .MAX_VADDR_W          ( 5                                    ),
+        .VPORT_CNT            ( 2                                    ),
+        .VPORT_W              ( UNPACK_VPORT_W                       ),
+        .VADDR_W              ( UNPACK_VADDR_W                       ),
+        .VPORT_ADDR_ZERO      ( 2'b10                                ),
+        .VPORT_BUFFER         ( 2'b01                                ),
+        .MAX_OP_W             ( GATHER_OP_W                          ),
+        .OP_CNT               ( 4                                    ),
+        .OP_W                 ( UNPACK_OP_W                          ),
+        .OP_STAGE             ( UNPACK_OP_STAGE                      ),
+        .OP_SRC               ( UNPACK_OP_SRC                        ),
+        .OP_ADDR_OFFSET_OP0   ( 4'b0100                              ),
+        .OP_MASK              ( 4'b1010                              ),
+        .OP_XREG              ( 4'b0000                              ),
+        .OP_NARROW            ( 4'b0001                              ),
+        .OP_ALLOW_ELEMWISE    ( 4'b0000                              ),
+        .OP_ALWAYS_ELEMWISE   ( 4'b1111                              ),
+        .OP_HOLD_FLAG         ( 4'b0001                              ),
+        .UNPACK_STAGES        ( 4                                    ),
+        .FLAGS_T              ( unpack_flags                         ),
+        .CTRL_DATA_W          ( $bits(elem_state)                    ),
+        .DONT_CARE_ZERO       ( DONT_CARE_ZERO                       )
+    ) elem_unpack (
+        .clk_i                ( clk_i                                ),
+        .async_rst_ni         ( async_rst_ni                         ),
+        .sync_rst_ni          ( sync_rst_ni                          ),
+        .vreg_rd_addr_o       ( unpack_vreg_addr                     ),
+        .vreg_rd_data_i       ( unpack_vreg_data                     ),
+        .pipe_in_valid_i      ( state_init_valid & ~state_init_stall ),
+        .pipe_in_ready_o      ( unpack_ready                         ),
+        .pipe_in_ctrl_i       ( state_init                           ),
+        .pipe_in_eew_i        ( state_init.eew                       ),
+        .pipe_in_op_load_i    ( unpack_op_load                       ),
+        .pipe_in_op_vaddr_i   ( unpack_op_vaddr                      ),
+        .pipe_in_op_flags_i   ( unpack_op_flags                      ),
+        .pipe_in_op_xval_i    ( unpack_op_xval                       ),
+        .pipe_out_valid_o     ( state_ex_valid_q                     ),
+        .pipe_out_ready_i     ( state_ex_ready                       ),
+        .pipe_out_ctrl_o      ( state_ex_q                           ),
+        .pipe_out_op_data_o   ( unpack_ops                           ),
+        .pending_vreg_reads_o ( unpack_pend_rd                       ),
+        .stage_valid_any_o    (                                      ),
+        .ctrl_flags_any_o     (                                      ),
+        .ctrl_flags_all_o     (                                      )
+    );
+    assign vreg_rd_addr_o = unpack_vreg_addr[0];
     always_comb begin
-        elem_idx_valid_d = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_gather_q.emul)
-            EMUL_1: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)  ] == '0;
-            EMUL_2: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)+1] == '0;
-            EMUL_4: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)+2] == '0;
-            EMUL_8: elem_idx_valid_d = elem_tmp_q[31:$clog2(VREG_W/8)+3] == '0;
+        unpack_vreg_data[0] = vreg_rd_i;
+        unpack_vreg_data[1] = vreg_mask_i;
+    end
+    logic [31:0]            elem_q;
+    logic                   elem_idx_valid_q;
+    logic                   mask_q;
+    logic [31:0]            redinit_q;
+    logic [GATHER_OP_W-1:0] gather_shift_q;
+    logic [0:0]             v0msk_shift_q;
+    assign elem_q           = unpack_ops[0][31:0];
+    assign mask_q           = unpack_ops[1][0];
+    assign redinit_q        = unpack_ops[1][31:0];
+    assign gather_shift_q   = unpack_ops[2];
+    assign v0msk_shift_q[0] = unpack_ops[3][0];
+
+    logic [31:0] gather_byte_idx;
+    always_comb begin
+        gather_byte_idx = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_ex_q.eew)
+            VSEW_8:  gather_byte_idx = {24'b0                               , elem_q[7 :0]       };
+            VSEW_16: gather_byte_idx = {15'b0                               , elem_q[15:0], 1'b0 };
+            VSEW_32: gather_byte_idx = {elem_q[31] | elem_q[30] | elem_q[29], elem_q[28:0], 2'b00};
             default: ;
         endcase
     end
-
-    // result shift register assignment:
     always_comb begin
-        vd_shift_d    = vd_shift_q;
-        vdmsk_shift_d = vdmsk_shift_q;
-        if (result_valid_q) begin
-            //vd_shift_d    = DONT_CARE_ZERO ? '0 : 'x;
-            //vdmsk_shift_d = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (state_res_q.eew)
-                VSEW_8: begin
-                    vd_shift_d    = {   result_q[7 :0] , vd_shift_q   [VREG_W-1:8 ]};
-                    vdmsk_shift_d = {   result_mask_q  , vdmsk_shift_q[VMSK_W-1:1 ]};
-                end
-                VSEW_16: begin
-                    vd_shift_d    = {   result_q[15:0] , vd_shift_q   [VREG_W-1:16]};
-                    vdmsk_shift_d = {{2{result_mask_q}}, vdmsk_shift_q[VMSK_W-1:2 ]};
-                end
-                VSEW_32: begin
-                    vd_shift_d    = {   result_q       , vd_shift_q   [VREG_W-1:32]};
-                    vdmsk_shift_d = {{4{result_mask_q}}, vdmsk_shift_q[VMSK_W-1:4 ]};
-                end
-                default: ;
-            endcase
-        end
+        elem_idx_valid_q = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_ex_q.emul)
+            EMUL_1: elem_idx_valid_q = gather_byte_idx[31:$clog2(VREG_W/8)  ] == '0;
+            EMUL_2: elem_idx_valid_q = gather_byte_idx[31:$clog2(VREG_W/8)+1] == '0;
+            EMUL_4: elem_idx_valid_q = gather_byte_idx[31:$clog2(VREG_W/8)+2] == '0;
+            EMUL_8: elem_idx_valid_q = gather_byte_idx[31:$clog2(VREG_W/8)+3] == '0;
+            default: ;
+        endcase
     end
 
     // XREG write-back
@@ -828,9 +589,9 @@ module vproc_elem #(
     always_comb begin
         vd_count_d.val = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_res_q.eew)
-            VSEW_8:  vd_count_d.val = state_vd_q.count.val + {{(ELEM_COUNTER_W-1){1'b0}}, result_valid_q      };
-            VSEW_16: vd_count_d.val = state_vd_q.count.val + {{(ELEM_COUNTER_W-2){1'b0}}, result_valid_q, 1'b0};
-            VSEW_32: vd_count_d.val = state_vd_q.count.val + {{(ELEM_COUNTER_W-3){1'b0}}, result_valid_q, 2'b0};
+            VSEW_8:  vd_count_d.val = vd_count_q.val + {{(ELEM_COUNTER_W-1){1'b0}}, result_valid_q      };
+            VSEW_16: vd_count_d.val = vd_count_q.val + {{(ELEM_COUNTER_W-2){1'b0}}, result_valid_q, 1'b0};
+            VSEW_32: vd_count_d.val = vd_count_q.val + {{(ELEM_COUNTER_W-3){1'b0}}, result_valid_q, 2'b0};
             default: ;
         endcase
         if (first_valid_result) begin
@@ -845,15 +606,99 @@ module vproc_elem #(
         end
     end
     assign vd_store_d = ~state_res_q.mode.xreg & result_valid_q & (vd_count_d.part.low == '1);
+    always_comb begin
+        vd_vd_d = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_res_q.emul)
+            EMUL_1: vd_vd_d = state_res_q.vd;
+            EMUL_2: vd_vd_d = state_res_q.vd | {4'b0, vd_count_d.part.mul[0:0]};
+            EMUL_4: vd_vd_d = state_res_q.vd | {3'b0, vd_count_d.part.mul[1:0]};
+            EMUL_8: vd_vd_d = state_res_q.vd | {2'b0, vd_count_d.part.mul[2:0]};
+            default: ;
+        endcase
+    end
 
-    //
-    assign vreg_wr_en_d    = state_vd_valid_q & state_vd_q.vd_store & ~state_vd_stall & ~instr_killed_i[state_vd_q.id];
-    assign vreg_wr_addr_d  = state_vd_q.vd | {2'b0, state_vd_q.count.part.mul[2:0]};
-    assign vreg_wr_mask_d  = vreg_wr_en_o ? vdmsk_shift_q : '0;
-    assign vreg_wr_d       = vd_shift_q;
-    assign vreg_wr_clear_d = state_vd_valid_q & state_vd_q.last_cycle & ~state_vd_q.requires_flush & ~state_vd_q.mode.xreg & ~state_vd_stall;
-    assign vreg_wr_base_d  = state_vd_q.vd;
-    assign vreg_wr_emul_d  = state_vd_q.emul;
+    elem_state state_pack;
+    always_comb begin
+        state_pack           = state_res_q;
+        state_pack.count     = vd_count_d;
+        state_pack.vd_store  = vd_store_d;
+        state_pack.vd        = vd_vd_d;
+    end
+
+    logic pack_valid;
+    assign pack_valid = state_res_valid_q & ~state_res_stall;
+    logic      [0:0] pack_res_store, pack_res_valid;
+    pack_flags [0:0] pack_res_flags;
+    always_comb begin
+        pack_res_flags[0]       = pack_flags'('0);
+        pack_res_store[0]       = state_pack.vd_store;
+        pack_res_valid[0]       = result_valid_q;
+        pack_res_flags[0].shift = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_pack.eew)
+            VSEW_8:  pack_res_flags[0].shift = state_pack.count.val[1:0] == '0;
+            VSEW_16: pack_res_flags[0].shift = state_pack.count.val[1:1] == '0;
+            VSEW_32: pack_res_flags[0].shift = 1'b1;
+            default: ;
+        endcase
+    end
+    logic last_store, instr_done;
+    assign last_store = state_pack.last_cycle & ~state_pack.requires_flush & ~state_pack.mode.xreg;
+    assign instr_done = state_pack.last_cycle & ~state_pack.requires_flush;
+    logic [1:0] pend_clear_cnt;
+    assign pend_clear_cnt = state_pack.emul; // TODO reductions always have destination EMUL == 1
+    logic [0:0][31:0] pack_res_data, pack_res_mask;
+    always_comb begin
+        pack_res_data[0]      = result_q;
+        pack_res_mask         = '0;
+        pack_res_mask[0][3:0] = {4{result_mask_q}};
+    end
+    localparam int unsigned PACK_RES_W[1] = '{32};
+    vproc_vregpack #(
+        .VPORT_W                     ( VREG_W                ),
+        .VADDR_W                     ( 5                     ),
+        .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS       ),
+        .VPORT_PEND_CLR_BULK         ( 1'b1                  ),
+        .MAX_RES_W                   ( 32                    ),
+        .RES_CNT                     ( 1                     ),
+        .RES_W                       ( PACK_RES_W            ),
+        .RES_MASK                    ( '0                    ),
+        .RES_XREG                    ( '0                    ),
+        .RES_NARROW                  ( '0                    ),
+        .RES_ALLOW_ELEMWISE          ( '0                    ),
+        .RES_ALWAYS_ELEMWISE         ( 1'b1                  ),
+        .FLAGS_T                     ( pack_flags            ),
+        .INSTR_ID_W                  ( XIF_ID_W              ),
+        .INSTR_ID_CNT                ( XIF_ID_CNT            ),
+        .DONT_CARE_ZERO              ( DONT_CARE_ZERO        )
+    ) elem_pack (
+        .clk_i                       ( clk_i                 ),
+        .async_rst_ni                ( async_rst_ni          ),
+        .sync_rst_ni                 ( sync_rst_ni           ),
+        .pipe_in_valid_i             ( pack_valid            ),
+        .pipe_in_ready_o             ( state_vd_ready        ),
+        .pipe_in_instr_id_i          ( state_pack.id         ),
+        .pipe_in_eew_i               ( state_pack.eew        ),
+        .pipe_in_vaddr_i             ( state_pack.vd         ),
+        .pipe_in_res_store_i         ( pack_res_store        ),
+        .pipe_in_res_valid_i         ( pack_res_valid        ),
+        .pipe_in_res_flags_i         ( pack_res_flags        ),
+        .pipe_in_res_data_i          ( pack_res_data         ),
+        .pipe_in_res_mask_i          ( pack_res_mask         ),
+        .pipe_in_pend_clr_i          ( last_store            ),
+        .pipe_in_pend_clr_cnt_i      ( pend_clear_cnt        ),
+        .pipe_in_instr_done_i        ( instr_done            ),
+        .vreg_wr_valid_o             ( vreg_wr_en_o          ),
+        .vreg_wr_ready_i             ( 1'b1                  ),
+        .vreg_wr_addr_o              ( vreg_wr_addr_o        ),
+        .vreg_wr_be_o                ( vreg_wr_mask_o        ),
+        .vreg_wr_data_o              ( vreg_wr_o             ),
+        .pending_vreg_reads_i        ( vreg_pend_rd_i        ),
+        .clear_pending_vreg_writes_o ( clear_wr_hazards_o    ),
+        .instr_spec_i                ( instr_spec_i          ),
+        .instr_killed_i              ( instr_killed_i        ),
+        .instr_done_valid_o          ( instr_done_valid_o    ),
+        .instr_done_id_o             ( instr_done_id_o       )
+    );
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -923,10 +768,11 @@ module vproc_elem #(
             // second vreg; can be masked by v0
             ELEM_VRGATHER: begin
                 result_d = (state_ex_q.count_gather == '0) ? '0 : result_q;
-                if (state_ex_q.count_gather == elem_q[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
-                    result_d       = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 2)} * 8 +: 32];
-                    result_d[15:0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 1)} * 8 +: 16];
-                    result_d[7 :0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, elem_q[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}}     )} * 8 +: 8 ];
+                //if (state_ex_q.count_gather == elem_q[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
+                if (state_ex_q.count_gather == gather_byte_idx[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
+                    result_d       = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, gather_byte_idx[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 2)} * 8 +: 32];
+                    result_d[15:0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, gather_byte_idx[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 1)} * 8 +: 16];
+                    result_d[7 :0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, gather_byte_idx[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}}     )} * 8 +: 8 ];
                     if (~elem_idx_valid_q) begin
                         result_d = '0;
                     end

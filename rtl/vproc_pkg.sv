@@ -168,16 +168,15 @@ typedef struct packed {
 `endif
 } op_mode_mul;
 
-typedef enum logic [1:0] {
+typedef enum logic [0:0] {
     SLD_UP,
-    SLD_DOWN,
-    SLD_1UP,
-    SLD_1DOWN
-} opcode_sld;
+    SLD_DOWN
+} opcode_sld_dir;
 
 typedef struct packed {
-    logic       masked;
-    opcode_sld  op;
+    logic          masked;
+    opcode_sld_dir dir;    // slide direction
+    logic          slide1; // slide 1 element
 `ifdef VPROC_OP_MODE_UNION
     logic [9:0] unused;
 `endif
@@ -258,43 +257,22 @@ typedef struct packed {
 
 // operand fetch info structure
 typedef struct packed {
-    logic       vreg;
-    logic [4:0] base_addr;
-    logic [4:0] vreg_addr;
-    logic       narrow;
-    logic       fetch;
-    logic       shift;
-    logic       clear_hazard;
-} fetch_info;
-
-function automatic fetch_info fetch_init (
-        input logic       vreg,
-        input logic [4:0] base_addr
-    );
-    fetch_init.vreg      = vreg;
-    fetch_init.base_addr = base_addr;
-endfunction
-
-function automatic fetch_info fetch_update_addr (
-        input fetch_info  info,
-        input logic [2:0] mul
-    );
-    fetch_update_addr           = info;
-    fetch_update_addr.vreg_addr = info.base_addr | {2'b00, mul};
-endfunction
-
-function automatic fetch_info fetch_prepare_shift (
-        input fetch_info info,
-        input logic      fetch
-    );
-    fetch_prepare_shift       = info;
-    fetch_prepare_shift.fetch = info.vreg & fetch;
-endfunction
+    logic shift;
+    logic hold;
+    logic vreg;
+    logic elemwise;
+    logic narrow;
+    logic sigext;
+} unpack_flags;
 
 // result store info structure
 typedef struct packed {
-    logic       vreg;
     logic       shift;
-} store_info;
+    logic       elemwise;
+    logic       narrow;
+    logic       saturate;
+    logic       sig;
+    logic [2:0] mul_idx;
+} pack_flags;
 
 endpackage

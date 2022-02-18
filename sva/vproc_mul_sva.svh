@@ -2,56 +2,6 @@
 // Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-    // Assert that the vreg read address corresponds to the register being fetched
-    assert property (
-        @(posedge clk_i)
-        (state_init_valid & state_init.vs1_fetch) |-> (vreg_rd_addr_o == state_init.rs1.r.vaddr)
-    ) else begin
-        $error("vreg_rd_addr_o incorrect while fetching vs1");
-    end
-    assert property (
-        @(posedge clk_i)
-        (BUF_VREG ? (state_vreg_valid_q & state_vreg_q.vs2_fetch) : (state_vs1_valid_q & state_vs1_q.vs2_fetch)) |-> (
-            (vreg_rd_addr_o == (BUF_VREG ? state_vreg_q.rs2.r.vaddr : state_vs1_q.rs2.r.vaddr)) |
-            (vreg_rd_addr_o == (BUF_VREG ? state_vreg_q.vd          : state_vs1_q.vd         ))
-        )
-    ) else begin
-        $error("vreg_rd_addr_o incorrect while fetching vs2");
-    end
-    assert property (
-        @(posedge clk_i)
-        (state_vs1_valid_q & state_vs1_q.vs3_fetch) |-> ((vreg_rd3_addr_o == state_vs1_q.rs2.r.vaddr) | (vreg_rd3_addr_o == state_vs1_q.vd))
-    ) else begin
-        $error("vreg_rd3_addr_o incorrect while fetching vs3");
-    end
-
-    // Assert that a vreg is still in the pending reads while being fetched
-    assert property (
-        @(posedge clk_i)
-        (state_init_valid & ~state_init_stall & state_init.vs1_fetch) |-> vreg_pend_rd_o[state_init.rs1.r.vaddr]
-    ) else begin
-        $error("vs1 not in vreg_pend_rd_o while fetching");
-    end
-    assert property (
-        @(posedge clk_i)
-        (BUF_VREG ? (state_vreg_valid_q & state_vreg_q.vs2_fetch) : (state_vs1_valid_q & state_vs1_q.vs2_fetch)) |->
-        vreg_pend_rd_o[BUF_VREG ? state_vreg_q.rs2.r.vaddr : state_vs1_q.rs2.r.vaddr]
-    ) else begin
-        $error("vs2 not in vreg_pend_rd_o while fetching");
-    end
-    assert property (
-        @(posedge clk_i)
-        (state_vs1_valid_q & state_vs1_q.vs3_fetch) |-> vreg_pend_rd_o[state_vs1_q.vd]
-    ) else begin
-        $error("vs3 not in vreg_pend_rd_o while fetching");
-    end
-    assert property (
-        @(posedge clk_i)
-        (state_vs1_valid_q & state_vs1_q.mode.masked & state_vs1_q.first_cycle) |-> vreg_pend_rd_o[0]
-    ) else begin
-        $error("v0 (mask) not in vreg_pend_rd_o while fetching");
-    end
-
     // Assert that local pending writes are only added in the first cycle of an instruction
     // Assert that new vregs are added to the pending reads only in the first cycle of an instruction or when local pending writes are cleared
     generate
