@@ -879,7 +879,11 @@ module vproc_core #(
         .vreg_wr_o          ( alu_wr_data                   ),
         .vreg_wr_addr_o     ( alu_wr_addr                   ),
         .vreg_wr_mask_o     ( alu_wr_mask                   ),
-        .vreg_wr_en_o       ( alu_wr_en                     )
+        .vreg_wr_en_o       ( alu_wr_en                     ),
+        .xreg_valid_o       (                               ),
+        .xreg_id_o          (                               ),
+        .xreg_addr_o        (                               ),
+        .xreg_data_o        (                               )
     );
 
 
@@ -932,7 +936,11 @@ module vproc_core #(
         .vreg_wr_o          ( mul_wr_data                   ),
         .vreg_wr_addr_o     ( mul_wr_addr                   ),
         .vreg_wr_mask_o     ( mul_wr_mask                   ),
-        .vreg_wr_en_o       ( mul_wr_en                     )
+        .vreg_wr_en_o       ( mul_wr_en                     ),
+        .xreg_valid_o       (                               ),
+        .xreg_id_o          (                               ),
+        .xreg_addr_o        (                               ),
+        .xreg_data_o        (                               )
     );
 
 
@@ -984,7 +992,11 @@ module vproc_core #(
         .vreg_wr_o          ( sld_wr_data              ),
         .vreg_wr_addr_o     ( sld_wr_addr              ),
         .vreg_wr_mask_o     ( sld_wr_mask              ),
-        .vreg_wr_en_o       ( sld_wr_en                )
+        .vreg_wr_en_o       ( sld_wr_en                ),
+        .xreg_valid_o       (                          ),
+        .xreg_id_o          (                          ),
+        .xreg_addr_o        (                          ),
+        .xreg_data_o        (                          )
     );
 
 
@@ -997,13 +1009,14 @@ module vproc_core #(
     logic [XIF_ID_W-1:0] elem_xreg_id;
     logic [4:0]          elem_xreg_addr;
     logic [31:0]         elem_xreg_data;
-    vproc_elem #(
+    vproc_pipeline #(
         .VREG_W             ( VREG_W                   ),
         .VMSK_W             ( VMSK_W                   ),
         .CFG_VL_W           ( CFG_VL_W                 ),
-        .GATHER_OP_W        ( GATHER_OP_W              ),
         .XIF_ID_W           ( XIF_ID_W                 ),
         .XIF_ID_CNT         ( XIF_ID_CNT               ),
+        .UNIT               ( UNIT_ELEM                ),
+        .OP_W               ( GATHER_OP_W              ),
         .MAX_WR_ATTEMPTS    ( 3                        ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO           )
     ) elem (
@@ -1013,6 +1026,7 @@ module vproc_core #(
         .id_i               ( queue_data_q.id          ),
         .vsew_i             ( queue_data_q.vsew        ),
         .emul_i             ( queue_data_q.emul        ),
+        .vxrm_i             ( queue_data_q.vxrm        ),
         .vl_i               ( queue_data_q.vl          ),
         .vl_0_i             ( queue_data_q.vl_0        ),
         .op_rdy_i           ( op_rdy_elem              ),
@@ -1032,7 +1046,9 @@ module vproc_core #(
         .instr_done_id_o    ( instr_complete_id   [4]  ),
         .vreg_mask_i        ( vreg_mask                ),
         .vreg_rd_i          ( vregfile_rd_data[6]      ),
+        .vreg_rd3_i         ( '0                       ),
         .vreg_rd_addr_o     ( vregfile_rd_addr[6]      ),
+        .vreg_rd3_addr_o    (                          ),
         .vreg_wr_o          ( elem_wr_data             ),
         .vreg_wr_addr_o     ( elem_wr_addr             ),
         .vreg_wr_mask_o     ( elem_wr_mask             ),
