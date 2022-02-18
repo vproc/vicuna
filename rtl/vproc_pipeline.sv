@@ -4,16 +4,26 @@
 
 
 module vproc_pipeline #(
-        parameter int unsigned          VREG_W           = 128,  // width in bits of vector registers
-        parameter int unsigned          VMSK_W           = 16,   // width of vector register masks (= VREG_W / 8)
-        parameter int unsigned          CFG_VL_W         = 7,    // width of VL reg in bits (= log2(VREG_W))
-        parameter int unsigned          XIF_ID_W         = 3,    // width in bits of instruction IDs
-        parameter int unsigned          XIF_ID_CNT       = 8,    // total count of instruction IDs
-        parameter vproc_pkg::op_unit    UNIT             = UNIT_ALU,
-        parameter int unsigned          OP_W             = 64,   // operand width in bits
-        parameter vproc_pkg::mul_type   MUL_TYPE         = vproc_pkg::MUL_GENERIC,
-        parameter int unsigned          MAX_WR_ATTEMPTS  = 1,    // max required vregfile write attempts
-        parameter bit                   DONT_CARE_ZERO   = 1'b0  // initialize don't care values to zero
+        parameter int unsigned          VREG_W              = 128,  // width in bits of vector registers
+        parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
+        parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
+        parameter vproc_pkg::op_unit    UNIT                = UNIT_ALU,
+        parameter int unsigned          VPORT_CNT           = 1,
+        parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
+        parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
+        parameter int unsigned          MAX_OP_W            = 64,
+        parameter int unsigned          OP_CNT              = 1,
+        parameter int unsigned          OP_W    [OP_CNT   ] = '{0}, // op widths
+        parameter int unsigned          OP_STAGE[OP_CNT   ] = '{0}, // op load stage
+        parameter int unsigned          OP_SRC  [OP_CNT   ] = '{0}, // op port index
+        parameter int unsigned          UNPACK_STAGES       = 0,
+        parameter int unsigned          MAX_RES_W           = 64,
+        parameter int unsigned          RES_CNT             = 1,
+        parameter int unsigned          RES_W   [RES_CNT  ] = '{0},
+        parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
+        parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
+        parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
     )(
         input  logic                    clk_i,
         input  logic                    async_rst_ni,
@@ -54,7 +64,7 @@ module vproc_pipeline #(
         output logic [4:0]              vreg_rd3_addr_o,
         output logic [VREG_W-1:0]       vreg_wr_o,
         output logic [4:0]              vreg_wr_addr_o,
-        output logic [VMSK_W-1:0]       vreg_wr_mask_o,
+        output logic [VREG_W/8-1:0]     vreg_wr_mask_o,
         output logic                    vreg_wr_en_o,
 
         output logic                    pending_load_o,
@@ -76,19 +86,19 @@ module vproc_pipeline #(
 
     import vproc_pkg::*;
 
-    if ((OP_W & (OP_W - 1)) != 0 || OP_W < 32 || OP_W >= VREG_W) begin
-        $fatal(1, "The vector pipeline operand width OP_W must be at least 32, less than ",
+    if ((MAX_OP_W & (MAX_OP_W - 1)) != 0 || MAX_OP_W < 32 || MAX_OP_W >= VREG_W) begin
+        $fatal(1, "The vector pipeline operand width MAX_OP_W must be at least 32, less than ",
                   "the vector register width VREG_W and a power of two.  ",
-                  "The current value of %d is invalid.", OP_W);
+                  "The current value of %d is invalid.", MAX_OP_W);
     end
 
-    if (MAX_WR_ATTEMPTS < 1 || (1 << (MAX_WR_ATTEMPTS - 1)) > VREG_W / OP_W) begin
+    if (MAX_WR_ATTEMPTS < 1 || (1 << (MAX_WR_ATTEMPTS - 1)) > VREG_W / MAX_OP_W) begin
         $fatal(1, "The maximum number of write attempts MAX_WR_ATTEMPTS of a vector pipeline ",
                   "must be at least 1 and 2^(MAX_WR_ATTEMPTS-1) must be less than or ",
                   "equal to the ratio of the vector register width vs the operand width ",
                   "of that unit.  ",
                   "MAX_WR_ATTEMPTS is %d and that ratio is %d.",
-                  MAX_WR_ATTEMPTS, VREG_W / OP_W);
+                  MAX_WR_ATTEMPTS, VREG_W / MAX_OP_W);
     end
 
     // max number of cycles by which a write can be delayed
@@ -98,13 +108,13 @@ module vproc_pipeline #(
     ///////////////////////////////////////////////////////////////////////////
     // STATE LOGIC
 
-    localparam int unsigned CYCLES_PER_VREG = VREG_W / ((UNIT == UNIT_ELEM) ? 8 : OP_W);
+    localparam int unsigned CYCLES_PER_VREG = VREG_W / ((UNIT == UNIT_ELEM) ? 8 : MAX_OP_W);
     localparam int unsigned COUNTER_W       = $clog2(CYCLES_PER_VREG) + 4;
 
-    localparam int unsigned STRIDE_ELEMS_PER_VMEM = OP_W / 8; // maximum number of elems read at once for strided/indexed loads
+    localparam int unsigned STRIDE_ELEMS_PER_VMEM = MAX_OP_W / 8; // maximum number of elems read at once for strided/indexed loads
     localparam int unsigned STRIDE_COUNTER_W      = $clog2(STRIDE_ELEMS_PER_VMEM);
 
-    localparam int unsigned GATHER_CYCLES_PER_VREG = VREG_W / OP_W;
+    localparam int unsigned GATHER_CYCLES_PER_VREG = VREG_W / MAX_OP_W;
     localparam int unsigned GATHER_COUNTER_W       = $clog2(GATHER_CYCLES_PER_VREG);
 
     typedef union packed {
@@ -190,15 +200,15 @@ module vproc_pipeline #(
 
     counter_t slide_count;
     always_comb begin
-        slide_count.val = state_q.rs1.r.xval[$clog2(OP_W/8) +: COUNTER_W];
+        slide_count.val = state_q.rs1.r.xval[$clog2(MAX_OP_W/8) +: COUNTER_W];
         if (state_q.mode.sld.slide1) begin
             if (state_q.mode.sld.dir == SLD_UP) begin
                 // slide_count is all zeroes for up slide, except for a byte slide of 4 when the
-                // operand width is 32 bits, then it is 1 (right shift by log2(OP_W/8) = 2 bits)
+                // operand width is 32 bits, then it is 1 (right shift by log2(MAX_OP_W/8) = 2 bits)
                 unique case (state_q.eew)
                     VSEW_8,
                     VSEW_16: slide_count.val = '0;
-                    VSEW_32: slide_count.val = {{COUNTER_W-1{1'b0}}, OP_W == 32};
+                    VSEW_32: slide_count.val = {{COUNTER_W-1{1'b0}}, MAX_OP_W == 32};
                     default: ;
                 endcase
             end else begin
@@ -355,7 +365,7 @@ module vproc_pipeline #(
                     endcase
                 end
                 unique case (state_q.mode.lsu.stride)
-                    LSU_UNITSTRIDE: state_d.rs1.r.xval = state_q.rs1.r.xval + (OP_W / 8);
+                    LSU_UNITSTRIDE: state_d.rs1.r.xval = state_q.rs1.r.xval + (MAX_OP_W / 8);
                     LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.rs2.r.xval;
                     default: ; // for indexed loads the base address stays the same
                 endcase
@@ -740,10 +750,6 @@ module vproc_pipeline #(
     ///////////////////////////////////////////////////////////////////////////
     // REGISTER READ/WRITE AND UNIT INSTANTIATION
 
-    localparam int unsigned VPORT_CNT =  (UNIT == UNIT_MUL)                        ? 3 : 2;
-    localparam int unsigned OP_CNT    = ((UNIT == UNIT_MUL) | (UNIT == UNIT_ELEM)) ? 4 : (
-                                         (UNIT == UNIT_SLD)                        ? 2 : 3);
-
     logic        [OP_CNT-1:0]       unpack_op_load;
     logic        [OP_CNT-1:0][4 :0] unpack_op_vaddr;
     unpack_flags [OP_CNT-1:0]       unpack_op_flags;
@@ -825,29 +831,9 @@ module vproc_pipeline #(
         end
     endgenerate
 
-    localparam int unsigned UNPACK_VPORT_W [3]        = '{VREG_W,VREG_W,VREG_W};
-    localparam int unsigned UNPACK_VADDR_W [3]        = '{5,5,5};
     localparam bit [2:0]    UNPACK_VPORT_ADDR_ZERO    = (UNIT == UNIT_MUL) ? 3'b100 : 3'b10;
     localparam bit [2:0]    UNPACK_VPORT_BUFFER       = (UNIT == UNIT_MUL) ? 3'b001 : 3'b01;
 
-    localparam int unsigned UNPACK_OP_W    [4]        = (UNIT == UNIT_LSU ) ? '{32  ,OP_W  ,OP_W/8,0     } : (
-                                                        (UNIT == UNIT_MUL ) ? '{OP_W,OP_W  ,OP_W  ,OP_W/8} : (
-                                                        (UNIT == UNIT_SLD ) ? '{OP_W,OP_W/8,0     ,0     } : (
-                                                        (UNIT == UNIT_ELEM) ? '{32  ,32    ,OP_W  ,1     } :
-                                                                              '{OP_W,OP_W  ,OP_W/8,0     }
-                                                        )));
-    localparam int unsigned UNPACK_OP_STAGE[4]        = (UNIT == UNIT_SLD ) ? '{1,1,0,0} : (
-                                                        (UNIT == UNIT_ELEM) ? '{1,2,3,3} :
-                                                                              '{1,2,2,2}
-                                                        );
-    localparam int unsigned UNPACK_OP_SRC  [4]        = (UNIT == UNIT_SLD ) ? '{0,1,0,0} : (
-                                                        (UNIT == UNIT_ELEM) ? '{0,0,0,1} :
-                                                                              '{0,0,1,2}
-                                                        );
-    localparam int unsigned UNPACK_STAGES             = (UNIT == UNIT_SLD ) ? 2 : (
-                                                        (UNIT == UNIT_ELEM) ? 4 :
-                                                                              3
-                                                        );
     localparam bit [3:0]    UNPACK_OP_ADDR_OFFSET_OP0 =  (UNIT == UNIT_ELEM) ? 4'b0100 : '0;
     localparam bit [3:0]    UNPACK_OP_MASK            =  (UNIT == UNIT_MUL ) ? 4'b1000 : (
                                                          (UNIT == UNIT_ELEM) ? 4'b1010 : (
@@ -866,25 +852,25 @@ module vproc_pipeline #(
                                                         );
     localparam bit [3:0]    UNPACK_OP_HOLD_FLAG       =  (UNIT == UNIT_ELEM) ? 4'b0001 : '0;
 
-    logic [VPORT_CNT-1:0][4:0]        unpack_vreg_addr;
-    logic [VPORT_CNT-1:0][VREG_W-1:0] unpack_vreg_data;
-    logic                             unpack_out_valid;
-    logic                             unpack_out_ready;
-    ctrl_t                            unpack_out_ctrl;
-    logic [OP_CNT   -1:0][OP_W  -1:0] unpack_out_ops;
+    logic [VPORT_CNT-1:0][4:0]          unpack_vreg_addr;
+    logic [VPORT_CNT-1:0][VREG_W  -1:0] unpack_vreg_data;
+    logic                               unpack_out_valid;
+    logic                               unpack_out_ready;
+    ctrl_t                              unpack_out_ctrl;
+    logic [OP_CNT   -1:0][MAX_OP_W-1:0] unpack_out_ops;
     vproc_vregunpack #(
         .MAX_VPORT_W          ( VREG_W                                ),
         .MAX_VADDR_W          ( 5                                     ),
         .VPORT_CNT            ( VPORT_CNT                             ),
-        .VPORT_W              ( UNPACK_VPORT_W                        ),
-        .VADDR_W              ( UNPACK_VADDR_W                        ),
+        .VPORT_W              ( VPORT_W                               ),
+        .VADDR_W              ( VADDR_W                               ),
         .VPORT_ADDR_ZERO      ( UNPACK_VPORT_ADDR_ZERO[VPORT_CNT-1:0] ),
         .VPORT_BUFFER         ( UNPACK_VPORT_BUFFER   [VPORT_CNT-1:0] ),
-        .MAX_OP_W             ( OP_W                                  ),
+        .MAX_OP_W             ( MAX_OP_W                              ),
         .OP_CNT               ( OP_CNT                                ),
-        .OP_W                 ( UNPACK_OP_W                           ),
-        .OP_STAGE             ( UNPACK_OP_STAGE                       ),
-        .OP_SRC               ( UNPACK_OP_SRC                         ),
+        .OP_W                 ( OP_W                                  ),
+        .OP_STAGE             ( OP_STAGE                              ),
+        .OP_SRC               ( OP_SRC                                ),
         .OP_ADDR_OFFSET_OP0   ( UNPACK_OP_ADDR_OFFSET_OP0[OP_CNT-1:0] ),
         .OP_MASK              ( UNPACK_OP_MASK           [OP_CNT-1:0] ),
         .OP_XREG              ( UNPACK_OP_XREG           [OP_CNT-1:0] ),
@@ -938,61 +924,57 @@ module vproc_pipeline #(
 
     assign pending_gather_vreg_reads_clear = (UNIT == UNIT_ELEM) & unpack_out_valid & unpack_out_ctrl.last_cycle;
 
-
-    localparam int unsigned RES_CNT = (UNIT == UNIT_ALU ) ? 2 : 1;
-    localparam int unsigned RES_W   = (UNIT == UNIT_ELEM) ? 32 : OP_W;
-
     logic                  lsu_instr_done_valid;
     logic [XIF_ID_W  -1:0] lsu_instr_done_id;
 
-    logic                               unit_out_valid;
-    logic                               unit_out_ready;
-    ctrl_t                              unit_out_ctrl;
-    logic                               unit_out_instr_done;
-    logic      [RES_CNT-1:0]            pack_res_store, pack_res_valid;
-    pack_flags [RES_CNT-1:0]            pack_res_flags;
-    logic      [RES_CNT-1:0][RES_W-1:0] pack_res_data, pack_res_mask;
-    logic                               pack_pend_clear;
-    logic      [1:0]                    pack_pend_clear_cnt;
+    logic                                   unit_out_valid;
+    logic                                   unit_out_ready;
+    ctrl_t                                  unit_out_ctrl;
+    logic                                   unit_out_instr_done;
+    logic      [RES_CNT-1:0]                pack_res_store, pack_res_valid;
+    pack_flags [RES_CNT-1:0]                pack_res_flags;
+    logic      [RES_CNT-1:0][MAX_RES_W-1:0] pack_res_data, pack_res_mask;
+    logic                                   pack_pend_clear;
+    logic      [1:0]                        pack_pend_clear_cnt;
     generate
         if (UNIT == UNIT_LSU) begin
-            logic [OP_W  -1:0] unit_out_res;
-            logic [OP_W/8-1:0] unit_out_mask;
+            logic [MAX_OP_W  -1:0] unit_out_res;
+            logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_lsu #(
-                .VREG_W                   ( VREG_W                        ),
-                .CFG_VL_W                 ( CFG_VL_W                      ),
-                .VMEM_W                   ( OP_W                          ),
-                .CTRL_T                   ( ctrl_t                        ),
-                .DONT_CARE_ZERO           ( DONT_CARE_ZERO                )
+                .VREG_W                   ( VREG_W                            ),
+                .CFG_VL_W                 ( CFG_VL_W                          ),
+                .VMEM_W                   ( MAX_OP_W                          ),
+                .CTRL_T                   ( ctrl_t                            ),
+                .DONT_CARE_ZERO           ( DONT_CARE_ZERO                    )
             ) lsu (
-                .clk_i                    ( clk_i                         ),
-                .async_rst_ni             ( async_rst_ni                  ),
-                .sync_rst_ni              ( sync_rst_ni                   ),
-                .pipe_in_valid_i          ( unpack_out_valid              ),
-                .pipe_in_ready_o          ( unpack_out_ready              ),
-                .pipe_in_ctrl_i           ( unpack_out_ctrl               ),
-                .pipe_in_op1_i            ( unpack_out_ops[0][31:0]       ),
-                .pipe_in_op2_i            ( unpack_out_ops[1]             ),
-                .pipe_in_mask_i           ( unpack_out_ops[2][OP_W/8-1:0] ),
-                .pipe_out_valid_o         ( unit_out_valid                ),
-                .pipe_out_ready_i         ( 1'b1                          ),
-                .pipe_out_ctrl_o          ( unit_out_ctrl                 ),
-                .pipe_out_pend_clr_o      ( pack_pend_clear               ),
-                .pipe_out_res_o           ( unit_out_res                  ),
-                .pipe_out_mask_o          ( unit_out_mask                 ),
-                .pending_load_o           ( lsu_pending_load              ),
-                .pending_store_o          ( lsu_pending_store             ),
-                .vreg_pend_rd_i           ( vreg_pend_rd_i                ),
-                .instr_spec_i             ( instr_spec_i                  ),
-                .instr_killed_i           ( instr_killed_i                ),
-                .instr_done_valid_o       ( lsu_instr_done_valid          ),
-                .instr_done_id_o          ( lsu_instr_done_id             ),
-                .trans_complete_valid_o   ( trans_complete_valid_o        ),
-                .trans_complete_id_o      ( trans_complete_id_o           ),
-                .trans_complete_exc_o     ( trans_complete_exc_o          ),
-                .trans_complete_exccode_o ( trans_complete_exccode_o      ),
-                .xif_mem_if               ( xif_mem_if                    ),
-                .xif_memres_if            ( xif_memres_if                 )
+                .clk_i                    ( clk_i                             ),
+                .async_rst_ni             ( async_rst_ni                      ),
+                .sync_rst_ni              ( sync_rst_ni                       ),
+                .pipe_in_valid_i          ( unpack_out_valid                  ),
+                .pipe_in_ready_o          ( unpack_out_ready                  ),
+                .pipe_in_ctrl_i           ( unpack_out_ctrl                   ),
+                .pipe_in_op1_i            ( unpack_out_ops[0][31:0]           ),
+                .pipe_in_op2_i            ( unpack_out_ops[1]                 ),
+                .pipe_in_mask_i           ( unpack_out_ops[2][MAX_OP_W/8-1:0] ),
+                .pipe_out_valid_o         ( unit_out_valid                    ),
+                .pipe_out_ready_i         ( 1'b1                              ),
+                .pipe_out_ctrl_o          ( unit_out_ctrl                     ),
+                .pipe_out_pend_clr_o      ( pack_pend_clear                   ),
+                .pipe_out_res_o           ( unit_out_res                      ),
+                .pipe_out_mask_o          ( unit_out_mask                     ),
+                .pending_load_o           ( lsu_pending_load                  ),
+                .pending_store_o          ( lsu_pending_store                 ),
+                .vreg_pend_rd_i           ( vreg_pend_rd_i                    ),
+                .instr_spec_i             ( instr_spec_i                      ),
+                .instr_killed_i           ( instr_killed_i                    ),
+                .instr_done_valid_o       ( lsu_instr_done_valid              ),
+                .instr_done_id_o          ( lsu_instr_done_id                 ),
+                .trans_complete_valid_o   ( trans_complete_valid_o            ),
+                .trans_complete_id_o      ( trans_complete_id_o               ),
+                .trans_complete_exc_o     ( trans_complete_exc_o              ),
+                .trans_complete_exccode_o ( trans_complete_exccode_o          ),
+                .xif_mem_if               ( xif_mem_if                        ),
+                .xif_memres_if            ( xif_memres_if                     )
             );
             logic [COUNTER_W       -1:0] debug_count        = unit_out_ctrl.count.val;
             logic [STRIDE_COUNTER_W-1:0] debug_count_stride = unit_out_ctrl.count_stride;
@@ -1014,139 +996,139 @@ module vproc_pipeline #(
                     endcase
                     pack_res_flags[0].elemwise = 1'b1;
                 end
-                pack_res_store[0]             = unit_out_ctrl.vd_store;
-                pack_res_valid[0]             = unit_out_valid;
-                pack_res_data [0]             = unit_out_res;
-                pack_res_mask [0][OP_W/8-1:0] = unit_out_mask;
+                pack_res_store[0]                 = unit_out_ctrl.vd_store;
+                pack_res_valid[0]                 = unit_out_valid;
+                pack_res_data [0]                 = unit_out_res;
+                pack_res_mask [0][MAX_OP_W/8-1:0] = unit_out_mask;
             end
             assign pack_pend_clear_cnt = '0;
             assign unit_out_instr_done = unit_out_ctrl.last_cycle;
         end
         else if (UNIT == UNIT_ALU) begin
-            logic [OP_W  -1:0] unit_out_res_alu;
-            logic [OP_W/8-1:0] unit_out_res_cmp;
-            logic [OP_W/8-1:0] unit_out_mask;
+            logic [MAX_OP_W  -1:0] unit_out_res_alu;
+            logic [MAX_OP_W/8-1:0] unit_out_res_cmp;
+            logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_alu #(
-                .VREG_W             ( VREG_W                        ),
-                .CFG_VL_W           ( CFG_VL_W                      ),
-                .ALU_OP_W           ( OP_W                          ),
-                .CTRL_T             ( ctrl_t                        ),
-                .DONT_CARE_ZERO     ( DONT_CARE_ZERO                )
+                .VREG_W             ( VREG_W                            ),
+                .CFG_VL_W           ( CFG_VL_W                          ),
+                .ALU_OP_W           ( MAX_OP_W                          ),
+                .CTRL_T             ( ctrl_t                            ),
+                .DONT_CARE_ZERO     ( DONT_CARE_ZERO                    )
             ) alu (
-                .clk_i              ( clk_i                         ),
-                .async_rst_ni       ( async_rst_ni                  ),
-                .sync_rst_ni        ( sync_rst_ni                   ),
-                .pipe_in_valid_i    ( unpack_out_valid              ),
-                .pipe_in_ready_o    ( unpack_out_ready              ),
-                .pipe_in_ctrl_i     ( unpack_out_ctrl               ),
-                .pipe_in_op1_i      ( unpack_out_ops[0]             ),
-                .pipe_in_op2_i      ( unpack_out_ops[1]             ),
-                .pipe_in_mask_i     ( unpack_out_ops[2][OP_W/8-1:0] ),
-                .pipe_out_valid_o   ( unit_out_valid                ),
-                .pipe_out_ready_i   ( unit_out_ready                ),
-                .pipe_out_ctrl_o    ( unit_out_ctrl                 ),
-                .pipe_out_res_alu_o ( unit_out_res_alu              ),
-                .pipe_out_res_cmp_o ( unit_out_res_cmp              ),
-                .pipe_out_mask_o    ( unit_out_mask                 )
+                .clk_i              ( clk_i                             ),
+                .async_rst_ni       ( async_rst_ni                      ),
+                .sync_rst_ni        ( sync_rst_ni                       ),
+                .pipe_in_valid_i    ( unpack_out_valid                  ),
+                .pipe_in_ready_o    ( unpack_out_ready                  ),
+                .pipe_in_ctrl_i     ( unpack_out_ctrl                   ),
+                .pipe_in_op1_i      ( unpack_out_ops[0]                 ),
+                .pipe_in_op2_i      ( unpack_out_ops[1]                 ),
+                .pipe_in_mask_i     ( unpack_out_ops[2][MAX_OP_W/8-1:0] ),
+                .pipe_out_valid_o   ( unit_out_valid                    ),
+                .pipe_out_ready_i   ( unit_out_ready                    ),
+                .pipe_out_ctrl_o    ( unit_out_ctrl                     ),
+                .pipe_out_res_alu_o ( unit_out_res_alu                  ),
+                .pipe_out_res_cmp_o ( unit_out_res_cmp                  ),
+                .pipe_out_mask_o    ( unit_out_mask                     )
             );
             always_comb begin
                 pack_res_data = '0;
                 pack_res_mask = '0;
 
-                pack_res_flags[0]             = pack_flags'('0);
-                pack_res_store[0]             = unit_out_ctrl.vd_store & ~unit_out_ctrl.mode.alu.cmp;
-                pack_res_flags[0].shift       = ~unit_out_ctrl.vd_narrow | ~unit_out_ctrl.count.val[0];
-                pack_res_flags[0].narrow      = unit_out_ctrl.vd_narrow;
-                pack_res_flags[0].saturate    = unit_out_ctrl.mode.alu.sat_res;
-                pack_res_flags[0].sig         = unit_out_ctrl.mode.alu.sigext;
-                pack_res_valid[0]             = unit_out_valid;
-                pack_res_data [0]             = unit_out_res_alu;
-                pack_res_mask [0][OP_W/8-1:0] = unit_out_mask;
+                pack_res_flags[0]                 = pack_flags'('0);
+                pack_res_store[0]                 = unit_out_ctrl.vd_store & ~unit_out_ctrl.mode.alu.cmp;
+                pack_res_flags[0].shift           = ~unit_out_ctrl.vd_narrow | ~unit_out_ctrl.count.val[0];
+                pack_res_flags[0].narrow          = unit_out_ctrl.vd_narrow;
+                pack_res_flags[0].saturate        = unit_out_ctrl.mode.alu.sat_res;
+                pack_res_flags[0].sig             = unit_out_ctrl.mode.alu.sigext;
+                pack_res_valid[0]                 = unit_out_valid;
+                pack_res_data [0]                 = unit_out_res_alu;
+                pack_res_mask [0][MAX_OP_W/8-1:0] = unit_out_mask;
 
-                pack_res_flags[1]             = pack_flags'('0);
-                pack_res_flags[1].mul_idx     = unit_out_ctrl.count.part.mul;
-                pack_res_store[1]             = unit_out_ctrl.vd_store & unit_out_ctrl.mode.alu.cmp;
-                pack_res_valid[1]             = unit_out_valid;
-                pack_res_data [1][OP_W/8-1:0] = unit_out_res_cmp;
-                pack_res_mask [1][OP_W/8-1:0] = unit_out_mask;
+                pack_res_flags[1]                 = pack_flags'('0);
+                pack_res_flags[1].mul_idx         = unit_out_ctrl.count.part.mul;
+                pack_res_store[1]                 = unit_out_ctrl.vd_store & unit_out_ctrl.mode.alu.cmp;
+                pack_res_valid[1]                 = unit_out_valid;
+                pack_res_data [1][MAX_OP_W/8-1:0] = unit_out_res_cmp;
+                pack_res_mask [1][MAX_OP_W/8-1:0] = unit_out_mask;
             end
             assign pack_pend_clear     = unit_out_ctrl.mode.alu.cmp ? unit_out_ctrl.last_cycle : unit_out_ctrl.vd_store;
             assign pack_pend_clear_cnt = '0;
             assign unit_out_instr_done = unit_out_ctrl.last_cycle;
         end
         else if (UNIT == UNIT_MUL) begin
-            logic [OP_W  -1:0] unit_out_res;
-            logic [OP_W/8-1:0] unit_out_mask;
+            logic [MAX_OP_W  -1:0] unit_out_res;
+            logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_mul #(
-                .VREG_W           ( VREG_W                        ),
-                .CFG_VL_W         ( CFG_VL_W                      ),
-                .MUL_OP_W         ( OP_W                          ),
-                .MUL_TYPE         ( MUL_TYPE                      ),
-                .CTRL_T           ( ctrl_t                        ),
-                .DONT_CARE_ZERO   ( DONT_CARE_ZERO                )
+                .VREG_W           ( VREG_W                            ),
+                .CFG_VL_W         ( CFG_VL_W                          ),
+                .MUL_OP_W         ( MAX_OP_W                          ),
+                .MUL_TYPE         ( MUL_TYPE                          ),
+                .CTRL_T           ( ctrl_t                            ),
+                .DONT_CARE_ZERO   ( DONT_CARE_ZERO                    )
             ) mul (
-                .clk_i            ( clk_i                         ),
-                .async_rst_ni     ( async_rst_ni                  ),
-                .sync_rst_ni      ( sync_rst_ni                   ),
-                .pipe_in_valid_i  ( unpack_out_valid              ),
-                .pipe_in_ready_o  ( unpack_out_ready              ),
-                .pipe_in_ctrl_i   ( unpack_out_ctrl               ),
-                .pipe_in_op1_i    ( unpack_out_ops[0]             ),
-                .pipe_in_op2_i    ( unpack_out_ops[1]             ),
-                .pipe_in_op3_i    ( unpack_out_ops[2]             ),
-                .pipe_in_mask_i   ( unpack_out_ops[3][OP_W/8-1:0] ),
-                .pipe_out_valid_o ( unit_out_valid                ),
-                .pipe_out_ready_i ( unit_out_ready                ),
-                .pipe_out_ctrl_o  ( unit_out_ctrl                 ),
-                .pipe_out_res_o   ( unit_out_res                  ),
-                .pipe_out_mask_o  ( unit_out_mask                 )
+                .clk_i            ( clk_i                             ),
+                .async_rst_ni     ( async_rst_ni                      ),
+                .sync_rst_ni      ( sync_rst_ni                       ),
+                .pipe_in_valid_i  ( unpack_out_valid                  ),
+                .pipe_in_ready_o  ( unpack_out_ready                  ),
+                .pipe_in_ctrl_i   ( unpack_out_ctrl                   ),
+                .pipe_in_op1_i    ( unpack_out_ops[0]                 ),
+                .pipe_in_op2_i    ( unpack_out_ops[1]                 ),
+                .pipe_in_op3_i    ( unpack_out_ops[2]                 ),
+                .pipe_in_mask_i   ( unpack_out_ops[3][MAX_OP_W/8-1:0] ),
+                .pipe_out_valid_o ( unit_out_valid                    ),
+                .pipe_out_ready_i ( unit_out_ready                    ),
+                .pipe_out_ctrl_o  ( unit_out_ctrl                     ),
+                .pipe_out_res_o   ( unit_out_res                      ),
+                .pipe_out_mask_o  ( unit_out_mask                     )
             );
             always_comb begin
                 pack_res_data = '0;
                 pack_res_mask = '0;
 
-                pack_res_flags[0]             = pack_flags'('0);
-                pack_res_store[0]             = unit_out_ctrl.vd_store;
-                pack_res_valid[0]             = unit_out_valid;
-                pack_res_data [0]             = unit_out_res;
-                pack_res_mask [0][OP_W/8-1:0] = unit_out_mask;
+                pack_res_flags[0]                 = pack_flags'('0);
+                pack_res_store[0]                 = unit_out_ctrl.vd_store;
+                pack_res_valid[0]                 = unit_out_valid;
+                pack_res_data [0]                 = unit_out_res;
+                pack_res_mask [0][MAX_OP_W/8-1:0] = unit_out_mask;
             end
             assign pack_pend_clear     = unit_out_ctrl.vd_store;
             assign pack_pend_clear_cnt = '0;
             assign unit_out_instr_done = unit_out_ctrl.last_cycle;
         end
         else if (UNIT == UNIT_SLD) begin
-            logic [OP_W  -1:0] unit_out_res;
-            logic [OP_W/8-1:0] unit_out_mask;
+            logic [MAX_OP_W  -1:0] unit_out_res;
+            logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_sld #(
-                .VREG_W           ( VREG_W                        ),
-                .CFG_VL_W         ( CFG_VL_W                      ),
-                .SLD_OP_W         ( OP_W                          ),
-                .CTRL_T           ( ctrl_t                        ),
-                .DONT_CARE_ZERO   ( DONT_CARE_ZERO                )
+                .VREG_W           ( VREG_W                            ),
+                .CFG_VL_W         ( CFG_VL_W                          ),
+                .SLD_OP_W         ( MAX_OP_W                          ),
+                .CTRL_T           ( ctrl_t                            ),
+                .DONT_CARE_ZERO   ( DONT_CARE_ZERO                    )
             ) sld (
-                .clk_i            ( clk_i                         ),
-                .async_rst_ni     ( async_rst_ni                  ),
-                .sync_rst_ni      ( sync_rst_ni                   ),
-                .pipe_in_valid_i  ( unpack_out_valid              ),
-                .pipe_in_ready_o  ( unpack_out_ready              ),
-                .pipe_in_ctrl_i   ( unpack_out_ctrl               ),
-                .pipe_in_op_i     ( unpack_out_ops[0]             ),
-                .pipe_in_mask_i   ( unpack_out_ops[1][OP_W/8-1:0] ),
-                .pipe_out_valid_o ( unit_out_valid                ),
-                .pipe_out_ready_i ( unit_out_ready                ),
-                .pipe_out_ctrl_o  ( unit_out_ctrl                 ),
-                .pipe_out_res_o   ( unit_out_res                  ),
-                .pipe_out_mask_o  ( unit_out_mask                 )
+                .clk_i            ( clk_i                             ),
+                .async_rst_ni     ( async_rst_ni                      ),
+                .sync_rst_ni      ( sync_rst_ni                       ),
+                .pipe_in_valid_i  ( unpack_out_valid                  ),
+                .pipe_in_ready_o  ( unpack_out_ready                  ),
+                .pipe_in_ctrl_i   ( unpack_out_ctrl                   ),
+                .pipe_in_op_i     ( unpack_out_ops[0]                 ),
+                .pipe_in_mask_i   ( unpack_out_ops[1][MAX_OP_W/8-1:0] ),
+                .pipe_out_valid_o ( unit_out_valid                    ),
+                .pipe_out_ready_i ( unit_out_ready                    ),
+                .pipe_out_ctrl_o  ( unit_out_ctrl                     ),
+                .pipe_out_res_o   ( unit_out_res                      ),
+                .pipe_out_mask_o  ( unit_out_mask                     )
             );
             always_comb begin
                 pack_res_data = '0;
                 pack_res_mask = '0;
-                pack_res_flags[0]             = pack_flags'('0);
-                pack_res_store[0]             = unit_out_ctrl.vd_store;
-                pack_res_valid[0]             = unit_out_valid;
-                pack_res_data [0]             = unit_out_res;
-                pack_res_mask [0][OP_W/8-1:0] = unit_out_mask;
+                pack_res_flags[0]                 = pack_flags'('0);
+                pack_res_store[0]                 = unit_out_ctrl.vd_store;
+                pack_res_valid[0]                 = unit_out_valid;
+                pack_res_data [0]                 = unit_out_res;
+                pack_res_mask [0][MAX_OP_W/8-1:0] = unit_out_mask;
             end
             assign pack_pend_clear     = unit_out_ctrl.vd_store;
             assign pack_pend_clear_cnt = '0;
@@ -1163,7 +1145,7 @@ module vproc_pipeline #(
             vproc_elem #(
                 .VREG_W                ( VREG_W                  ),
                 .CFG_VL_W              ( CFG_VL_W                ),
-                .GATHER_OP_W           ( OP_W                    ),
+                .GATHER_OP_W           ( MAX_OP_W                ),
                 .CTRL_T                ( ctrl_t                  ),
                 .DONT_CARE_ZERO        ( DONT_CARE_ZERO          )
             ) elem (
@@ -1215,9 +1197,9 @@ module vproc_pipeline #(
     endgenerate
 
 
-    logic [31          :0] pack_pending_vreg_reads = (UNIT != UNIT_LSU) ? vreg_pend_rd_i : '0;
-    logic [XIF_ID_CNT-1:0] pack_instr_spec         = (UNIT != UNIT_LSU) ? instr_spec_i   : '0;
-    logic [XIF_ID_CNT-1:0] pack_instr_killed       = (UNIT != UNIT_LSU) ? instr_killed_i : '0;
+    logic [31          :0] pack_pending_vreg_reads;
+    logic [XIF_ID_CNT-1:0] pack_instr_spec;
+    logic [XIF_ID_CNT-1:0] pack_instr_killed;
     logic                  pack_instr_done_valid;
     logic [XIF_ID_W  -1:0] pack_instr_done_id;
     assign pack_pending_vreg_reads = (UNIT != UNIT_LSU) ? vreg_pend_rd_i : '0;
@@ -1227,7 +1209,6 @@ module vproc_pipeline #(
     assign instr_done_id_o         = (UNIT != UNIT_LSU) ? pack_instr_done_id    : lsu_instr_done_id;
 
 
-    localparam int unsigned PACK_RES_W[2]     = '{RES_W, RES_W/8};
     localparam bit [1:0] PACK_RES_MASK        = (UNIT == UNIT_ALU ) ? 2'b10 : '0;
     localparam bit [1:0] PACK_RES_NARROW      = (UNIT == UNIT_ALU ) ? 2'b01 : '0;
     localparam bit [1:0] PACK_ALLOW_ELEMWISE  = (UNIT == UNIT_LSU ) ? 2'b1  : '0;
@@ -1237,9 +1218,9 @@ module vproc_pipeline #(
         .VADDR_W                     ( 5                                 ),
         .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS                   ),
         .VPORT_PEND_CLR_BULK         ( UNIT == UNIT_ELEM                 ),
-        .MAX_RES_W                   ( PACK_RES_W[0]                     ),
+        .MAX_RES_W                   ( MAX_RES_W                         ),
         .RES_CNT                     ( RES_CNT                           ),
-        .RES_W                       ( PACK_RES_W                        ),
+        .RES_W                       ( RES_W                             ),
         .RES_MASK                    ( PACK_RES_MASK       [RES_CNT-1:0] ),
         .RES_XREG                    ( '0                                ),
         .RES_NARROW                  ( PACK_RES_NARROW     [RES_CNT-1:0] ),

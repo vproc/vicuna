@@ -779,14 +779,13 @@ module vproc_core #(
     logic [XIF_ID_W-1:0] lsu_trans_complete_id;
     logic                lsu_trans_complete_exc;
     logic [5:0]          lsu_trans_complete_exccode;
-    vproc_pipeline #(
+    vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                     ),
-        .VMSK_W                   ( VMSK_W                     ),
         .CFG_VL_W                 ( CFG_VL_W                   ),
         .XIF_ID_W                 ( XIF_ID_W                   ),
         .XIF_ID_CNT               ( XIF_ID_CNT                 ),
         .UNIT                     ( UNIT_LSU                   ),
-        .OP_W                     ( VMEM_W                     ),
+        .MAX_OP_W                 ( VMEM_W                     ),
         .MAX_WR_ATTEMPTS          ( 1                          ),
         .DONT_CARE_ZERO           ( DONT_CARE_ZERO             )
     ) lsu (
@@ -844,14 +843,13 @@ module vproc_core #(
     logic [4:0]        alu_wr_addr;
     logic              alu_wr_en;
     vproc_xif          alu_dummy_xif();
-    vproc_pipeline #(
+    vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                  ),
-        .VMSK_W                   ( VMSK_W                  ),
         .CFG_VL_W                 ( CFG_VL_W                ),
         .XIF_ID_W                 ( XIF_ID_W                ),
         .XIF_ID_CNT               ( XIF_ID_CNT              ),
         .UNIT                     ( UNIT_ALU                ),
-        .OP_W                     ( ALU_OP_W                ),
+        .MAX_OP_W                 ( ALU_OP_W                ),
         .MAX_WR_ATTEMPTS          ( 2                       ),
         .DONT_CARE_ZERO           ( DONT_CARE_ZERO          )
     ) alu (
@@ -909,14 +907,13 @@ module vproc_core #(
     logic [4:0]        mul_wr_addr;
     logic              mul_wr_en;
     vproc_xif          mul_dummy_xif();
-    vproc_pipeline #(
+    vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                  ),
-        .VMSK_W                   ( VMSK_W                  ),
         .CFG_VL_W                 ( CFG_VL_W                ),
         .XIF_ID_W                 ( XIF_ID_W                ),
         .XIF_ID_CNT               ( XIF_ID_CNT              ),
         .UNIT                     ( UNIT_MUL                ),
-        .OP_W                     ( MUL_OP_W                ),
+        .MAX_OP_W                 ( MUL_OP_W                ),
         .MUL_TYPE                 ( MUL_TYPE                ),
         .MAX_WR_ATTEMPTS          ( 1                       ),
         .DONT_CARE_ZERO           ( DONT_CARE_ZERO          )
@@ -975,14 +972,13 @@ module vproc_core #(
     logic [4:0]        sld_wr_addr;
     logic              sld_wr_en;
     vproc_xif          sld_dummy_xif();
-    vproc_pipeline #(
+    vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                  ),
-        .VMSK_W                   ( VMSK_W                  ),
         .CFG_VL_W                 ( CFG_VL_W                ),
         .XIF_ID_W                 ( XIF_ID_W                ),
         .XIF_ID_CNT               ( XIF_ID_CNT              ),
         .UNIT                     ( UNIT_SLD                ),
-        .OP_W                     ( SLD_OP_W                ),
+        .MAX_OP_W                 ( SLD_OP_W                ),
         .MAX_WR_ATTEMPTS          ( 2                       ),
         .DONT_CARE_ZERO           ( DONT_CARE_ZERO          )
     ) sld (
@@ -1044,14 +1040,13 @@ module vproc_core #(
     logic [XIF_ID_W-1:0] elem_xreg_id;
     logic [4:0]          elem_xreg_addr;
     logic [31:0]         elem_xreg_data;
-    vproc_pipeline #(
+    vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                  ),
-        .VMSK_W                   ( VMSK_W                  ),
         .CFG_VL_W                 ( CFG_VL_W                ),
         .XIF_ID_W                 ( XIF_ID_W                ),
         .XIF_ID_CNT               ( XIF_ID_CNT              ),
         .UNIT                     ( UNIT_ELEM               ),
-        .OP_W                     ( GATHER_OP_W             ),
+        .MAX_OP_W                 ( GATHER_OP_W             ),
         .MAX_WR_ATTEMPTS          ( 3                       ),
         .DONT_CARE_ZERO           ( DONT_CARE_ZERO          )
     ) elem (
