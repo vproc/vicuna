@@ -163,10 +163,16 @@ module vproc_vregunpack
 
                 // operand buffer is part of the stage after the respective vreg load; this is a
                 // cyclic buffer and thus must only be updated if the associated stage will be valid
-                // in the next cycle (i.e., if the prior stage is currently valid)
+                // in the next cycle (i.e., if the prior stage is currently valid) and retains its
+                // current value otherwise.  Note that in contrast to all other state logic the
+                // operand buffer is never carried over from the previous stage.
                 for (int j = 0; j < OP_CNT; j++) begin
-                    if ((i == OP_STAGE[j] + 1) & stage_valid_q[OP_STAGE[j]]) begin
-                        stage_state_d[i].op_buffer[j] = op_buffer_next[j];
+                    if (i == OP_STAGE[j] + 1) begin
+                        if (stage_valid_q[OP_STAGE[j]]) begin
+                            stage_state_d[i].op_buffer[j] = op_buffer_next[j];
+                        end else begin
+                            stage_state_d[i].op_buffer[j] = stage_state_q[i].op_buffer[j];
+                        end
                     end
                 end
 
