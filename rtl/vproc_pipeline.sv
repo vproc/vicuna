@@ -57,6 +57,17 @@ module vproc_pipeline #(
         output logic [VMSK_W-1:0]       vreg_wr_mask_o,
         output logic                    vreg_wr_en_o,
 
+        output logic                    pending_load_o,
+        output logic                    pending_store_o,
+
+        vproc_xif.coproc_mem            xif_mem_if,
+        vproc_xif.coproc_mem_result     xif_memres_if,
+
+        output logic                    trans_complete_valid_o,
+        output logic [XIF_ID_W-1:0]     trans_complete_id_o,
+        output logic                    trans_complete_exc_o,
+        output logic [5:0]              trans_complete_exccode_o,
+
         output logic                    xreg_valid_o,
         output logic [XIF_ID_W-1:0]     xreg_id_o,
         output logic [4:0]              xreg_addr_o,
@@ -90,6 +101,9 @@ module vproc_pipeline #(
     localparam int unsigned CYCLES_PER_VREG = VREG_W / ((UNIT == UNIT_ELEM) ? 8 : OP_W);
     localparam int unsigned COUNTER_W       = $clog2(CYCLES_PER_VREG) + 4;
 
+    localparam int unsigned STRIDE_ELEMS_PER_VMEM = OP_W / 8; // maximum number of elems read at once for strided/indexed loads
+    localparam int unsigned STRIDE_COUNTER_W      = $clog2(STRIDE_ELEMS_PER_VMEM);
+
     localparam int unsigned GATHER_CYCLES_PER_VREG = VREG_W / OP_W;
     localparam int unsigned GATHER_COUNTER_W       = $clog2(GATHER_CYCLES_PER_VREG);
 
@@ -104,6 +118,7 @@ module vproc_pipeline #(
 
     typedef struct packed {
         counter_t                    count;
+        logic [STRIDE_COUNTER_W-1:0] count_stride;
         logic [GATHER_COUNTER_W-1:0] count_gather;
         logic                        first_cycle;
         logic                        last_cycle;
@@ -127,6 +142,7 @@ module vproc_pipeline #(
         logic                        v0msk_fetch;
         logic                        v0msk_shift;
         logic                        vs3_fetch;
+        logic                        vs3_shift;
         logic                        gather_fetch;
         logic [4:0]                  vd;
         logic                        vd_narrow;
@@ -161,6 +177,9 @@ module vproc_pipeline #(
             EMUL_8: last_cycle = (state_q.count.part.mul[2:0] == '1) & (state_q.count.part.low == '1);
             default: ;
         endcase
+        if ((UNIT == UNIT_LSU) & state_q.count_stride != '1) begin
+            last_cycle = '0;
+        end
         if ((UNIT == UNIT_SLD) & state_q.count.part.sign) begin
             last_cycle = '0;
         end
@@ -239,6 +258,7 @@ module vproc_pipeline #(
 
         if (((~state_valid_q) | (last_cycle & pipeline_ready & ((UNIT != UNIT_ELEM) | ~state_q.requires_flush))) & op_rdy_i) begin
             op_ack_o            = 1'b1;
+            state_valid_d       = 1'b1;
             state_d.count.val   = '0;
             if ((UNIT == UNIT_SLD) & (mode_i.sld.dir == SLD_DOWN)) begin
                 state_d.count.part.sign = '1;
@@ -253,14 +273,26 @@ module vproc_pipeline #(
                     default: ;
                 endcase
             end
+            // LSU stride counter
+            if (mode_i.lsu.stride == LSU_UNITSTRIDE) begin
+                state_d.count_stride = '1;
+            end else begin
+                state_d.count_stride = DONT_CARE_ZERO ? '0 : 'x;
+                unique case (mode_i.lsu.eew)
+                    VSEW_8:  state_d.count_stride = '0;
+                    VSEW_16: state_d.count_stride = STRIDE_COUNTER_W'(1);
+                    VSEW_32: state_d.count_stride = STRIDE_COUNTER_W'(3);
+                    default: ;
+                endcase
+            end
+            // ELEM gather counter
             state_d.count_gather   = (mode_i.elem.op == ELEM_VRGATHER) ? '0 : '1;
-            state_valid_d          = 1'b1;
             state_d.first_cycle    = 1'b1;
             state_d.requires_flush = (UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_VCOMPRESS) | op_reduction);
             state_d.id             = id_i;
             state_d.mode           = mode_i;
             state_d.emul           = emul_i;
-            state_d.eew            = vsew_i;
+            state_d.eew            = (UNIT == UNIT_LSU) ? mode_i.lsu.eew : vsew_i;
             state_d.vxrm           = vxrm_i;
             state_d.vl             = vl_i;
             state_d.vl_0           = vl_0_i;
@@ -296,11 +328,12 @@ module vproc_pipeline #(
                 state_d.rs2.vreg = 1'b0; // use vreg bit as valid signal
             end
             state_d.vs2_narrow   = widenarrow_i == OP_WIDENING;
-            state_d.vs2_fetch    = (UNIT == UNIT_ALU) ? rs2_i.vreg : 1'b1;
+            state_d.vs2_fetch    = ((UNIT == UNIT_LSU) | (UNIT == UNIT_ALU)) ? rs2_i.vreg : 1'b1;
             //state_d.vs2_shift   = 1'b1;
             state_d.v0msk_fetch  = (UNIT == UNIT_SLD) ? (mode_i.sld.dir == SLD_UP) : 1'b1;
             //state_d.v0msk_shift = 1'b1;
-            state_d.vs3_fetch    = (UNIT == UNIT_MUL) ? (mode_i.mul.op == MUL_VMACC) : '0;
+            state_d.vs3_fetch    = (UNIT == UNIT_LSU) ? mode_i.lsu.store : (
+                                   (UNIT == UNIT_MUL) ? (mode_i.mul.op == MUL_VMACC) : '0);
             state_d.gather_fetch = 1'b1;
             state_d.vd           = vd_i;
             state_d.vd_narrow    = (UNIT == UNIT_ALU) ? (widenarrow_i == OP_NARROWING) : '0;
@@ -308,7 +341,26 @@ module vproc_pipeline #(
             vreg_pend_wr_d       = vreg_pend_wr_i;
         end
         else if (state_valid_q & pipeline_ready) begin
-            if (UNIT == UNIT_ELEM) begin
+            if (UNIT == UNIT_LSU) begin
+                state_valid_d = ~last_cycle;
+                if ((state_q.mode.lsu.stride == LSU_UNITSTRIDE) | (state_q.count_stride == '1)) begin
+                    state_d.count.val = state_q.count.val + 1;
+                end
+                if (state_q.mode.lsu.stride != LSU_UNITSTRIDE) begin
+                    unique case (state_q.mode.lsu.eew)
+                        VSEW_8:  state_d.count_stride = state_q.count_stride + STRIDE_COUNTER_W'(1);
+                        VSEW_16: state_d.count_stride = state_q.count_stride + STRIDE_COUNTER_W'(2);
+                        VSEW_32: state_d.count_stride = state_q.count_stride + STRIDE_COUNTER_W'(4);
+                        default: ;
+                    endcase
+                end
+                unique case (state_q.mode.lsu.stride)
+                    LSU_UNITSTRIDE: state_d.rs1.r.xval = state_q.rs1.r.xval + (OP_W / 8);
+                    LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.rs2.r.xval;
+                    default: ; // for indexed loads the base address stays the same
+                endcase
+            end
+            else if (UNIT == UNIT_ELEM) begin
                 state_valid_d = ~last_cycle | state_q.requires_flush;
                 if (state_q.count_gather == '1) begin
                     unique case (state_q.eew)
@@ -346,15 +398,20 @@ module vproc_pipeline #(
             state_d.gather_fetch = 1'b0;
             state_d.vd_store     = 1'b0;
             if ((state_q.count.part.low == '1) & ((UNIT != UNIT_ELEM) | state_q.count_gather == '1)) begin
-                if (state_q.rs1.vreg & (~state_q.vs1_narrow | state_q.count.part.mul[0])) begin
+                if ((UNIT != UNIT_LSU) & state_q.rs1.vreg & (~state_q.vs1_narrow | state_q.count.part.mul[0])) begin
                     state_d.rs1.r.vaddr[2:0] = state_q.rs1.r.vaddr[2:0] + 3'b1;
                     state_d.vs1_fetch        = state_q.rs1.vreg & ((UNIT != UNIT_ELEM) | ~last_cycle);
                 end
                 if ((UNIT != UNIT_SLD) & (UNIT != UNIT_ELEM) & (~state_q.vs2_narrow | state_q.count.part.mul[0])) begin
-                    state_d.rs2.r.vaddr[2:0] = state_q.rs2.r.vaddr[2:0] + 3'b1;
-                    state_d.vs2_fetch        = state_q.rs2.vreg;
+                    if ((UNIT != UNIT_LSU) | ((state_q.count_stride == '1) & state_q.rs2.vreg)) begin
+                        state_d.rs2.r.vaddr[2:0] = state_q.rs2.r.vaddr[2:0] + 3'b1;
+                        state_d.vs2_fetch        = state_q.rs2.vreg;
+                    end
                 end
                 unique case (UNIT)
+                    UNIT_LSU: if (state_q.count_stride == '1) begin
+                        state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
+                    end
                     UNIT_ALU: if (~state_q.mode.alu.cmp & (~state_q.vd_narrow | state_q.count.part.mul[0])) begin
                         state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
                     end
@@ -367,8 +424,19 @@ module vproc_pipeline #(
                     default: ;
                 endcase
                 state_d.vs3_fetch = (UNIT == UNIT_MUL) ? (state_q.mode.mul.op == MUL_VMACC) : '0;
+                if ((UNIT == UNIT_LSU) & (state_q.count_stride == '1)) begin
+                    state_d.vs3_fetch = state_q.mode.lsu.store;
+                end
             end
-            if (UNIT == UNIT_ELEM) begin
+            if (UNIT == UNIT_LSU) begin
+                unique case (state_q.mode.lsu.eew)
+                    VSEW_8:  state_d.vs2_shift = state_q.count_stride[1:0] == '1;
+                    VSEW_16: state_d.vs2_shift = state_q.count_stride[1  ];
+                    VSEW_32: state_d.vs2_shift = 1'b1;
+                    default: ;
+                endcase
+            end
+            else if (UNIT == UNIT_ELEM) begin
                 if (~state_q.vs1_narrow) begin
                     state_d.vs1_shift = state_q.count.val[1:0] == '1;
                 end else begin
@@ -394,9 +462,13 @@ module vproc_pipeline #(
                 VSEW_32: state_d.v0msk_shift = state_q.count.val[1:0] == '1;
                 default: ;
             endcase
+            if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride != LSU_UNITSTRIDE) & (state_q.count_stride != '1)) begin
+                state_d.v0msk_shift = 1'b0;
+            end
             if ((UNIT == UNIT_SLD) & (state_q.count.part.low == slide_count.part.low)) begin
                 state_d.rs2.vreg = slide_fetch; // set vs2 valid bit after fetch
             end
+            state_d.vs3_shift = (UNIT == UNIT_LSU) & ((state_q.count_stride == '1) | (state_q.mode.lsu.stride == LSU_UNITSTRIDE));
         end
     end
 
@@ -416,6 +488,7 @@ module vproc_pipeline #(
         state_init.vd_store   = '0;
         if (state_q.count.part.low == '1) begin
             unique case (UNIT)
+                UNIT_LSU: state_init.vd_store = state_q.count_stride == '1;
                 UNIT_ALU: state_init.vd_store = ~state_q.vd_narrow | state_q.count.part.mul[0];
                 UNIT_SLD: state_init.vd_store = ~state_q.count.part.sign;
                 UNIT_MUL: state_init.vd_store = 1'b1;
@@ -436,6 +509,7 @@ module vproc_pipeline #(
         // Determine whether there is a pending read of v0 as a mask
         state_init_masked = '0;
         unique case (UNIT)
+            UNIT_LSU:  state_init_masked = state_init.mode.lsu.masked;
             UNIT_ALU:  state_init_masked = state_init.mode.alu.op_mask != ALU_MASK_NONE;
             UNIT_MUL:  state_init_masked = state_init.mode.mul.masked;
             UNIT_SLD:  state_init_masked = state_init.mode.sld.masked;
@@ -486,7 +560,12 @@ module vproc_pipeline #(
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
     generate
-        if (UNIT == UNIT_ALU) begin
+        if (UNIT == UNIT_LSU) begin
+            assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
+                                      (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
+                                      (state_init.v0msk_fetch & state_init_masked & vreg_pend_wr_q[0]);
+        end
+        else if (UNIT == UNIT_ALU) begin
             assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
                                       (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
                                       (state_init.v0msk_fetch & state_init_masked & vreg_pend_wr_q[0]);
@@ -544,6 +623,15 @@ module vproc_pipeline #(
         endcase
         pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
         unique case (UNIT)
+            UNIT_LSU: begin
+                unique case (state_init.emul)
+                    EMUL_1: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.rs2.r.vaddr;
+                    EMUL_2: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:1], 1'b0};
+                    EMUL_4: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:2], 2'b0};
+                    EMUL_8: pend_vs2 = (32'hFF & ((32'hFE | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:3], 3'b0};
+                    default: ;
+                endcase
+            end
             UNIT_ALU, UNIT_MUL: begin
                 unique case ({state_init.emul, state_init.vs2_narrow})
                     {EMUL_1, 1'b0}: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.rs2.r.vaddr;
@@ -595,7 +683,15 @@ module vproc_pipeline #(
     // and is always read in state_vs1
     logic [31:0] unpack_pend_rd;
     generate
-        if (UNIT == UNIT_ALU) begin
+        if (UNIT == UNIT_LSU) begin
+            assign vreg_pend_rd_o = ((
+                    ((state_init_valid & state_init.rs2.vreg      ) ? pend_vs2                   : '0) |
+                    ((state_init_valid & state_init.mode.lsu.store) ? pend_vs3                   : '0) |
+                    ((state_init_valid & state_init.v0msk_fetch   ) ? {31'b0, state_init_masked} : '0)
+                ) & ~vreg_pend_wr_q) |
+            unpack_pend_rd;
+        end
+        else if (UNIT == UNIT_ALU) begin
             assign vreg_pend_rd_o = ((
                     ((state_init_valid & state_init.rs1.vreg   ) ? pend_vs1                   : '0) |
                     ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                   : '0) |
@@ -628,6 +724,17 @@ module vproc_pipeline #(
             pending_gather_vreg_reads_q | unpack_pend_rd;
         end
     endgenerate
+
+    ctrl_t unpack_flags_all, unpack_flags_any;
+    logic  lsu_pending_load, lsu_pending_store;
+    assign pending_load_o  = (UNIT == UNIT_LSU) & (
+                                 (state_init_valid & ~state_init.mode.lsu.store) |
+                                 ~unpack_flags_all.mode.lsu.store | lsu_pending_load
+                             );
+    assign pending_store_o = (UNIT == UNIT_LSU) & (
+                                 (state_init_valid &  state_init.mode.lsu.store) |
+                                  unpack_flags_any.mode.lsu.store | lsu_pending_store
+                             );
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -663,7 +770,15 @@ module vproc_pipeline #(
                 unpack_op_flags[1]          = unpack_flags'('0);
                 unpack_op_flags[1].shift    = state_init.vs2_shift;
                 unpack_op_xval [1]          = '0;
-                if (UNIT == UNIT_ALU) begin
+                if (UNIT == UNIT_LSU) begin
+                    unpack_op_load [0]          = state_init.vs2_fetch;
+                    unpack_op_vaddr[0]          = state_init.rs2.r.vaddr;
+                    unpack_op_flags[0].shift    = state_init.vs2_shift;
+                    unpack_op_load [1]          = state_init.vs3_fetch;
+                    unpack_op_vaddr[1]          = state_init.vd;
+                    unpack_op_flags[1].shift    = state_init.vs3_shift;
+                end
+                else if (UNIT == UNIT_ALU) begin
                     unpack_op_flags[0].vreg     = state_init.rs1.vreg;
                     unpack_op_flags[0].narrow   = state_init.vs1_narrow;
                     unpack_op_flags[0].sigext   = state_init.mode.alu.sigext;
@@ -705,7 +820,7 @@ module vproc_pipeline #(
             unpack_op_vaddr[OP_CNT-1]          = '0;
             unpack_op_flags[OP_CNT-1]          = unpack_flags'('0);
             unpack_op_flags[OP_CNT-1].shift    = (UNIT == UNIT_ELEM) ? 1'b1 : state_init.v0msk_shift;
-            unpack_op_flags[OP_CNT-1].elemwise = '0;
+            unpack_op_flags[OP_CNT-1].elemwise = (UNIT == UNIT_LSU) & (state_init.mode.lsu.stride != LSU_UNITSTRIDE);
             unpack_op_xval [OP_CNT-1]          = '0;
         end
     endgenerate
@@ -715,11 +830,12 @@ module vproc_pipeline #(
     localparam bit [2:0]    UNPACK_VPORT_ADDR_ZERO    = (UNIT == UNIT_MUL) ? 3'b100 : 3'b10;
     localparam bit [2:0]    UNPACK_VPORT_BUFFER       = (UNIT == UNIT_MUL) ? 3'b001 : 3'b01;
 
-    localparam int unsigned UNPACK_OP_W    [4]        = (UNIT == UNIT_MUL ) ? '{OP_W,OP_W  ,OP_W  ,OP_W/8} : (
+    localparam int unsigned UNPACK_OP_W    [4]        = (UNIT == UNIT_LSU ) ? '{32  ,OP_W  ,OP_W/8,0     } : (
+                                                        (UNIT == UNIT_MUL ) ? '{OP_W,OP_W  ,OP_W  ,OP_W/8} : (
                                                         (UNIT == UNIT_SLD ) ? '{OP_W,OP_W/8,0     ,0     } : (
                                                         (UNIT == UNIT_ELEM) ? '{32  ,32    ,OP_W  ,1     } :
                                                                               '{OP_W,OP_W  ,OP_W/8,0     }
-                                                        ));
+                                                        )));
     localparam int unsigned UNPACK_OP_STAGE[4]        = (UNIT == UNIT_SLD ) ? '{1,1,0,0} : (
                                                         (UNIT == UNIT_ELEM) ? '{1,2,3,3} :
                                                                               '{1,2,2,2}
@@ -800,8 +916,8 @@ module vproc_pipeline #(
         .pipe_out_op_data_o   ( unpack_out_ops                        ),
         .pending_vreg_reads_o ( unpack_pend_rd                        ),
         .stage_valid_any_o    (                                       ),
-        .ctrl_flags_any_o     (                                       ),
-        .ctrl_flags_all_o     (                                       )
+        .ctrl_flags_any_o     ( unpack_flags_any                      ),
+        .ctrl_flags_all_o     ( unpack_flags_all                      )
     );
     assign vreg_rd_addr_o  = unpack_vreg_addr[0];
     assign vreg_rd3_addr_o = unpack_vreg_addr[1];
@@ -826,6 +942,9 @@ module vproc_pipeline #(
     localparam int unsigned RES_CNT = (UNIT == UNIT_ALU ) ? 2 : 1;
     localparam int unsigned RES_W   = (UNIT == UNIT_ELEM) ? 32 : OP_W;
 
+    logic                  lsu_instr_done_valid;
+    logic [XIF_ID_W  -1:0] lsu_instr_done_id;
+
     logic                               unit_out_valid;
     logic                               unit_out_ready;
     ctrl_t                              unit_out_ctrl;
@@ -836,7 +955,74 @@ module vproc_pipeline #(
     logic                               pack_pend_clear;
     logic      [1:0]                    pack_pend_clear_cnt;
     generate
-        if (UNIT == UNIT_ALU) begin
+        if (UNIT == UNIT_LSU) begin
+            logic [OP_W  -1:0] unit_out_res;
+            logic [OP_W/8-1:0] unit_out_mask;
+            vproc_lsu #(
+                .VREG_W                   ( VREG_W                        ),
+                .CFG_VL_W                 ( CFG_VL_W                      ),
+                .VMEM_W                   ( OP_W                          ),
+                .CTRL_T                   ( ctrl_t                        ),
+                .DONT_CARE_ZERO           ( DONT_CARE_ZERO                )
+            ) lsu (
+                .clk_i                    ( clk_i                         ),
+                .async_rst_ni             ( async_rst_ni                  ),
+                .sync_rst_ni              ( sync_rst_ni                   ),
+                .pipe_in_valid_i          ( unpack_out_valid              ),
+                .pipe_in_ready_o          ( unpack_out_ready              ),
+                .pipe_in_ctrl_i           ( unpack_out_ctrl               ),
+                .pipe_in_op1_i            ( unpack_out_ops[0][31:0]       ),
+                .pipe_in_op2_i            ( unpack_out_ops[1]             ),
+                .pipe_in_mask_i           ( unpack_out_ops[2][OP_W/8-1:0] ),
+                .pipe_out_valid_o         ( unit_out_valid                ),
+                .pipe_out_ready_i         ( 1'b1                          ),
+                .pipe_out_ctrl_o          ( unit_out_ctrl                 ),
+                .pipe_out_pend_clr_o      ( pack_pend_clear               ),
+                .pipe_out_res_o           ( unit_out_res                  ),
+                .pipe_out_mask_o          ( unit_out_mask                 ),
+                .pending_load_o           ( lsu_pending_load              ),
+                .pending_store_o          ( lsu_pending_store             ),
+                .vreg_pend_rd_i           ( vreg_pend_rd_i                ),
+                .instr_spec_i             ( instr_spec_i                  ),
+                .instr_killed_i           ( instr_killed_i                ),
+                .instr_done_valid_o       ( lsu_instr_done_valid          ),
+                .instr_done_id_o          ( lsu_instr_done_id             ),
+                .trans_complete_valid_o   ( trans_complete_valid_o        ),
+                .trans_complete_id_o      ( trans_complete_id_o           ),
+                .trans_complete_exc_o     ( trans_complete_exc_o          ),
+                .trans_complete_exccode_o ( trans_complete_exccode_o      ),
+                .xif_mem_if               ( xif_mem_if                    ),
+                .xif_memres_if            ( xif_memres_if                 )
+            );
+            logic [COUNTER_W       -1:0] debug_count        = unit_out_ctrl.count.val;
+            logic [STRIDE_COUNTER_W-1:0] debug_count_stride = unit_out_ctrl.count_stride;
+            always_comb begin
+                pack_res_data = '0;
+                pack_res_mask = '0;
+
+                pack_res_flags[0] = pack_flags'('0);
+                if (unit_out_ctrl.mode.lsu.stride == LSU_UNITSTRIDE) begin
+                    pack_res_flags[0].shift    = 1'b1;
+                    pack_res_flags[0].elemwise = 1'b0;
+                end else begin
+                    pack_res_flags[0].shift = DONT_CARE_ZERO ? '0 : 'x;
+                    unique case (unit_out_ctrl.mode.lsu.eew)
+                        VSEW_8:  pack_res_flags[0].shift =  unit_out_ctrl.count_stride       == '0;
+                        VSEW_16: pack_res_flags[0].shift = (unit_out_ctrl.count_stride >> 1) == '0;
+                        VSEW_32: pack_res_flags[0].shift = (unit_out_ctrl.count_stride >> 2) == '0;
+                        default: ;
+                    endcase
+                    pack_res_flags[0].elemwise = 1'b1;
+                end
+                pack_res_store[0]             = unit_out_ctrl.vd_store;
+                pack_res_valid[0]             = unit_out_valid;
+                pack_res_data [0]             = unit_out_res;
+                pack_res_mask [0][OP_W/8-1:0] = unit_out_mask;
+            end
+            assign pack_pend_clear_cnt = '0;
+            assign unit_out_instr_done = unit_out_ctrl.last_cycle;
+        end
+        else if (UNIT == UNIT_ALU) begin
             logic [OP_W  -1:0] unit_out_res_alu;
             logic [OP_W/8-1:0] unit_out_res_cmp;
             logic [OP_W/8-1:0] unit_out_mask;
@@ -1029,9 +1215,22 @@ module vproc_pipeline #(
     endgenerate
 
 
+    logic [31          :0] pack_pending_vreg_reads = (UNIT != UNIT_LSU) ? vreg_pend_rd_i : '0;
+    logic [XIF_ID_CNT-1:0] pack_instr_spec         = (UNIT != UNIT_LSU) ? instr_spec_i   : '0;
+    logic [XIF_ID_CNT-1:0] pack_instr_killed       = (UNIT != UNIT_LSU) ? instr_killed_i : '0;
+    logic                  pack_instr_done_valid;
+    logic [XIF_ID_W  -1:0] pack_instr_done_id;
+    assign pack_pending_vreg_reads = (UNIT != UNIT_LSU) ? vreg_pend_rd_i : '0;
+    assign pack_instr_spec         = (UNIT != UNIT_LSU) ? instr_spec_i   : '0;
+    assign pack_instr_killed       = (UNIT != UNIT_LSU) ? instr_killed_i : '0;
+    assign instr_done_valid_o      = (UNIT != UNIT_LSU) ? pack_instr_done_valid : lsu_instr_done_valid;
+    assign instr_done_id_o         = (UNIT != UNIT_LSU) ? pack_instr_done_id    : lsu_instr_done_id;
+
+
     localparam int unsigned PACK_RES_W[2]     = '{RES_W, RES_W/8};
     localparam bit [1:0] PACK_RES_MASK        = (UNIT == UNIT_ALU ) ? 2'b10 : '0;
     localparam bit [1:0] PACK_RES_NARROW      = (UNIT == UNIT_ALU ) ? 2'b01 : '0;
+    localparam bit [1:0] PACK_ALLOW_ELEMWISE  = (UNIT == UNIT_LSU ) ? 2'b1  : '0;
     localparam bit [1:0] PACK_ALWAYS_ELEMWISE = (UNIT == UNIT_ELEM) ? 2'b1  : '0;
     vproc_vregpack #(
         .VPORT_W                     ( VREG_W                            ),
@@ -1041,10 +1240,10 @@ module vproc_pipeline #(
         .MAX_RES_W                   ( PACK_RES_W[0]                     ),
         .RES_CNT                     ( RES_CNT                           ),
         .RES_W                       ( PACK_RES_W                        ),
-        .RES_MASK                    ( PACK_RES_MASK  [RES_CNT-1:0]      ),
+        .RES_MASK                    ( PACK_RES_MASK       [RES_CNT-1:0] ),
         .RES_XREG                    ( '0                                ),
-        .RES_NARROW                  ( PACK_RES_NARROW[RES_CNT-1:0]      ),
-        .RES_ALLOW_ELEMWISE          ( '0                                ),
+        .RES_NARROW                  ( PACK_RES_NARROW     [RES_CNT-1:0] ),
+        .RES_ALLOW_ELEMWISE          ( PACK_ALLOW_ELEMWISE [RES_CNT-1:0] ),
         .RES_ALWAYS_ELEMWISE         ( PACK_ALWAYS_ELEMWISE[RES_CNT-1:0] ),
         .FLAGS_T                     ( pack_flags                        ),
         .INSTR_ID_W                  ( XIF_ID_W                          ),
@@ -1072,12 +1271,12 @@ module vproc_pipeline #(
         .vreg_wr_addr_o              ( vreg_wr_addr_o                    ),
         .vreg_wr_be_o                ( vreg_wr_mask_o                    ),
         .vreg_wr_data_o              ( vreg_wr_o                         ),
-        .pending_vreg_reads_i        ( vreg_pend_rd_i                    ),
+        .pending_vreg_reads_i        ( pack_pending_vreg_reads           ),
         .clear_pending_vreg_writes_o ( clear_wr_hazards_o                ),
-        .instr_spec_i                ( instr_spec_i                      ),
-        .instr_killed_i              ( instr_killed_i                    ),
-        .instr_done_valid_o          ( instr_done_valid_o                ),
-        .instr_done_id_o             ( instr_done_id_o                   )
+        .instr_spec_i                ( pack_instr_spec                   ),
+        .instr_killed_i              ( pack_instr_killed                 ),
+        .instr_done_valid_o          ( pack_instr_done_valid             ),
+        .instr_done_id_o             ( pack_instr_done_id                )
     );
 
 

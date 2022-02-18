@@ -771,7 +771,6 @@ module vproc_core #(
 
 
     // LSU
-    logic                misaligned_lsu;
     logic [VREG_W-1:0]   lsu_wr_data;
     logic [VMSK_W-1:0]   lsu_wr_mask;
     logic [4:0]          lsu_wr_addr;
@@ -780,13 +779,14 @@ module vproc_core #(
     logic [XIF_ID_W-1:0] lsu_trans_complete_id;
     logic                lsu_trans_complete_exc;
     logic [5:0]          lsu_trans_complete_exccode;
-    vproc_lsu #(
+    vproc_pipeline #(
         .VREG_W                   ( VREG_W                        ),
         .VMSK_W                   ( VMSK_W                        ),
-        .VMEM_W                   ( VMEM_W                        ),
         .CFG_VL_W                 ( CFG_VL_W                      ),
         .XIF_ID_W                 ( XIF_ID_W                      ),
         .XIF_ID_CNT               ( XIF_ID_CNT                    ),
+        .UNIT                     ( UNIT_LSU                      ),
+        .OP_W                     ( VMEM_W                        ),
         .MAX_WR_ATTEMPTS          ( 1                             ),
         .DONT_CARE_ZERO           ( DONT_CARE_ZERO                )
     ) lsu (
@@ -800,7 +800,6 @@ module vproc_core #(
         .vl_0_i                   ( queue_data_q.vl_0             ),
         .op_rdy_i                 ( op_rdy_lsu                    ),
         .op_ack_o                 ( op_ack_lsu                    ),
-        .misaligned_o             ( misaligned_lsu                ),
         .mode_i                   ( queue_data_q.mode.lsu         ),
         .rs1_i                    ( queue_data_q.rs1              ),
         .rs2_i                    ( queue_data_q.rs2              ),
@@ -808,17 +807,11 @@ module vproc_core #(
         .vreg_pend_wr_i           ( vreg_wr_hazard_map_q          ),
         .vreg_pend_rd_o           ( vreg_pend_rd_by_lsu_d         ),
         .vreg_pend_rd_i           ( vreg_pend_rd_to_lsu_q         ),
-        .pending_load_o           ( pending_load_lsu              ),
-        .pending_store_o          ( pending_store_lsu             ),
         .clear_wr_hazards_o       ( vreg_wr_hazard_clr_lsu        ),
         .instr_spec_i             ( ~instr_notspec_q              ),
         .instr_killed_i           ( instr_killed_q                ),
         .instr_done_valid_o       ( instr_complete_valid[0]       ),
         .instr_done_id_o          ( instr_complete_id   [0]       ),
-        .trans_complete_valid_o   ( lsu_trans_complete_valid      ),
-        .trans_complete_id_o      ( lsu_trans_complete_id         ),
-        .trans_complete_exc_o     ( lsu_trans_complete_exc        ),
-        .trans_complete_exccode_o ( lsu_trans_complete_exccode    ),
         .vreg_mask_i              ( vreg_mask                     ),
         .vreg_rd_i                ( vregfile_rd_data[1]           ),
         .vreg_rd_addr_o           ( vregfile_rd_addr[1]           ),
@@ -826,8 +819,18 @@ module vproc_core #(
         .vreg_wr_addr_o           ( lsu_wr_addr                   ),
         .vreg_wr_mask_o           ( lsu_wr_mask                   ),
         .vreg_wr_en_o             ( lsu_wr_en                     ),
+        .pending_load_o           ( pending_load_lsu              ),
+        .pending_store_o          ( pending_store_lsu             ),
         .xif_mem_if               ( xif_mem_if                    ),
-        .xif_memres_if            ( xif_memres_if                 )
+        .xif_memres_if            ( xif_memres_if                 ),
+        .trans_complete_valid_o   ( lsu_trans_complete_valid      ),
+        .trans_complete_id_o      ( lsu_trans_complete_id         ),
+        .trans_complete_exc_o     ( lsu_trans_complete_exc        ),
+        .trans_complete_exccode_o ( lsu_trans_complete_exccode    ),
+        .xreg_valid_o             (                               ),
+        .xreg_id_o                (                               ),
+        .xreg_addr_o              (                               ),
+        .xreg_data_o              (                               )
     );
 
 
@@ -836,6 +839,7 @@ module vproc_core #(
     logic [VMSK_W-1:0] alu_wr_mask;
     logic [4:0]        alu_wr_addr;
     logic              alu_wr_en;
+    vproc_xif          alu_dummy_xif();
     vproc_pipeline #(
         .VREG_W             ( VREG_W                        ),
         .VMSK_W             ( VMSK_W                        ),
@@ -880,6 +884,14 @@ module vproc_core #(
         .vreg_wr_addr_o     ( alu_wr_addr                   ),
         .vreg_wr_mask_o     ( alu_wr_mask                   ),
         .vreg_wr_en_o       ( alu_wr_en                     ),
+        .pending_load_o           (                               ),
+        .pending_store_o          (                               ),
+        .xif_mem_if               ( alu_dummy_xif                 ),
+        .xif_memres_if            ( alu_dummy_xif                 ),
+        .trans_complete_valid_o   (                               ),
+        .trans_complete_id_o      (                               ),
+        .trans_complete_exc_o     (                               ),
+        .trans_complete_exccode_o (                               ),
         .xreg_valid_o       (                               ),
         .xreg_id_o          (                               ),
         .xreg_addr_o        (                               ),
@@ -892,6 +904,7 @@ module vproc_core #(
     logic [VMSK_W-1:0] mul_wr_mask;
     logic [4:0]        mul_wr_addr;
     logic              mul_wr_en;
+    vproc_xif          mul_dummy_xif();
     vproc_pipeline #(
         .VREG_W             ( VREG_W                        ),
         .VMSK_W             ( VMSK_W                        ),
@@ -937,6 +950,14 @@ module vproc_core #(
         .vreg_wr_addr_o     ( mul_wr_addr                   ),
         .vreg_wr_mask_o     ( mul_wr_mask                   ),
         .vreg_wr_en_o       ( mul_wr_en                     ),
+        .pending_load_o           (                               ),
+        .pending_store_o          (                               ),
+        .xif_mem_if               ( mul_dummy_xif                 ),
+        .xif_memres_if            ( mul_dummy_xif                 ),
+        .trans_complete_valid_o   (                               ),
+        .trans_complete_id_o      (                               ),
+        .trans_complete_exc_o     (                               ),
+        .trans_complete_exccode_o (                               ),
         .xreg_valid_o       (                               ),
         .xreg_id_o          (                               ),
         .xreg_addr_o        (                               ),
@@ -949,6 +970,7 @@ module vproc_core #(
     logic [VMSK_W-1:0] sld_wr_mask;
     logic [4:0]        sld_wr_addr;
     logic              sld_wr_en;
+    vproc_xif          sld_dummy_xif();
     vproc_pipeline #(
         .VREG_W             ( VREG_W                   ),
         .VMSK_W             ( VMSK_W                   ),
@@ -993,6 +1015,14 @@ module vproc_core #(
         .vreg_wr_addr_o     ( sld_wr_addr              ),
         .vreg_wr_mask_o     ( sld_wr_mask              ),
         .vreg_wr_en_o       ( sld_wr_en                ),
+        .pending_load_o           (                               ),
+        .pending_store_o          (                               ),
+        .xif_mem_if               ( sld_dummy_xif                 ),
+        .xif_memres_if            ( sld_dummy_xif                 ),
+        .trans_complete_valid_o   (                               ),
+        .trans_complete_id_o      (                               ),
+        .trans_complete_exc_o     (                               ),
+        .trans_complete_exccode_o (                               ),
         .xreg_valid_o       (                          ),
         .xreg_id_o          (                          ),
         .xreg_addr_o        (                          ),
@@ -1005,6 +1035,7 @@ module vproc_core #(
     logic [VMSK_W-1:0]   elem_wr_mask;
     logic [4:0]          elem_wr_addr;
     logic                elem_wr_en;
+    vproc_xif            elem_dummy_xif();
     logic                elem_xreg_valid;
     logic [XIF_ID_W-1:0] elem_xreg_id;
     logic [4:0]          elem_xreg_addr;
@@ -1053,6 +1084,14 @@ module vproc_core #(
         .vreg_wr_addr_o     ( elem_wr_addr             ),
         .vreg_wr_mask_o     ( elem_wr_mask             ),
         .vreg_wr_en_o       ( elem_wr_en               ),
+        .pending_load_o           (                               ),
+        .pending_store_o          (                               ),
+        .xif_mem_if               ( elem_dummy_xif                ),
+        .xif_memres_if            ( elem_dummy_xif                ),
+        .trans_complete_valid_o   (                               ),
+        .trans_complete_id_o      (                               ),
+        .trans_complete_exc_o     (                               ),
+        .trans_complete_exccode_o (                               ),
         .xreg_valid_o       ( elem_xreg_valid          ),
         .xreg_id_o          ( elem_xreg_id             ),
         .xreg_addr_o        ( elem_xreg_addr           ),
