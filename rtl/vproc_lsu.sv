@@ -54,26 +54,8 @@ module vproc_lsu #(
 
     import vproc_pkg::*;
 
-    localparam int unsigned LSU_UNIT_CYCLES_PER_VREG = VREG_W / VMEM_W; // cycles per vreg for unit-stride loads/stores
-    localparam int unsigned LSU_UNIT_COUNTER_W       = $clog2(LSU_UNIT_CYCLES_PER_VREG) + 3;
-
-    localparam int unsigned LSU_STRI_MAX_ELEMS_PER_VMEM = VMEM_W / 8; // maximum number of elems read at once for strided/indexed loads
-    localparam int unsigned LSU_STRI_COUNTER_EXT_W      = $clog2(LSU_STRI_MAX_ELEMS_PER_VMEM);
-
-    localparam int unsigned LSU_COUNTER_W = LSU_UNIT_COUNTER_W + LSU_STRI_COUNTER_EXT_W;
-
-    typedef union packed {
-        logic [LSU_COUNTER_W-1:0] val;
-        struct packed {
-            logic [2:0]                        mul;
-            logic [LSU_UNIT_COUNTER_W-4:0]     unit;
-            logic [LSU_STRI_COUNTER_EXT_W-1:0] stri;
-        } part;
-    } lsu_counter;
-
     // reduced LSU state for passing through the queue
     typedef struct packed {
-        lsu_counter          count;
         logic                first_cycle;
         logic                last_cycle;
         logic [XIF_ID_W-1:0] id;
@@ -82,6 +64,7 @@ module vproc_lsu #(
         logic                vl_part_0;
         logic [4:0]          vd;
         logic                vd_store;
+        logic                vd_shift;
         logic                exc;
         logic [5:0]          exccode;
     } lsu_state_red;
@@ -303,7 +286,6 @@ module vproc_lsu #(
     lsu_state_red state_req_red;
     always_comb begin
         state_req_red             = DONT_CARE_ZERO ? '0 : 'x;
-        state_req_red.count.val   = state_req_q.count.val;
         state_req_red.first_cycle = state_req_q.first_cycle;
         state_req_red.last_cycle  = state_req_q.last_cycle;
         state_req_red.id          = state_req_q.id;
@@ -312,6 +294,7 @@ module vproc_lsu #(
         state_req_red.vl_part_0   = state_req_q.vl_part_0;
         state_req_red.vd          = state_req_q.vd;
         state_req_red.vd_store    = state_req_q.vd_store;
+        state_req_red.vd_shift    = state_req_q.vd_shift;
         state_req_red.exc         = xif_mem_if.mem_resp.exc;
         state_req_red.exccode     = xif_mem_if.mem_resp.exccode;
     end
@@ -374,7 +357,6 @@ module vproc_lsu #(
     assign pipe_out_valid_o = state_rdata_valid_q;
     always_comb begin
         pipe_out_ctrl_o              = DONT_CARE_ZERO ? '0 : 'x;
-        pipe_out_ctrl_o.count.val    = {1'b0, state_rdata_q.count.val};
         pipe_out_ctrl_o.first_cycle  = state_rdata_q.first_cycle;
         pipe_out_ctrl_o.last_cycle   = state_rdata_q.last_cycle;
         pipe_out_ctrl_o.id           = state_rdata_q.id;
@@ -384,6 +366,7 @@ module vproc_lsu #(
         pipe_out_ctrl_o.vl_part_0    = state_rdata_q.vl_part_0;
         pipe_out_ctrl_o.vd           = state_rdata_q.vd;
         pipe_out_ctrl_o.vd_store     = state_rdata_q.vd_store & ~state_rdata_q.exc;
+        pipe_out_ctrl_o.vd_shift     = state_rdata_q.vd_shift;
     end
     assign pipe_out_pend_clr_o = state_rdata_q.vd_store;
     always_comb begin

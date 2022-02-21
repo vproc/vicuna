@@ -178,6 +178,7 @@ module vproc_pipeline #(
         logic [4:0]                  vd;
         logic                        vd_narrow;
         logic                        vd_store;
+        logic                        vd_shift;
 
 
         unpack_flags [OP_CNT-1:0]       op_flags;
@@ -460,6 +461,7 @@ module vproc_pipeline #(
                     LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.op_xval[0];
                     default: ; // for indexed loads the base address stays the same
                 endcase
+                state_d.vd_shift = state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1;
             end
             if ((UNIT == UNIT_SLD) & (state_q.count.part.low == slide_count.part.low)) begin
                 state_d.op_flags[0].vreg = slide_fetch; // set vs2 valid bit after fetch
@@ -862,20 +864,9 @@ module vproc_pipeline #(
                 pack_res_data = '0;
                 pack_res_mask = '0;
 
-                pack_res_flags[0] = pack_flags'('0);
-                if (unit_out_ctrl.mode.lsu.stride == LSU_UNITSTRIDE) begin
-                    pack_res_flags[0].shift    = 1'b1;
-                    pack_res_flags[0].elemwise = 1'b0;
-                end else begin
-                    pack_res_flags[0].shift = DONT_CARE_ZERO ? '0 : 'x;
-                    unique case (unit_out_ctrl.mode.lsu.eew)
-                        VSEW_8:  pack_res_flags[0].shift =  unit_out_ctrl.count.val[$clog2(MAX_OP_W/8)-1:0]       == '0;
-                        VSEW_16: pack_res_flags[0].shift = (unit_out_ctrl.count.val[$clog2(MAX_OP_W/8)-1:0] >> 1) == '0;
-                        VSEW_32: pack_res_flags[0].shift = (unit_out_ctrl.count.val[$clog2(MAX_OP_W/8)-1:0] >> 2) == '0;
-                        default: ;
-                    endcase
-                    pack_res_flags[0].elemwise = 1'b1;
-                end
+                pack_res_flags[0]                 = pack_flags'('0);
+                pack_res_flags[0].shift           = unit_out_ctrl.vd_shift;
+                pack_res_flags[0].elemwise        = unit_out_ctrl.mode.lsu.stride != LSU_UNITSTRIDE;
                 pack_res_store[0]                 = unit_out_ctrl.vd_store;
                 pack_res_valid[0]                 = unit_out_valid;
                 pack_res_data [0]                 = unit_out_res;
