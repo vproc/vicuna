@@ -248,14 +248,14 @@ module vproc_lsu #(
     logic [VREG_W-1:0] wdata_unit_vl_mask;
     logic              wdata_stri_mask;
     assign wdata_unit_vl_mask =   state_req_d.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_req_d.vl));
-    assign wdata_stri_mask    = (~state_req_d.vl_0 & ({state_req_d.count.part.mul, state_req_d.count.part.low, state_req_d.count_stride} <= state_req_d.vl)) &
+    assign wdata_stri_mask    = (~state_req_d.vl_0 & (state_req_d.count.val <= state_req_d.vl)) &
                                 (state_req_d.mode.lsu.masked ? vmsk_data[0] : 1'b1);
     always_comb begin
         wdata_buf_d = DONT_CARE_ZERO ? '0 : 'x;
         wmask_buf_d = DONT_CARE_ZERO ? '0 : 'x;
         if (state_req_d.mode.lsu.stride == LSU_UNITSTRIDE) begin
             wdata_buf_d = vs3_data[VMEM_W-1:0];
-            wmask_buf_d = (state_req_d.mode.lsu.masked ? vmsk_data : '1) & wdata_unit_vl_mask[state_req_d.count.val*VMEM_W/8 +: VMEM_W/8];
+            wmask_buf_d = (state_req_d.mode.lsu.masked ? vmsk_data : '1) & wdata_unit_vl_mask[state_req_d.count.val[LSU_COUNTER_W-1:LSU_STRI_COUNTER_EXT_W]*VMEM_W/8 +: VMEM_W/8];
         end else begin
             unique case (state_req_d.mode.lsu.eew)
                 VSEW_8: begin
@@ -303,7 +303,7 @@ module vproc_lsu #(
     lsu_state_red state_req_red;
     always_comb begin
         state_req_red             = DONT_CARE_ZERO ? '0 : 'x;
-        state_req_red.count.val   = {state_req_q.count.part.mul, state_req_q.count.part.low, state_req_q.count_stride};
+        state_req_red.count.val   = state_req_q.count.val;
         state_req_red.first_cycle = state_req_q.first_cycle;
         state_req_red.last_cycle  = state_req_q.last_cycle;
         state_req_red.id          = state_req_q.id;
@@ -375,8 +375,7 @@ module vproc_lsu #(
     assign pipe_out_valid_o = state_rdata_valid_q;
     always_comb begin
         pipe_out_ctrl_o              = DONT_CARE_ZERO ? '0 : 'x;
-        pipe_out_ctrl_o.count.val    = {1'b0, state_rdata_q.count.part.mul, state_rdata_q.count.part.unit};
-        pipe_out_ctrl_o.count_stride = state_rdata_q.count.part.stri;
+        pipe_out_ctrl_o.count.val    = {1'b0, state_rdata_q.count.val};
         pipe_out_ctrl_o.first_cycle  = state_rdata_q.first_cycle;
         pipe_out_ctrl_o.last_cycle   = state_rdata_q.last_cycle;
         pipe_out_ctrl_o.id           = state_rdata_q.id;

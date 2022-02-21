@@ -275,9 +275,9 @@ module vproc_elem #(
             // vgather gathers elements from a vreg based on indices from a
             // second vreg; can be masked by v0
             ELEM_VRGATHER: begin
-                result_d = (pipe_in_ctrl_i.count_gather == '0) ? '0 : result_q;
-                //if (pipe_in_ctrl_i.count_gather == elem_q[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
-                if (pipe_in_ctrl_i.count_gather == gather_byte_idx[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
+                result_d = (pipe_in_ctrl_i.aux_count == '0) ? '0 : result_q;
+                //if (pipe_in_ctrl_i.aux_count == elem_q[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
+                if (pipe_in_ctrl_i.aux_count == gather_byte_idx[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
                     result_d       = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, gather_byte_idx[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 2)} * 8 +: 32];
                     result_d[15:0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, gather_byte_idx[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 1)} * 8 +: 16];
                     result_d[7 :0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, gather_byte_idx[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}}     )} * 8 +: 8 ];
@@ -286,7 +286,7 @@ module vproc_elem #(
                     end
                 end
                 result_mask_d  = pipe_in_ctrl_i.vl_mask & v0msk;
-                result_valid_d = pipe_in_ctrl_i.count_gather == '1;
+                result_valid_d = pipe_in_ctrl_i.aux_count == '1;
             end
             // flush the destination register after a vcompress or reduction
             // (note that a flush might potentially write to more registers

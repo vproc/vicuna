@@ -108,11 +108,15 @@ module vproc_pipeline #(
     ///////////////////////////////////////////////////////////////////////////
     // STATE LOGIC
 
-    localparam int unsigned CYCLES_PER_VREG = VREG_W / ((UNIT == UNIT_ELEM) ? 8 : MAX_OP_W);
-    localparam int unsigned COUNTER_W       = $clog2(CYCLES_PER_VREG) + 4;
+    // Smallest operand width.  If element-wise operation may be required the smallest width is
+    // always 8 bit (i.e., the smallest element width.
+    // TODO this should actually use the minimum operand width, not the maximum.
+    localparam int unsigned SMALLEST_OP_W = (
+        (OP_ALLOW_ELEMWISE != '0) | (OP_ALWAYS_ELEMWISE != '0)
+    ) ? 8 : MAX_OP_W;
 
-    localparam int unsigned STRIDE_ELEMS_PER_VMEM = MAX_OP_W / 8; // maximum number of elems read at once for strided/indexed loads
-    localparam int unsigned STRIDE_COUNTER_W      = $clog2(STRIDE_ELEMS_PER_VMEM);
+    localparam int unsigned CYCLES_PER_VREG = VREG_W / SMALLEST_OP_W;
+    localparam int unsigned COUNTER_W       = $clog2(CYCLES_PER_VREG) + 4;
 
     localparam int unsigned GATHER_CYCLES_PER_VREG = VREG_W / MAX_OP_W;
     localparam int unsigned GATHER_COUNTER_W       = $clog2(GATHER_CYCLES_PER_VREG);
@@ -126,10 +130,12 @@ module vproc_pipeline #(
         } part;
     } counter_t;
 
+    localparam AUX_COUNTER_W = GATHER_COUNTER_W;
+
     typedef struct packed {
         counter_t                    count;
-        logic [STRIDE_COUNTER_W-1:0] count_stride;
-        logic [GATHER_COUNTER_W-1:0] count_gather;
+        counter_t                    alt_count;
+        logic [AUX_COUNTER_W-1:0]    aux_count;
         logic                        first_cycle;
         logic                        last_cycle;
         logic                        requires_flush;
@@ -187,13 +193,13 @@ module vproc_pipeline #(
             EMUL_8: last_cycle = (state_q.count.part.mul[2:0] == '1) & (state_q.count.part.low == '1);
             default: ;
         endcase
-        if ((UNIT == UNIT_LSU) & state_q.count_stride != '1) begin
+        if ((UNIT == UNIT_LSU) & state_q.count.val[$clog2(MAX_OP_W/8)-1:0] != '1) begin
             last_cycle = '0;
         end
         if ((UNIT == UNIT_SLD) & state_q.count.part.sign) begin
             last_cycle = '0;
         end
-        if ((UNIT == UNIT_ELEM) & (state_q.count_gather != '1)) begin
+        if ((UNIT == UNIT_ELEM) & (state_q.aux_count != '1)) begin
             last_cycle = '0;
         end
     end
@@ -283,20 +289,23 @@ module vproc_pipeline #(
                     default: ;
                 endcase
             end
-            // LSU stride counter
-            if (mode_i.lsu.stride == LSU_UNITSTRIDE) begin
-                state_d.count_stride = '1;
+            if (UNIT == UNIT_LSU) begin
+                // LSU stride counter
+                if (mode_i.lsu.stride == LSU_UNITSTRIDE) begin
+                    state_d.count.val[$clog2(MAX_OP_W/8)-1:0] = '1;
+                end else begin
+                    //state_d.aux_count = DONT_CARE_ZERO ? '0 : 'x;
+                    unique case (mode_i.lsu.eew)
+                        VSEW_8:  state_d.count.val = '0;
+                        VSEW_16: state_d.count.val = 1;
+                        VSEW_32: state_d.count.val = 3;
+                        default: ;
+                    endcase
+                end
             end else begin
-                state_d.count_stride = DONT_CARE_ZERO ? '0 : 'x;
-                unique case (mode_i.lsu.eew)
-                    VSEW_8:  state_d.count_stride = '0;
-                    VSEW_16: state_d.count_stride = STRIDE_COUNTER_W'(1);
-                    VSEW_32: state_d.count_stride = STRIDE_COUNTER_W'(3);
-                    default: ;
-                endcase
+                // ELEM gather counter
+                state_d.aux_count  = (mode_i.elem.op == ELEM_VRGATHER) ? '0 : '1;
             end
-            // ELEM gather counter
-            state_d.count_gather   = (mode_i.elem.op == ELEM_VRGATHER) ? '0 : '1;
             state_d.first_cycle    = 1'b1;
             state_d.requires_flush = (UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_VCOMPRESS) | op_reduction);
             state_d.id             = id_i;
@@ -353,14 +362,13 @@ module vproc_pipeline #(
         else if (state_valid_q & pipeline_ready) begin
             if (UNIT == UNIT_LSU) begin
                 state_valid_d = ~last_cycle;
-                if ((state_q.mode.lsu.stride == LSU_UNITSTRIDE) | (state_q.count_stride == '1)) begin
-                    state_d.count.val = state_q.count.val + 1;
-                end
-                if (state_q.mode.lsu.stride != LSU_UNITSTRIDE) begin
+                if (state_q.mode.lsu.stride == LSU_UNITSTRIDE) begin
+                    state_d.count.val = state_q.count.val + (1 << $clog2(MAX_OP_W/8));
+                end else begin
                     unique case (state_q.mode.lsu.eew)
-                        VSEW_8:  state_d.count_stride = state_q.count_stride + STRIDE_COUNTER_W'(1);
-                        VSEW_16: state_d.count_stride = state_q.count_stride + STRIDE_COUNTER_W'(2);
-                        VSEW_32: state_d.count_stride = state_q.count_stride + STRIDE_COUNTER_W'(4);
+                        VSEW_8:  state_d.count.val = state_q.count.val + 1;
+                        VSEW_16: state_d.count.val = state_q.count.val + 2;
+                        VSEW_32: state_d.count.val = state_q.count.val + 4;
                         default: ;
                     endcase
                 end
@@ -372,7 +380,7 @@ module vproc_pipeline #(
             end
             else if (UNIT == UNIT_ELEM) begin
                 state_valid_d = ~last_cycle | state_q.requires_flush;
-                if (state_q.count_gather == '1) begin
+                if (state_q.aux_count == '1) begin
                     unique case (state_q.eew)
                         VSEW_8:  state_d.count.val = state_q.count.val + 1;
                         VSEW_16: state_d.count.val = state_q.count.val + 2;
@@ -381,7 +389,7 @@ module vproc_pipeline #(
                     endcase
                 end
                 if (state_q.mode.elem.op == ELEM_VRGATHER) begin
-                    state_d.count_gather = state_q.count_gather + 1;
+                    state_d.aux_count = state_q.aux_count + 1;
                 end
                 if (last_cycle & state_q.requires_flush) begin
                     state_d.count.val      = '0;
@@ -407,19 +415,19 @@ module vproc_pipeline #(
             state_d.vs3_fetch    = 1'b0;
             state_d.gather_fetch = 1'b0;
             state_d.vd_store     = 1'b0;
-            if ((state_q.count.part.low == '1) & ((UNIT != UNIT_ELEM) | state_q.count_gather == '1)) begin
+            if ((state_q.count.part.low == '1) & ((UNIT != UNIT_ELEM) | state_q.aux_count == '1)) begin
                 if ((UNIT != UNIT_LSU) & state_q.rs1.vreg & (~state_q.vs1_narrow | state_q.count.part.mul[0])) begin
                     state_d.rs1.r.vaddr[2:0] = state_q.rs1.r.vaddr[2:0] + 3'b1;
                     state_d.vs1_fetch        = state_q.rs1.vreg & ((UNIT != UNIT_ELEM) | ~last_cycle);
                 end
                 if ((UNIT != UNIT_SLD) & (UNIT != UNIT_ELEM) & (~state_q.vs2_narrow | state_q.count.part.mul[0])) begin
-                    if ((UNIT != UNIT_LSU) | ((state_q.count_stride == '1) & state_q.rs2.vreg)) begin
+                    if ((UNIT != UNIT_LSU) | state_q.rs2.vreg) begin
                         state_d.rs2.r.vaddr[2:0] = state_q.rs2.r.vaddr[2:0] + 3'b1;
                         state_d.vs2_fetch        = state_q.rs2.vreg;
                     end
                 end
                 unique case (UNIT)
-                    UNIT_LSU: if (state_q.count_stride == '1) begin
+                    UNIT_LSU: begin
                         state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
                     end
                     UNIT_ALU: if (~state_q.mode.alu.cmp & (~state_q.vd_narrow | state_q.count.part.mul[0])) begin
@@ -434,14 +442,14 @@ module vproc_pipeline #(
                     default: ;
                 endcase
                 state_d.vs3_fetch = (UNIT == UNIT_MUL) ? (state_q.mode.mul.op == MUL_VMACC) : '0;
-                if ((UNIT == UNIT_LSU) & (state_q.count_stride == '1)) begin
+                if (UNIT == UNIT_LSU) begin
                     state_d.vs3_fetch = state_q.mode.lsu.store;
                 end
             end
             if (UNIT == UNIT_LSU) begin
                 unique case (state_q.mode.lsu.eew)
-                    VSEW_8:  state_d.vs2_shift = state_q.count_stride[1:0] == '1;
-                    VSEW_16: state_d.vs2_shift = state_q.count_stride[1  ];
+                    VSEW_8:  state_d.vs2_shift = state_q.count.val[1:0] == '1;
+                    VSEW_16: state_d.vs2_shift = state_q.count.val[1  ];
                     VSEW_32: state_d.vs2_shift = 1'b1;
                     default: ;
                 endcase
@@ -463,7 +471,7 @@ module vproc_pipeline #(
                 state_d.vs1_shift = ~state_q.vs1_narrow | state_q.count.part.low[0];
                 state_d.vs2_shift = ~state_q.vs2_narrow | state_q.count.part.low[0];
             end
-            state_d.gather_fetch = (UNIT == UNIT_ELEM) & (state_q.count_gather == '1);
+            state_d.gather_fetch = (UNIT == UNIT_ELEM) & (state_q.aux_count == '1);
             state_d.v0msk_fetch  = (UNIT == UNIT_SLD) ? state_q.count.part.sign : '0;
             state_d.v0msk_shift  = '0;
             unique case (state_q.eew)
@@ -472,13 +480,22 @@ module vproc_pipeline #(
                 VSEW_32: state_d.v0msk_shift = state_q.count.val[1:0] == '1;
                 default: ;
             endcase
-            if ((UNIT == UNIT_LSU) & (state_q.count_stride != '1)) begin
-                state_d.v0msk_shift = 1'b0;
+            if (UNIT == UNIT_LSU) begin
+                if (state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1) begin
+                    unique case (state_q.eew)
+                        VSEW_8:  state_d.v0msk_shift = 1'b1;
+                        VSEW_16: state_d.v0msk_shift = state_q.count.val[$clog2(MAX_OP_W/8)];
+                        VSEW_32: state_d.v0msk_shift = state_q.count.val[$clog2(MAX_OP_W/8) +: 2] == '1;
+                        default: ;
+                    endcase
+                end else begin
+                    state_d.v0msk_shift  = '0;
+                end
             end
             if ((UNIT == UNIT_SLD) & (state_q.count.part.low == slide_count.part.low)) begin
                 state_d.rs2.vreg = slide_fetch; // set vs2 valid bit after fetch
             end
-            state_d.vs3_shift = (UNIT == UNIT_LSU) & (state_q.count_stride == '1);
+            state_d.vs3_shift = (UNIT == UNIT_LSU) & (state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1);
         end
     end
 
@@ -498,7 +515,7 @@ module vproc_pipeline #(
         state_init.vd_store   = '0;
         if (state_q.count.part.low == '1) begin
             unique case (UNIT)
-                UNIT_LSU: state_init.vd_store = state_q.count_stride == '1;
+                UNIT_LSU: state_init.vd_store = state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1;
                 UNIT_ALU: state_init.vd_store = ~state_q.vd_narrow | state_q.count.part.mul[0];
                 UNIT_SLD: state_init.vd_store = ~state_q.count.part.sign;
                 UNIT_MUL: state_init.vd_store = 1'b1;
@@ -989,9 +1006,9 @@ module vproc_pipeline #(
                 end else begin
                     pack_res_flags[0].shift = DONT_CARE_ZERO ? '0 : 'x;
                     unique case (unit_out_ctrl.mode.lsu.eew)
-                        VSEW_8:  pack_res_flags[0].shift =  unit_out_ctrl.count_stride       == '0;
-                        VSEW_16: pack_res_flags[0].shift = (unit_out_ctrl.count_stride >> 1) == '0;
-                        VSEW_32: pack_res_flags[0].shift = (unit_out_ctrl.count_stride >> 2) == '0;
+                        VSEW_8:  pack_res_flags[0].shift =  unit_out_ctrl.count.val[$clog2(MAX_OP_W/8)-1:0]       == '0;
+                        VSEW_16: pack_res_flags[0].shift = (unit_out_ctrl.count.val[$clog2(MAX_OP_W/8)-1:0] >> 1) == '0;
+                        VSEW_32: pack_res_flags[0].shift = (unit_out_ctrl.count.val[$clog2(MAX_OP_W/8)-1:0] >> 2) == '0;
                         default: ;
                     endcase
                     pack_res_flags[0].elemwise = 1'b1;
