@@ -1008,6 +1008,7 @@ module vproc_pipeline #(
         else if (UNIT == UNIT_ELEM) begin
             logic        elem_out_valid;
             logic        elem_out_ready;
+            ctrl_t       elem_out_ctrl;
             logic        elem_out_xreg_valid;
             logic        unit_out_stall;
             logic        unit_out_res_valid;
@@ -1032,7 +1033,7 @@ module vproc_pipeline #(
                 .pipe_in_mask_i        ( unpack_out_ops[3][0]    ),
                 .pipe_out_valid_o      ( elem_out_valid          ),
                 .pipe_out_ready_i      ( elem_out_ready          ),
-                .pipe_out_ctrl_o       ( unit_out_ctrl           ),
+                .pipe_out_ctrl_o       ( elem_out_ctrl           ),
                 .pipe_out_xreg_valid_o ( elem_out_xreg_valid     ),
                 .pipe_out_xreg_data_o  ( xreg_data_o             ),
                 .pipe_out_xreg_addr_o  ( xreg_addr_o             ),
@@ -1040,6 +1041,59 @@ module vproc_pipeline #(
                 .pipe_out_res_o        ( unit_out_res            ),
                 .pipe_out_mask_o       ( unit_out_mask           )
             );
+            logic     has_valid_result_q, has_valid_result_d;
+            counter_t vd_count_q,         vd_count_d;
+            always_ff @(posedge clk_i) begin
+                if (elem_out_ready) begin
+                    vd_count_q         <= vd_count_d;
+                    has_valid_result_q <= has_valid_result_d;
+                end
+            end
+            // track whether there are any valid results
+            always_comb begin
+                has_valid_result_d = has_valid_result_q;
+                if (elem_out_ctrl.first_cycle) begin
+                    has_valid_result_d = 1'b0;
+                end
+                if (unit_out_res_valid) begin
+                    has_valid_result_d = 1'b1;
+                end
+            end
+            // determine when we see the first valid result
+            logic first_valid_result;
+            assign first_valid_result = unit_out_res_valid & (elem_out_ctrl.first_cycle | ~has_valid_result_q);
+            always_comb begin
+                vd_count_d.val = DONT_CARE_ZERO ? '0 : 'x;
+                unique case (elem_out_ctrl.eew)
+                    VSEW_8:  vd_count_d.val = vd_count_q.val + {{(COUNTER_W-1){1'b0}}, unit_out_res_valid      };
+                    VSEW_16: vd_count_d.val = vd_count_q.val + {{(COUNTER_W-2){1'b0}}, unit_out_res_valid, 1'b0};
+                    VSEW_32: vd_count_d.val = vd_count_q.val + {{(COUNTER_W-3){1'b0}}, unit_out_res_valid, 2'b0};
+                    default: ;
+                endcase
+                if (first_valid_result) begin
+                    vd_count_d.val      = '0;
+                    vd_count_d.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
+                    unique case (elem_out_ctrl.eew)
+                        VSEW_8:  vd_count_d.val[1:0] = 2'b00;
+                        VSEW_16: vd_count_d.val[1:0] = 2'b01;
+                        VSEW_32: vd_count_d.val[1:0] = 2'b11;
+                        default: ;
+                    endcase
+                end
+            end
+            always_comb begin
+                unit_out_ctrl           = elem_out_ctrl;
+                unit_out_ctrl.count.val = {1'b0, vd_count_d.val};
+                unit_out_ctrl.vd_store  = ~elem_out_ctrl.mode.elem.xreg & unit_out_res_valid & (vd_count_d.part.low == '1);
+                unit_out_ctrl.vd        = DONT_CARE_ZERO ? '0 : 'x;
+                unique case (elem_out_ctrl.emul)
+                    EMUL_1: unit_out_ctrl.vd = elem_out_ctrl.vd;
+                    EMUL_2: unit_out_ctrl.vd = elem_out_ctrl.vd | {4'b0, vd_count_d.part.mul[0:0]};
+                    EMUL_4: unit_out_ctrl.vd = elem_out_ctrl.vd | {3'b0, vd_count_d.part.mul[1:0]};
+                    EMUL_8: unit_out_ctrl.vd = elem_out_ctrl.vd | {2'b0, vd_count_d.part.mul[2:0]};
+                    default: ;
+                endcase
+            end
             assign unit_out_stall =                  elem_out_xreg_valid &                    instr_spec_i  [unit_out_ctrl.id];
             assign xreg_valid_o   = elem_out_valid & elem_out_xreg_valid & ~unit_out_stall & ~instr_killed_i[unit_out_ctrl.id];
             assign xreg_id_o      = unit_out_ctrl.id;

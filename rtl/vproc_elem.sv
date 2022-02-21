@@ -40,15 +40,6 @@ module vproc_elem #(
     ///////////////////////////////////////////////////////////////////////////
     // ELEM BUFFERS
 
-    localparam int unsigned ELEM_COUNTER_W = $clog2(VREG_W / 8) + 3;
-    typedef union packed {
-        logic [ELEM_COUNTER_W-1:0] val;
-        struct packed {
-            logic [2:0]                mul;  // mul part (vreg index)
-            logic [ELEM_COUNTER_W-4:0] low;  // counter part in vreg (vreg pos)
-        } part;
-    } elem_counter;
-
     logic  state_res_ready;
     logic  state_res_valid_q, state_res_valid_d;
     CTRL_T state_res_q,       state_res_d;
@@ -57,12 +48,6 @@ module vproc_elem #(
     logic [31:0] result_q,         result_d;
     logic        result_mask_q,    result_mask_d;
     logic        result_valid_q,   result_valid_d;
-
-    // track whether there are any valid results:
-    logic        has_valid_result_q, has_valid_result_d;
-    elem_counter vd_count_q,         vd_count_d;
-    logic                            vd_store_d;
-    logic [4:0]                      vd_vd_d;
 
     generate
         if (BUF_RESULTS) begin
@@ -95,13 +80,6 @@ module vproc_elem #(
                 result_valid_q    = result_valid_d;
             end
             assign state_res_ready = pipe_out_ready_i;
-        end
-
-        always_ff @(posedge clk_i) begin
-            if (pipe_out_ready_i) begin
-                vd_count_q         <= vd_count_d;
-                has_valid_result_q <= has_valid_result_d;
-            end
         end
     endgenerate
 
@@ -151,59 +129,8 @@ module vproc_elem #(
     assign pipe_out_xreg_data_o  = result_q;
     assign pipe_out_xreg_addr_o  = state_res_q.vd;
 
-    // track whether there are any valid results
-    always_comb begin
-        has_valid_result_d = has_valid_result_q;
-        if (state_res_q.first_cycle) begin
-            has_valid_result_d = 1'b0;
-        end
-        if (result_valid_q) begin
-            has_valid_result_d = 1'b1;
-        end
-    end
-
-    // determine when we see the first valid result
-    logic first_valid_result;
-    assign first_valid_result = result_valid_q & (state_res_q.first_cycle | ~has_valid_result_q);
-
-    always_comb begin
-        vd_count_d.val = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_res_q.eew)
-            VSEW_8:  vd_count_d.val = vd_count_q.val + {{(ELEM_COUNTER_W-1){1'b0}}, result_valid_q      };
-            VSEW_16: vd_count_d.val = vd_count_q.val + {{(ELEM_COUNTER_W-2){1'b0}}, result_valid_q, 1'b0};
-            VSEW_32: vd_count_d.val = vd_count_q.val + {{(ELEM_COUNTER_W-3){1'b0}}, result_valid_q, 2'b0};
-            default: ;
-        endcase
-        if (first_valid_result) begin
-            vd_count_d.val      = '0;
-            vd_count_d.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (state_res_q.eew)
-                VSEW_8:  vd_count_d.val[1:0] = 2'b00;
-                VSEW_16: vd_count_d.val[1:0] = 2'b01;
-                VSEW_32: vd_count_d.val[1:0] = 2'b11;
-                default: ;
-            endcase
-        end
-    end
-    assign vd_store_d = ~state_res_q.mode.elem.xreg & result_valid_q & (vd_count_d.part.low == '1);
-    always_comb begin
-        vd_vd_d = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_res_q.emul)
-            EMUL_1: vd_vd_d = state_res_q.vd;
-            EMUL_2: vd_vd_d = state_res_q.vd | {4'b0, vd_count_d.part.mul[0:0]};
-            EMUL_4: vd_vd_d = state_res_q.vd | {3'b0, vd_count_d.part.mul[1:0]};
-            EMUL_8: vd_vd_d = state_res_q.vd | {2'b0, vd_count_d.part.mul[2:0]};
-            default: ;
-        endcase
-    end
-
     assign pipe_out_valid_o     = state_res_valid_q;
-    always_comb begin
-        pipe_out_ctrl_o           = state_res_q;
-        pipe_out_ctrl_o.count.val = {1'b0, vd_count_d.val};
-        pipe_out_ctrl_o.vd_store  = vd_store_d;
-        pipe_out_ctrl_o.vd        = vd_vd_d;
-    end
+    assign pipe_out_ctrl_o      = state_res_q;
     assign pipe_out_res_valid_o = result_valid_q;
     assign pipe_out_res_o       = result_q;
     assign pipe_out_mask_o      = {4{result_mask_q}};
