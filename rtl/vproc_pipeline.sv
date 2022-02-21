@@ -296,36 +296,23 @@ module vproc_pipeline #(
             op_ack_o            = 1'b1;
             state_valid_d       = 1'b1;
             state_d.count.val   = '0;
-            if ((UNIT == UNIT_SLD) & (mode_i.sld.dir == SLD_DOWN)) begin
-                state_d.count.part.sign = '1;
-                state_d.count.part.mul  = '1;
-            end
-            if (UNIT == UNIT_ELEM) begin
+            if ((OP_ALLOW_ELEMWISE != '0) | (OP_ALWAYS_ELEMWISE != '0)) begin
                 state_d.count.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
-                unique case (vsew_i)
+                unique case ((UNIT == UNIT_LSU) ? mode_i.lsu.eew : vsew_i)
                     VSEW_8:  state_d.count.val[1:0] = 2'b00;
                     VSEW_16: state_d.count.val[1:0] = 2'b01;
                     VSEW_32: state_d.count.val[1:0] = 2'b11;
                     default: ;
                 endcase
             end
-            if (UNIT == UNIT_LSU) begin
-                // LSU stride counter
-                if (mode_i.lsu.stride == LSU_UNITSTRIDE) begin
-                    state_d.count.val[$clog2(MAX_OP_W/8)-1:0] = '1;
-                end else begin
-                    //state_d.aux_count = DONT_CARE_ZERO ? '0 : 'x;
-                    unique case (mode_i.lsu.eew)
-                        VSEW_8:  state_d.count.val = '0;
-                        VSEW_16: state_d.count.val = 1;
-                        VSEW_32: state_d.count.val = 3;
-                        default: ;
-                    endcase
-                end
-            end else begin
-                // ELEM gather counter
-                state_d.aux_count  = (mode_i.elem.op == ELEM_VRGATHER) ? '0 : '1;
+            if ((UNIT == UNIT_LSU) & (mode_i.lsu.stride == LSU_UNITSTRIDE)) begin
+                state_d.count.val[$clog2(MAX_OP_W/8)-1:0] = '1;
             end
+            if ((UNIT == UNIT_SLD) & (mode_i.sld.dir == SLD_DOWN)) begin
+                state_d.count.part.sign = '1;
+                state_d.count.part.mul  = '1;
+            end
+            state_d.aux_count      = (mode_i.elem.op == ELEM_VRGATHER) ? '0 : '1;
             state_d.first_cycle    = 1'b1;
             state_d.requires_flush = (UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_VCOMPRESS) | op_reduction);
             state_d.id             = id_i;
@@ -416,57 +403,43 @@ module vproc_pipeline #(
             state_d.op_flags[OP_CNT-1].elemwise = (UNIT == UNIT_LSU) & (mode_i.lsu.stride != LSU_UNITSTRIDE);
         end
         else if (state_valid_q & pipeline_ready) begin
-            if (UNIT == UNIT_LSU) begin
-                state_valid_d = ~last_cycle;
-                if (state_q.mode.lsu.stride == LSU_UNITSTRIDE) begin
-                    state_d.count.val = state_q.count.val + (1 << $clog2(MAX_OP_W/8));
-                end else begin
-                    unique case (state_q.mode.lsu.eew)
-                        VSEW_8:  state_d.count.val = state_q.count.val + 1;
-                        VSEW_16: state_d.count.val = state_q.count.val + 2;
-                        VSEW_32: state_d.count.val = state_q.count.val + 4;
-                        default: ;
-                    endcase
-                end
-                unique case (state_q.mode.lsu.stride)
-                    LSU_UNITSTRIDE: state_d.rs1.r.xval = state_q.rs1.r.xval + (MAX_OP_W / 8);
-                    LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.op_xval[0];
-                    default: ; // for indexed loads the base address stays the same
-                endcase
-            end
-            else if (UNIT == UNIT_ELEM) begin
-                state_valid_d = ~last_cycle | state_q.requires_flush;
-                if (state_q.aux_count == '1) begin
-                    unique case (state_q.eew)
-                        VSEW_8:  state_d.count.val = state_q.count.val + 1;
-                        VSEW_16: state_d.count.val = state_q.count.val + 2;
-                        VSEW_32: state_d.count.val = state_q.count.val + 4;
-                        default: ;
-                    endcase
-                end
-                if (state_q.mode.elem.op == ELEM_VRGATHER) begin
-                    state_d.aux_count = state_q.aux_count + 1;
-                end
-                if (last_cycle & state_q.requires_flush) begin
-                    state_d.count.val      = '0;
-                    state_d.count.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
-                    unique case (vsew_i)
-                        VSEW_8:  state_d.count.val[1:0] = 2'b00;
-                        VSEW_16: state_d.count.val[1:0] = 2'b01;
-                        VSEW_32: state_d.count.val[1:0] = 2'b11;
-                        default: ;
-                    endcase
-                    state_d.count.part.mul = '1; // flush only one vreg
-                    state_d.mode.elem.op   = ELEM_FLUSH;
-                    state_d.requires_flush = 1'b0;
-                    state_d.rs1.vreg       = 1'b0;
-                end
-            end else begin
-                state_valid_d     = ~last_cycle;
-                state_d.count.val = state_q.count.val + 1;
-            end
+            state_valid_d        = ~last_cycle;
             state_d.first_cycle  = 1'b0;
             state_d.vd_store     = 1'b0;
+
+            // increment counter
+            if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
+                if ((OP_ALWAYS_ELEMWISE != '0) | (OP_ALLOW_ELEMWISE != '0)) begin
+                    state_d.count.val = state_q.count.val + (1 << $clog2(MAX_OP_W/8));
+                    // Count individual elements if any valid operand requires element-wise access
+                    //for (int i = 0; i < OP_CNT; i++) begin
+                    //    if ((OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) & (
+                    //        OP_ALWAYS_ELEMWISE[i] |
+                    //        (OP_ALLOW_ELEMWISE[i] & state_q.op_flags[i].elemwise)
+                    //    )) begin
+                            state_d.count.val = DONT_CARE_ZERO ? '0 : 'x;
+                            unique case (state_q.eew)
+                                VSEW_8:  state_d.count.val = state_q.count.val + 1;
+                                VSEW_16: state_d.count.val = state_q.count.val + 2;
+                                VSEW_32: state_d.count.val = state_q.count.val + 4;
+                                default: ;
+                            endcase
+                    //    end
+                    //end
+                    // TODO fix errors in above code and remove below statement
+                    if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
+                        state_d.count.val = state_q.count.val + (1 << $clog2(MAX_OP_W/8));
+                    end
+                end else begin
+                    state_d.count.val = state_q.count.val + 1;
+                end
+            end
+            for (int i = 0; i < OP_CNT; i++) begin
+                if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
+                    state_d.aux_count = state_q.aux_count + 1;
+                end
+            end
+
             if ((state_q.count.part.low == '1) & ((UNIT != UNIT_ELEM) | state_q.aux_count == '1)) begin
                 unique case (UNIT)
                     UNIT_LSU: begin
@@ -482,6 +455,13 @@ module vproc_pipeline #(
                         state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
                     end
                     default: ;
+                endcase
+            end
+            if (UNIT == UNIT_LSU) begin
+                unique case (state_q.mode.lsu.stride)
+                    LSU_UNITSTRIDE: state_d.rs1.r.xval = state_q.rs1.r.xval + (MAX_OP_W / 8);
+                    LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.op_xval[0];
+                    default: ; // for indexed loads the base address stays the same
                 endcase
             end
             if ((UNIT == UNIT_SLD) & (state_q.count.part.low == slide_count.part.low)) begin
@@ -531,6 +511,29 @@ module vproc_pipeline #(
                 end
                 if ((OP_ADDR_OFFSET_OP0 != '0) & ~OP_ADDR_OFFSET_OP0[i]) begin
                     state_d.op_flags[i].hold = state_q.aux_count != '1;
+                end
+            end
+
+            if (UNIT == UNIT_ELEM) begin
+                state_valid_d = ~last_cycle | state_q.requires_flush;
+                //if (last_cycle & state_q.requires_flush) begin
+                if (last_cycle) begin
+                    state_d.count.val      = '0;
+                    state_d.count.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
+                    unique case (vsew_i)
+                        VSEW_8:  state_d.count.val[1:0] = 2'b00;
+                        VSEW_16: state_d.count.val[1:0] = 2'b01;
+                        VSEW_32: state_d.count.val[1:0] = 2'b11;
+                        default: ;
+                    endcase
+                    state_d.count.part.mul = '1; // flush only one vreg
+                    state_d.mode.elem.op   = ELEM_FLUSH;
+                    state_d.requires_flush = 1'b0;
+                    //state_d.rs1.vreg       = 1'b0;
+                    for (int i = 0; i < OP_CNT; i++) begin
+                        state_d.op_load [i]      = '0;
+                        state_d.op_flags[i].vreg = '0;
+                    end
                 end
             end
         end
