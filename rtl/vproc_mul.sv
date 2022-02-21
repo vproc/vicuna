@@ -4,8 +4,6 @@
 
 
 module vproc_mul #(
-        parameter int unsigned        VREG_W         = 128,  // width in bits of vector registers
-        parameter int unsigned        CFG_VL_W       = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned        MUL_OP_W       = 64,   // MUL unit operand width in bits
         parameter vproc_pkg::mul_type MUL_TYPE       = vproc_pkg::MUL_GENERIC,
         parameter bit                 BUF_OPERANDS   = 1'b1, // insert pipeline stage after operand extraction

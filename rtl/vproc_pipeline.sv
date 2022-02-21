@@ -823,10 +823,10 @@ module vproc_pipeline #(
             logic [MAX_OP_W  -1:0] unit_out_res;
             logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_lsu #(
-                .VREG_W                   ( VREG_W                            ),
-                .CFG_VL_W                 ( CFG_VL_W                          ),
                 .VMEM_W                   ( MAX_OP_W                          ),
                 .CTRL_T                   ( ctrl_t                            ),
+                .XIF_ID_W                 ( XIF_ID_W                          ),
+                .XIF_ID_CNT               ( XIF_ID_CNT                        ),
                 .DONT_CARE_ZERO           ( DONT_CARE_ZERO                    )
             ) lsu (
                 .clk_i                    ( clk_i                             ),
@@ -880,8 +880,6 @@ module vproc_pipeline #(
             logic [MAX_OP_W/8-1:0] unit_out_res_cmp;
             logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_alu #(
-                .VREG_W             ( VREG_W                            ),
-                .CFG_VL_W           ( CFG_VL_W                          ),
                 .ALU_OP_W           ( MAX_OP_W                          ),
                 .CTRL_T             ( ctrl_t                            ),
                 .DONT_CARE_ZERO     ( DONT_CARE_ZERO                    )
@@ -931,8 +929,6 @@ module vproc_pipeline #(
             logic [MAX_OP_W  -1:0] unit_out_res;
             logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_mul #(
-                .VREG_W           ( VREG_W                            ),
-                .CFG_VL_W         ( CFG_VL_W                          ),
                 .MUL_OP_W         ( MAX_OP_W                          ),
                 .MUL_TYPE         ( MUL_TYPE                          ),
                 .CTRL_T           ( ctrl_t                            ),
@@ -1016,7 +1012,6 @@ module vproc_pipeline #(
             logic [3 :0] unit_out_mask;
             vproc_elem #(
                 .VREG_W                ( VREG_W                  ),
-                .CFG_VL_W              ( CFG_VL_W                ),
                 .GATHER_OP_W           ( MAX_OP_W                ),
                 .CTRL_T                ( ctrl_t                  ),
                 .DONT_CARE_ZERO        ( DONT_CARE_ZERO          )

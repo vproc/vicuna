@@ -5,7 +5,6 @@
 
 module vproc_elem #(
         parameter int unsigned         VREG_W         = 128,  // width in bits of vector registers
-        parameter int unsigned         CFG_VL_W       = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned         GATHER_OP_W    = 32,   // ELEM unit GATHER operand width in bits
         parameter bit                  BUF_RESULTS    = 1'b1, // insert pipeline stage after computing result
         parameter type                 CTRL_T         = logic,

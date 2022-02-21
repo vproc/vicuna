@@ -4,8 +4,6 @@
 
 
 module vproc_alu #(
-        parameter int unsigned        VREG_W           = 128,  // width in bits of vector registers
-        parameter int unsigned        CFG_VL_W         = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned        ALU_OP_W         = 64,   // ALU operand width in bits
         parameter bit                 BUF_OPERANDS     = 1'b1, // insert pipeline stage after operand extraction
         parameter bit                 BUF_INTERMEDIATE = 1'b1, // insert pipeline stage for intermediate results

@@ -4,14 +4,12 @@
 
 
 module vproc_lsu #(
-        parameter int unsigned        VREG_W          = 128,  // width in bits of vector registers
-        parameter int unsigned        CFG_VL_W        = 7,    // width of VL reg in bits (= log2(VREG_W))
-        parameter int unsigned        XIF_ID_W        = 3,    // width in bits of instruction IDs
-        parameter int unsigned        XIF_ID_CNT      = 8,    // total count of instruction IDs
         parameter int unsigned        VMEM_W          = 32,   // width in bits of the vector memory interface
         parameter bit                 BUF_REQUEST     = 1'b1, // insert pipeline stage before issuing request
         parameter bit                 BUF_RDATA       = 1'b1, // insert pipeline stage after memory read
         parameter type                CTRL_T          = logic,
+        parameter int unsigned        XIF_ID_W        = 3,    // width in bits of instruction IDs
+        parameter int unsigned        XIF_ID_CNT      = 8,    // total count of instruction IDs
         parameter bit                 DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )
     (
