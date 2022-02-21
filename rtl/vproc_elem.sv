@@ -243,7 +243,7 @@ module vproc_elem #(
             ELEM_VID: begin
                 counter_inc    = 1'b1;
                 result_d       = pipe_in_ctrl_i.first_cycle ? '0 : counter_q;
-                result_mask_d  = pipe_in_ctrl_i.vl_mask & v0msk;
+                result_mask_d  = ~pipe_in_ctrl_i.vl_part_0 & v0msk;
                 result_valid_d = 1'b1;
             end
             // vpopc and viota count the number of set bits in a mask vreg;
@@ -252,9 +252,9 @@ module vproc_elem #(
             // written
             ELEM_VPOPC,
             ELEM_VIOTA: begin
-                counter_inc    = mask_q & pipe_in_ctrl_i.vl_mask & v0msk;
+                counter_inc    = mask_q & ~pipe_in_ctrl_i.vl_part_0 & v0msk;
                 result_d       = pipe_in_ctrl_i.first_cycle ? '0 : counter_q;
-                result_mask_d  = pipe_in_ctrl_i.vl_mask & v0msk;
+                result_mask_d  = ~pipe_in_ctrl_i.vl_part_0 & v0msk;
                 result_valid_d = 1'b1;
             end
             // vfirst finds the index of the first set bit in a mask vreg and
@@ -262,14 +262,14 @@ module vproc_elem #(
             ELEM_VFIRST: begin
                 counter_inc    = pipe_in_ctrl_i.first_cycle | (result_q[31] & ~mask_q);
                 result_d       = pipe_in_ctrl_i.first_cycle ? {32{~mask_q}} : (result_q[31] & ~mask_q) ? '1 : counter_q;
-                result_mask_d  = pipe_in_ctrl_i.vl_mask & v0msk;
+                result_mask_d  = ~pipe_in_ctrl_i.vl_part_0 & v0msk;
                 result_valid_d = 1'b1;
             end
             // vcompress packs elements for which the corresponding bit in a
             // mask vreg is set; cannot be masked by v0
             ELEM_VCOMPRESS: begin
                 result_d       = elem_q;
-                result_mask_d  = pipe_in_ctrl_i.vl_mask;
+                result_mask_d  = ~pipe_in_ctrl_i.vl_part_0;
                 result_valid_d = mask_q;
             end
             // vgather gathers elements from a vreg based on indices from a
@@ -285,7 +285,7 @@ module vproc_elem #(
                         result_d = '0;
                     end
                 end
-                result_mask_d  = pipe_in_ctrl_i.vl_mask & v0msk;
+                result_mask_d  = ~pipe_in_ctrl_i.vl_part_0 & v0msk;
                 result_valid_d = pipe_in_ctrl_i.aux_count == '1;
             end
             // flush the destination register after a vcompress or reduction
@@ -300,28 +300,28 @@ module vproc_elem #(
             // reduction operations
             // TODO support masked reductions (currently only unmasked)
             ELEM_VREDSUM: begin
-                result_d       = pipe_in_ctrl_i.vl_mask ? (elem_q + reduct_val) : reduct_val;
+                result_d       = ~pipe_in_ctrl_i.vl_part_0 ? (elem_q + reduct_val) : reduct_val;
                 result_mask_d  = ~pipe_in_ctrl_i.vl_0;
                 result_valid_d = pipe_in_ctrl_i.last_cycle;
             end
             ELEM_VREDAND: begin
-                result_d       = pipe_in_ctrl_i.vl_mask ? (elem_q & reduct_val) : reduct_val;
+                result_d       = ~pipe_in_ctrl_i.vl_part_0 ? (elem_q & reduct_val) : reduct_val;
                 result_mask_d  = ~pipe_in_ctrl_i.vl_0;
                 result_valid_d = pipe_in_ctrl_i.last_cycle;
             end
             ELEM_VREDOR: begin
-                result_d       = pipe_in_ctrl_i.vl_mask ? (elem_q | reduct_val) : reduct_val;
+                result_d       = ~pipe_in_ctrl_i.vl_part_0 ? (elem_q | reduct_val) : reduct_val;
                 result_mask_d  = ~pipe_in_ctrl_i.vl_0;
                 result_valid_d = pipe_in_ctrl_i.last_cycle;
             end
             ELEM_VREDXOR: begin
-                result_d       = pipe_in_ctrl_i.vl_mask ? (elem_q ^ reduct_val) : reduct_val;
+                result_d       = ~pipe_in_ctrl_i.vl_part_0 ? (elem_q ^ reduct_val) : reduct_val;
                 result_mask_d  = ~pipe_in_ctrl_i.vl_0;
                 result_valid_d = pipe_in_ctrl_i.last_cycle;
             end
             ELEM_VREDMINU: begin
                 result_d = reduct_val;
-                if (pipe_in_ctrl_i.vl_mask) begin
+                if (~pipe_in_ctrl_i.vl_part_0) begin
                     unique case (pipe_in_ctrl_i.eew)
                         VSEW_8:  result_d[7 :0] = (elem_q[7 :0] < reduct_val[7 :0]) ? elem_q[7 :0] : reduct_val[7 :0];
                         VSEW_16: result_d[15:0] = (elem_q[15:0] < reduct_val[15:0]) ? elem_q[15:0] : reduct_val[15:0];
@@ -334,7 +334,7 @@ module vproc_elem #(
             end
             ELEM_VREDMIN: begin
                 result_d = reduct_val;
-                if (pipe_in_ctrl_i.vl_mask) begin
+                if (~pipe_in_ctrl_i.vl_part_0) begin
                     unique case (pipe_in_ctrl_i.eew)
                         VSEW_8:  result_d[7 :0] = ($signed(elem_q[7 :0]) < $signed(reduct_val[7 :0])) ? elem_q[7 :0] : reduct_val[7 :0];
                         VSEW_16: result_d[15:0] = ($signed(elem_q[15:0]) < $signed(reduct_val[15:0])) ? elem_q[15:0] : reduct_val[15:0];
@@ -347,7 +347,7 @@ module vproc_elem #(
             end
             ELEM_VREDMAXU: begin
                 result_d = reduct_val;
-                if (pipe_in_ctrl_i.vl_mask) begin
+                if (~pipe_in_ctrl_i.vl_part_0) begin
                     unique case (pipe_in_ctrl_i.eew)
                         VSEW_8:  result_d[7 :0] = (elem_q[7 :0] > reduct_val[7 :0]) ? elem_q[7 :0] : reduct_val[7 :0];
                         VSEW_16: result_d[15:0] = (elem_q[15:0] > reduct_val[15:0]) ? elem_q[15:0] : reduct_val[15:0];
@@ -360,7 +360,7 @@ module vproc_elem #(
             end
             ELEM_VREDMAX: begin
                 result_d = reduct_val;
-                if (pipe_in_ctrl_i.vl_mask) begin
+                if (~pipe_in_ctrl_i.vl_part_0) begin
                     unique case (pipe_in_ctrl_i.eew)
                         VSEW_8:  result_d[7 :0] = ($signed(elem_q[7 :0]) > $signed(reduct_val[7 :0])) ? elem_q[7 :0] : reduct_val[7 :0];
                         VSEW_16: result_d[15:0] = ($signed(elem_q[15:0]) > $signed(reduct_val[15:0])) ? elem_q[15:0] : reduct_val[15:0];

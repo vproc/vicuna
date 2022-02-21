@@ -191,10 +191,10 @@ module vproc_mul #(
     assign accumulator1_d    = pipe_in_op3_i;
     assign operand_mask_d    = pipe_in_mask_i;
 
-    // result byte mask:
-    logic [VREG_W-1:0] vl_mask;
-    assign vl_mask        = state_ex1_q.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_ex1_q.vl));
-    assign result_mask1_d = (state_ex1_q.mode.mul.masked ? operand_mask_q : {(MUL_OP_W/8){1'b1}}) & vl_mask[state_ex1_q.count.val*MUL_OP_W/8 +: MUL_OP_W/8];
+    // result byte mask
+    logic [MUL_OP_W/8-1:0] vl_mask;
+    assign vl_mask        = ~state_ex1_q.vl_part_0 ? ({(MUL_OP_W/8){1'b1}} >> (~state_ex1_q.vl_part)) : '0;
+    assign result_mask1_d = (state_ex1_q.mode.mul.masked ? operand_mask_q : {(MUL_OP_W/8){1'b1}}) & vl_mask;
 
     assign result_mask2_d = result_mask1_q;
     assign result_mask3_d = result_mask2_q;

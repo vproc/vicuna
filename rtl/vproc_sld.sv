@@ -179,10 +179,7 @@ module vproc_sld #(
         if (~pipe_in_ctrl_i.first_cycle & state_ex_q.op_flags[0].vreg) begin // state_ex_q.rs2.vreg) begin
             operand_low_valid_d = 1'b1;
             for (int i = 0; i < SLD_OP_W / 8; i++) begin
-                if (~pipe_in_ctrl_i.mode.sld.slide1 |
-                    (pipe_in_ctrl_i.count.val[$clog2(VREG_W/SLD_OP_W)+2:0] != pipe_in_ctrl_i.vl[CFG_VL_W-1:$clog2(SLD_OP_W/8)]) |
-                    (i <= pipe_in_ctrl_i.vl[$clog2(SLD_OP_W/8)-1:0])
-                ) begin
+                if (~pipe_in_ctrl_i.mode.sld.slide1 | (i <= pipe_in_ctrl_i.vl_part)) begin
                     operand_low_d[i*8 +: 8] = operand_high_q[i*8 +: 8];
                 end
             end
@@ -190,11 +187,10 @@ module vproc_sld #(
     end
     assign write_mask_d = v0msk_q;
 
-    logic [VREG_W    -1:0] vl_mask;
-    logic [SLD_OP_W/8-1:0] result_vl_mask, result_mask;
-    assign vl_mask        = state_res_q.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_res_q.vl));
-    assign result_vl_mask = vl_mask[state_res_q.count.val[$clog2(VREG_W/SLD_OP_W)+2:0]*SLD_OP_W/8 +: SLD_OP_W/8];
-    assign result_mask    = result_mask_q & result_vl_mask & (state_res_q.mode.sld.masked ? write_mask_q : {SLD_OP_W/8{1'b1}});
+    // result byte mask
+    logic [SLD_OP_W/8-1:0] vl_mask, result_mask;
+    assign vl_mask        = ~state_res_q.vl_part_0 ? ({(SLD_OP_W/8){1'b1}} >> (~state_res_q.vl_part)) : '0;
+    assign result_mask    = result_mask_q & (state_res_q.mode.sld.masked ? write_mask_q : {SLD_OP_W/8{1'b1}}) & vl_mask;
 
     assign pipe_out_valid_o = state_res_valid_q;
     assign pipe_out_ctrl_o  = state_res_q;

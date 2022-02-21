@@ -172,7 +172,8 @@ module vproc_pipeline #(
         cfg_vxrm                     vxrm;
         logic [CFG_VL_W-1:0]         vl;
         logic                        vl_0;
-        logic                        vl_mask;
+        logic [$clog2(MAX_OP_W/8)-1:0] vl_part;
+        logic                          vl_part_0;
         op_regs                      rs1;
         logic [4:0]                  vd;
         logic                        vd_narrow;
@@ -213,9 +214,6 @@ module vproc_pipeline #(
             EMUL_8: last_cycle = (state_q.count.part.mul[2:0] == '1) & (state_q.count.part.low == '1);
             default: ;
         endcase
-        if ((UNIT == UNIT_LSU) & state_q.count.val[$clog2(MAX_OP_W/8)-1:0] != '1) begin
-            last_cycle = '0;
-        end
         if ((UNIT == UNIT_SLD) & state_q.count.part.sign) begin
             last_cycle = '0;
         end
@@ -322,7 +320,6 @@ module vproc_pipeline #(
             state_d.vxrm           = vxrm_i;
             state_d.vl             = vl_i;
             state_d.vl_0           = vl_0_i;
-            state_d.vl_mask        = ~vl_0_i;
             state_d.rs1            = rs1_i;
             state_d.rs1            = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) ? rs2_i : rs1_i;
             state_d.rs1.vreg       = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) | rs1_i.vreg;
@@ -551,7 +548,15 @@ module vproc_pipeline #(
         state_init_valid      = state_valid_q;
         state_init            = state_q;
         state_init.last_cycle = state_valid_q & last_cycle;
-        state_init.vl_mask    = ~state_q.vl_0 & (CFG_VL_W'(state_q.count.val) <= state_q.vl);
+        // TODO consider only the relevant counter bits for vl_part (i.e., for element-wise access,
+        // the lower counter bits should be ignored for EEW > 8; also, the stride bits should be
+        // ignored for LSU operation)
+        state_init.vl_part    = (state_q.count.val == state_q.vl[CFG_VL_W-1:$clog2(SMALLEST_OP_W/8)]) ? state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
+        state_init.vl_part_0  = (state_q.count.val >  state_q.vl[CFG_VL_W-1:$clog2(SMALLEST_OP_W/8)]) | state_q.vl_0;
+        if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
+            state_init.vl_part    = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) ? state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
+            state_init.vl_part_0  = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] >  state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) | state_q.vl_0;
+        end
         state_init.vd_store   = '0;
         if (state_q.count.part.low == '1) begin
             unique case (UNIT)

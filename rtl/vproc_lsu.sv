@@ -78,8 +78,8 @@ module vproc_lsu #(
         logic                last_cycle;
         logic [XIF_ID_W-1:0] id;
         op_mode_lsu          mode;
-        logic [CFG_VL_W-1:0] vl;
-        logic                vl_0;
+        logic [$clog2(VMEM_W/8)-1:0] vl_part;
+        logic                vl_part_0;
         logic [4:0]          vd;
         logic                vd_store;
         logic                exc;
@@ -245,17 +245,17 @@ module vproc_lsu #(
     assign vmsk_tmp_d = vmsk_data;
 
     // write data conversion and masking:
-    logic [VREG_W-1:0] wdata_unit_vl_mask;
-    logic              wdata_stri_mask;
-    assign wdata_unit_vl_mask =   state_req_d.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_req_d.vl));
-    assign wdata_stri_mask    = (~state_req_d.vl_0 & (state_req_d.count.val <= state_req_d.vl)) &
+    logic [VMEM_W/8-1:0] wdata_unit_vl_mask;
+    logic                wdata_stri_mask;
+    assign wdata_unit_vl_mask = ~state_req_d.vl_part_0 ? ({(VMEM_W/8){1'b1}} >> (~state_req_d.vl_part)) : '0;
+    assign wdata_stri_mask    = ~state_req_d.vl_part_0 &
                                 (state_req_d.mode.lsu.masked ? vmsk_data[0] : 1'b1);
     always_comb begin
         wdata_buf_d = DONT_CARE_ZERO ? '0 : 'x;
         wmask_buf_d = DONT_CARE_ZERO ? '0 : 'x;
         if (state_req_d.mode.lsu.stride == LSU_UNITSTRIDE) begin
             wdata_buf_d = vs3_data[VMEM_W-1:0];
-            wmask_buf_d = (state_req_d.mode.lsu.masked ? vmsk_data : '1) & wdata_unit_vl_mask[state_req_d.count.val[LSU_COUNTER_W-1:LSU_STRI_COUNTER_EXT_W]*VMEM_W/8 +: VMEM_W/8];
+            wmask_buf_d = (state_req_d.mode.lsu.masked ? vmsk_data : '1) & wdata_unit_vl_mask;
         end else begin
             unique case (state_req_d.mode.lsu.eew)
                 VSEW_8: begin
@@ -308,8 +308,8 @@ module vproc_lsu #(
         state_req_red.last_cycle  = state_req_q.last_cycle;
         state_req_red.id          = state_req_q.id;
         state_req_red.mode        = state_req_q.mode.lsu;
-        state_req_red.vl          = state_req_q.vl;
-        state_req_red.vl_0        = state_req_q.vl_0;
+        state_req_red.vl_part     = state_req_q.vl_part;
+        state_req_red.vl_part_0   = state_req_q.vl_part_0;
         state_req_red.vd          = state_req_q.vd;
         state_req_red.vd_store    = state_req_q.vd_store;
         state_req_red.exc         = xif_mem_if.mem_resp.exc;
@@ -365,12 +365,11 @@ module vproc_lsu #(
     assign rdata_buf_d = xif_memres_if.mem_result.rdata;
 
     // load data conversion:
-    logic [VREG_W  -1:0] rdata_unit_vl_mask;
-    logic [VMEM_W/8-1:0] rdata_unit_vdmsk;
-    assign rdata_unit_vl_mask = state_rdata_q.vl_0 ? {VREG_W{1'b0}} : ({VREG_W{1'b1}} >> (~state_rdata_q.vl));
-    assign rdata_unit_vdmsk   = (state_rdata_q.mode.masked ? rmask_buf_q : {VMEM_W/8{1'b1}}) & rdata_unit_vl_mask[state_rdata_q.count.val[LSU_COUNTER_W-1:LSU_STRI_COUNTER_EXT_W]*VMEM_W/8 +: VMEM_W/8];
+    logic [VMEM_W/8-1:0] rdata_unit_vl_mask, rdata_unit_vdmsk;
     logic rdata_stri_vdmsk;
-    assign rdata_stri_vdmsk = (~state_rdata_q.vl_0 & (state_rdata_q.count.val <= state_rdata_q.vl)) & (state_rdata_q.mode.masked ? rmask_buf_q[0] : 1'b1);
+    assign rdata_unit_vl_mask = ~state_rdata_q.vl_part_0 ? ({(VMEM_W/8){1'b1}} >> (~state_rdata_q.vl_part)) : '0;
+    assign rdata_unit_vdmsk   = (state_rdata_q.mode.masked ? rmask_buf_q : {VMEM_W/8{1'b1}}) & rdata_unit_vl_mask;
+    assign rdata_stri_vdmsk   = ~state_rdata_q.vl_part_0 & (state_rdata_q.mode.masked ? rmask_buf_q[0] : 1'b1);
 
     assign pipe_out_valid_o = state_rdata_valid_q;
     always_comb begin
@@ -381,8 +380,8 @@ module vproc_lsu #(
         pipe_out_ctrl_o.id           = state_rdata_q.id;
         pipe_out_ctrl_o.mode.lsu     = state_rdata_q.mode;
         pipe_out_ctrl_o.eew          = state_rdata_q.mode.eew;
-        pipe_out_ctrl_o.vl           = state_rdata_q.vl;
-        pipe_out_ctrl_o.vl_0         = state_rdata_q.vl_0;
+        pipe_out_ctrl_o.vl_part      = state_rdata_q.vl_part;
+        pipe_out_ctrl_o.vl_part_0    = state_rdata_q.vl_part_0;
         pipe_out_ctrl_o.vd           = state_rdata_q.vd;
         pipe_out_ctrl_o.vd_store     = state_rdata_q.vd_store & ~state_rdata_q.exc;
     end
