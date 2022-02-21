@@ -105,6 +105,32 @@ module vproc_pipeline #(
     localparam int unsigned MAX_WR_DELAY = (1 << (MAX_WR_ATTEMPTS - 1)) - 1;
 
 
+    localparam bit [2:0] VPORT_ADDR_ZERO    = (UNIT == UNIT_MUL) ? 3'b100 : 3'b10;
+    localparam bit [2:0] VPORT_BUFFER       = (UNIT == UNIT_MUL) ? 3'b001 : 3'b01;
+
+    localparam bit [3:0] OP_ADDR_OFFSET_OP0 =  (UNIT == UNIT_ELEM) ? 4'b0100 : '0;
+    localparam bit [3:0] OP_MASK            =  (UNIT == UNIT_MUL ) ? 4'b1000 : (
+                                               (UNIT == UNIT_ELEM) ? 4'b1010 : (
+                                               (UNIT == UNIT_SLD ) ? 4'b10   :
+                                                                     4'b100
+                                              ));
+    localparam bit [3:0] OP_XREG            = ((UNIT == UNIT_MUL ) | (UNIT == UNIT_ALU)) ? 4'b0001 : '0;
+    localparam bit [3:0] OP_NARROW          = ((UNIT == UNIT_MUL ) | (UNIT == UNIT_ALU)) ? 4'b0011 : (
+                                              ( UNIT == UNIT_ELEM                      ) ? 4'b0001 :
+                                                                                            '0
+                                              );
+    localparam bit [3:0] OP_ALLOW_ELEMWISE  =  (UNIT == UNIT_LSU ) ? 4'b110  : '0;
+    localparam bit [3:0] OP_ALWAYS_ELEMWISE =  (UNIT == UNIT_LSU ) ? 4'b001  : (
+                                               (UNIT == UNIT_ELEM) ? 4'b1111 :
+                                                                      '0
+                                              );
+    localparam bit [3:0] OP_HOLD_FLAG       =  (UNIT == UNIT_ELEM) ? 4'b0001 : '0;
+
+
+    // Select operands that are always vector registers and always used (avoids check for vreg flag)
+    localparam bit [3:0] OP_ALWAYS_VREG   = '0;
+
+
     ///////////////////////////////////////////////////////////////////////////
     // STATE LOGIC
 
@@ -163,6 +189,12 @@ module vproc_pipeline #(
         logic [4:0]                  vd;
         logic                        vd_narrow;
         logic                        vd_store;
+
+
+        unpack_flags [OP_CNT-1:0]       op_flags;
+        logic        [OP_CNT-1:0]       op_load;
+        logic        [OP_CNT-1:0][4 :0] op_vaddr;
+        logic        [OP_CNT-1:0][31:0] op_xval;
     } ctrl_t;
 
     logic        state_valid_q,  state_valid_d;
@@ -358,6 +390,57 @@ module vproc_pipeline #(
             state_d.vd_narrow    = (UNIT == UNIT_ALU) ? (widenarrow_i == OP_NARROWING) : '0;
             state_d.vd_store     = 1'b0;
             vreg_pend_wr_d       = vreg_pend_wr_i;
+
+
+            state_d.op_flags[0]        = unpack_flags'('0);
+            state_d.op_flags[1]        = unpack_flags'('0);
+            state_d.op_flags[OP_CNT-2] = unpack_flags'('0);
+            state_d.op_flags[OP_CNT-1] = unpack_flags'('0);
+            if ((UNIT == UNIT_LSU) | (UNIT == UNIT_SLD)) begin
+                state_d.op_flags[0].vreg     = rs2_i.vreg;
+                state_d.op_load [0]          = OP_ALWAYS_VREG[0] | rs2_i.vreg;
+                state_d.op_vaddr[0]          = rs2_i.r.vaddr;
+                state_d.op_xval [0]          = rs2_i.r.xval;
+                state_d.op_flags[1].vreg     = mode_i.lsu.store;
+                state_d.op_load [1]          = mode_i.lsu.store;
+                state_d.op_vaddr[1]          = vd_i;
+            end else begin
+                state_d.op_flags[0].vreg     = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) | rs1_i.vreg;
+                state_d.op_flags[0].narrow   = widenarrow_i != OP_SINGLEWIDTH;
+                state_d.op_flags[0].sigext   = ((UNIT == UNIT_ALU) & mode_i.alu.sigext) | ((UNIT == UNIT_MUL) & mode_i.mul.op1_signed) | ((UNIT == UNIT_ELEM) & mode_i.elem.sigext);
+                //state_d.op_load [0]          = OP_ALWAYS_VREG[0] | rs1_i.vreg;
+                state_d.op_load [0]          = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) | rs1_i.vreg;
+                //state_d.op_vaddr[0]          = rs1_i.r.vaddr;
+                state_d.op_vaddr[0]          = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) ? rs2_i.r.vaddr : rs1_i.r.vaddr;
+                state_d.op_xval [0]          = rs1_i.r.xval;
+                state_d.op_flags[1].vreg     = rs2_i.vreg;
+                state_d.op_flags[1].narrow   = widenarrow_i == OP_WIDENING;
+                state_d.op_flags[1].sigext   = ((UNIT == UNIT_ALU) & mode_i.alu.sigext) | ((UNIT == UNIT_MUL) & mode_i.mul.op2_signed);
+                state_d.op_load [1]          = OP_ALWAYS_VREG[1] | rs2_i.vreg;
+                //state_d.op_vaddr[1]          = rs2_i.r.vaddr;
+                state_d.op_vaddr[1]          = ((UNIT == UNIT_ELEM) & op_reduction) ? rs1_i.r.vaddr : rs2_i.r.vaddr;
+                if (UNIT == UNIT_MUL) begin
+                    state_d.op_vaddr[1]             = mode_i.mul.op2_is_vd ? vd_i : rs2_i.r.vaddr;
+                    state_d.op_flags[OP_CNT-2].vreg = mode_i.mul.op == MUL_VMACC;
+                    state_d.op_load [OP_CNT-2]      = mode_i.mul.op == MUL_VMACC;
+                    state_d.op_vaddr[OP_CNT-2]      = mode_i.mul.op2_is_vd ? rs2_i.r.vaddr : vd_i;
+                end
+                if (UNIT == UNIT_ELEM) begin
+                    state_d.op_flags[1].vreg        = (((UNIT == UNIT_ELEM) & op_reduction) | rs2_i.vreg) & (mode_i.elem.op != ELEM_VRGATHER);
+                    state_d.op_load [1]             = (((UNIT == UNIT_ELEM) & op_reduction) | rs2_i.vreg) & (mode_i.elem.op != ELEM_VRGATHER);
+                    state_d.op_flags[OP_CNT-2].vreg = mode_i.elem.op == ELEM_VRGATHER;
+                    state_d.op_load [OP_CNT-2]      = mode_i.elem.op == ELEM_VRGATHER;
+                end
+            end
+            unique case (UNIT)
+                UNIT_LSU:  state_d.op_load[OP_CNT-1] = mode_i.lsu.masked;
+                UNIT_ALU:  state_d.op_load[OP_CNT-1] = mode_i.alu.op_mask != ALU_MASK_NONE;
+                UNIT_MUL:  state_d.op_load[OP_CNT-1] = mode_i.mul.masked;
+                UNIT_SLD:  state_d.op_load[OP_CNT-1] = mode_i.sld.masked;
+                UNIT_ELEM: state_d.op_load[OP_CNT-1] = mode_i.elem.masked;
+                default: ;
+            endcase
+            state_d.op_flags[OP_CNT-1].elemwise = (UNIT == UNIT_LSU) & (mode_i.lsu.stride != LSU_UNITSTRIDE);
         end
         else if (state_valid_q & pipeline_ready) begin
             if (UNIT == UNIT_LSU) begin
@@ -496,6 +579,52 @@ module vproc_pipeline #(
                 state_d.rs2.vreg = slide_fetch; // set vs2 valid bit after fetch
             end
             state_d.vs3_shift = (UNIT == UNIT_LSU) & (state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1);
+
+
+            for (int i = 0; i < OP_CNT; i++) begin
+                state_d.op_load [i]       = '0;
+                state_d.op_flags[i].shift = '0;
+                if (OP_ADDR_OFFSET_OP0[i]) begin
+                    if (state_q.aux_count == '1) begin
+                        state_d.op_load[i] = OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg;
+                    end
+                    state_d.op_flags[i].shift = 1'b1;
+                end
+                else if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
+                    if (~OP_MASK[i]) begin
+                        if ((state_q.count.part.low == '1) & (
+                            ~OP_NARROW[i] | ~state_q.op_flags[i].narrow | state_q.count.part.mul[0]
+                        )) begin
+                            state_d.op_load [i] = (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) &
+                                                  ((UNIT != UNIT_ELEM) | ~last_cycle); // may need flushing
+
+                            if (UNIT != UNIT_SLD) begin
+                                state_d.op_vaddr[i] = state_q.op_vaddr[i] + 1;
+                            end
+                        end
+
+                        // Operands are shifted after OP_W bits have been consumed.
+                        if ((state_q.count.val | ({COUNTER_W{1'b1}} << $clog2(OP_W[i] / SMALLEST_OP_W))) == '1) begin
+                            state_d.op_flags[i].shift = ~OP_NARROW[i] | ~state_q.op_flags[i].narrow |
+                                                        state_q.count.val[$clog2(OP_W[i] / SMALLEST_OP_W)];
+                        end
+                    end else begin
+                        // Masks are only fetched in the first cycle but never anytime later
+                        if ((state_q.count.val | ({COUNTER_W{1'b1}} << $clog2(OP_W[i] / (SMALLEST_OP_W / 8)))) == '1) begin
+                            state_d.op_flags[i].shift = DONT_CARE_ZERO ? '0 : 'x;
+                            unique case (state_q.eew)
+                                VSEW_8:  state_d.op_flags[i].shift = 1'b1;
+                                VSEW_16: state_d.op_flags[i].shift = state_q.count.val[$clog2(OP_W[i] / (SMALLEST_OP_W / 8))];
+                                VSEW_32: state_d.op_flags[i].shift = state_q.count.val[$clog2(OP_W[i] / (SMALLEST_OP_W / 8)) +: 2] == '1;
+                                default: ;
+                            endcase
+                        end
+                    end
+                end
+                if ((OP_ADDR_OFFSET_OP0 != '0) & ~OP_ADDR_OFFSET_OP0[i]) begin
+                    state_d.op_flags[i].hold = state_q.aux_count != '1;
+                end
+            end
         end
     end
 
@@ -531,6 +660,15 @@ module vproc_pipeline #(
             endcase
             state_init.rs2.vreg  = slide_fetch | state_q.rs2.vreg;
             state_init.vs2_fetch = slide_fetch;
+
+            unique case (state_q.emul)
+                EMUL_2: state_init.op_vaddr[0][0:0] = slide_mul_diff[0:0];
+                EMUL_4: state_init.op_vaddr[0][1:0] = slide_mul_diff[1:0];
+                EMUL_8: state_init.op_vaddr[0][2:0] = slide_mul_diff[2:0];
+                default: ;
+            endcase
+            state_init.op_flags[0].vreg  = slide_fetch | state_q.rs2.vreg;
+            state_init.op_load [0]       = slide_fetch;
         end
 
         // Determine whether there is a pending read of v0 as a mask
@@ -767,107 +905,7 @@ module vproc_pipeline #(
     ///////////////////////////////////////////////////////////////////////////
     // REGISTER READ/WRITE AND UNIT INSTANTIATION
 
-    logic        [OP_CNT-1:0]       unpack_op_load;
-    logic        [OP_CNT-1:0][4 :0] unpack_op_vaddr;
-    unpack_flags [OP_CNT-1:0]       unpack_op_flags;
-    logic        [OP_CNT-1:0][31:0] unpack_op_xval;
-    generate
-        if (OP_CNT == 2) begin
-            always_comb begin
-                unpack_op_flags[0]          = unpack_flags'('0);
-                unpack_op_flags[0].shift    = 1'b1;
-                unpack_op_load [0]          = state_init.vs2_fetch;
-                unpack_op_flags[0].elemwise = '0;
-                unpack_op_vaddr[0]          = state_init.rs2.r.vaddr;
-                unpack_op_xval [0]          = '0;
-            end
-        end else begin
-            always_comb begin
-                unpack_op_load [0]          = state_init.vs1_fetch;
-                unpack_op_vaddr[0]          = state_init.rs1.r.vaddr;
-                unpack_op_flags[0]          = unpack_flags'('0);
-                unpack_op_flags[0].shift    = state_init.vs1_shift;
-                unpack_op_xval [0]          = state_init.rs1.r.xval;
-                unpack_op_load [1]          = state_init.vs2_fetch;
-                unpack_op_vaddr[1]          = state_init.rs2.r.vaddr;
-                unpack_op_flags[1]          = unpack_flags'('0);
-                unpack_op_flags[1].shift    = state_init.vs2_shift;
-                unpack_op_xval [1]          = '0;
-                if (UNIT == UNIT_LSU) begin
-                    unpack_op_load [0]          = state_init.vs2_fetch;
-                    unpack_op_vaddr[0]          = state_init.rs2.r.vaddr;
-                    unpack_op_flags[0].shift    = state_init.vs2_shift;
-                    unpack_op_load [1]          = state_init.vs3_fetch;
-                    unpack_op_vaddr[1]          = state_init.vd;
-                    unpack_op_flags[1].shift    = state_init.vs3_shift;
-                end
-                else if (UNIT == UNIT_ALU) begin
-                    unpack_op_flags[0].vreg     = state_init.rs1.vreg;
-                    unpack_op_flags[0].narrow   = state_init.vs1_narrow;
-                    unpack_op_flags[0].sigext   = state_init.mode.alu.sigext;
-                    unpack_op_flags[1].narrow   = state_init.vs2_narrow;
-                    unpack_op_flags[1].sigext   = state_init.mode.alu.sigext;
-                end
-                else if (UNIT == UNIT_MUL) begin
-                    unpack_op_flags[0].vreg     = state_init.rs1.vreg;
-                    unpack_op_flags[0].narrow   = state_init.vs1_narrow;
-                    unpack_op_flags[0].sigext   = state_init.mode.mul.op1_signed;
-                    unpack_op_flags[1].narrow   = state_init.vs2_narrow;
-                    unpack_op_flags[1].sigext   = state_init.mode.mul.op2_signed;
-                    unpack_op_vaddr[1]          = state_init.mode.mul.op2_is_vd ? state_init.vd : state_init.rs2.r.vaddr;
-                    unpack_op_load [2]          = state_init.vs3_fetch;
-                    unpack_op_vaddr[2]          = state_init.mode.mul.op2_is_vd ? state_init.rs2.r.vaddr : state_init.vd;
-                    unpack_op_flags[2]          = unpack_flags'('0);
-                    unpack_op_flags[2].shift    = 1'b1;
-                    unpack_op_flags[2].elemwise = '0;
-                    unpack_op_flags[2].narrow   = '0;
-                    unpack_op_flags[2].sigext   = '0;
-                    unpack_op_xval [2]          = '0;
-                end
-                else if (UNIT == UNIT_ELEM) begin
-                    unpack_op_flags[0].shift    = state_init.vs1_shift & state_init.gather_fetch;
-                    unpack_op_flags[0].hold     = ~state_init.gather_fetch;
-                    unpack_op_flags[0].elemwise = '0;
-                    unpack_op_flags[0].narrow   = state_init.vs1_narrow;
-                    unpack_op_flags[0].sigext   = state_init.mode.elem.sigext;
-                    unpack_op_load [1]          = state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.elem.op != ELEM_VRGATHER);
-                    unpack_op_flags[2]          = unpack_flags'('0);
-                    unpack_op_load [2]          = state_init.gather_fetch & (state_init.mode.elem.op == ELEM_VRGATHER);
-                    unpack_op_flags[2].shift    = 1'b1;
-                    unpack_op_flags[2].elemwise = '0;
-                end
-            end
-        end
-        always_comb begin
-            unpack_op_load [OP_CNT-1]          = state_init.v0msk_fetch & state_init_masked;
-            unpack_op_vaddr[OP_CNT-1]          = '0;
-            unpack_op_flags[OP_CNT-1]          = unpack_flags'('0);
-            unpack_op_flags[OP_CNT-1].shift    = (UNIT == UNIT_ELEM) ? 1'b1 : state_init.v0msk_shift;
-            unpack_op_flags[OP_CNT-1].elemwise = (UNIT == UNIT_LSU) & (state_init.mode.lsu.stride != LSU_UNITSTRIDE);
-            unpack_op_xval [OP_CNT-1]          = '0;
-        end
-    endgenerate
 
-    localparam bit [2:0]    UNPACK_VPORT_ADDR_ZERO    = (UNIT == UNIT_MUL) ? 3'b100 : 3'b10;
-    localparam bit [2:0]    UNPACK_VPORT_BUFFER       = (UNIT == UNIT_MUL) ? 3'b001 : 3'b01;
-
-    localparam bit [3:0]    UNPACK_OP_ADDR_OFFSET_OP0 =  (UNIT == UNIT_ELEM) ? 4'b0100 : '0;
-    localparam bit [3:0]    UNPACK_OP_MASK            =  (UNIT == UNIT_MUL ) ? 4'b1000 : (
-                                                         (UNIT == UNIT_ELEM) ? 4'b1010 : (
-                                                         (UNIT == UNIT_SLD ) ? 4'b10   :
-                                                                               4'b100
-                                                        ));
-    localparam bit [3:0]    UNPACK_OP_XREG            = ((UNIT == UNIT_MUL ) | (UNIT == UNIT_ALU)) ? 4'b0001 : '0;
-    localparam bit [3:0]    UNPACK_OP_NARROW          = ((UNIT == UNIT_MUL ) | (UNIT == UNIT_ALU)) ? 4'b0011 : (
-                                                        ( UNIT == UNIT_ELEM                      ) ? 4'b0001 :
-                                                                                                      '0
-                                                        );
-    localparam bit [3:0]    UNPACK_OP_ALLOW_ELEMWISE  =  (UNIT == UNIT_LSU ) ? 4'b110  : '0;
-    localparam bit [3:0]    UNPACK_OP_ALWAYS_ELEMWISE =  (UNIT == UNIT_LSU ) ? 4'b001  : (
-                                                         (UNIT == UNIT_ELEM) ? 4'b1111 :
-                                                                                '0
-                                                        );
-    localparam bit [3:0]    UNPACK_OP_HOLD_FLAG       =  (UNIT == UNIT_ELEM) ? 4'b0001 : '0;
 
     logic [VPORT_CNT-1:0][4:0]          unpack_vreg_addr;
     logic [VPORT_CNT-1:0][VREG_W  -1:0] unpack_vreg_data;
@@ -881,20 +919,20 @@ module vproc_pipeline #(
         .VPORT_CNT            ( VPORT_CNT                             ),
         .VPORT_W              ( VPORT_W                               ),
         .VADDR_W              ( VADDR_W                               ),
-        .VPORT_ADDR_ZERO      ( UNPACK_VPORT_ADDR_ZERO[VPORT_CNT-1:0] ),
-        .VPORT_BUFFER         ( UNPACK_VPORT_BUFFER   [VPORT_CNT-1:0] ),
+        .VPORT_ADDR_ZERO      ( VPORT_ADDR_ZERO[VPORT_CNT-1:0]        ),
+        .VPORT_BUFFER         ( VPORT_BUFFER   [VPORT_CNT-1:0]        ),
         .MAX_OP_W             ( MAX_OP_W                              ),
         .OP_CNT               ( OP_CNT                                ),
         .OP_W                 ( OP_W                                  ),
         .OP_STAGE             ( OP_STAGE                              ),
         .OP_SRC               ( OP_SRC                                ),
-        .OP_ADDR_OFFSET_OP0   ( UNPACK_OP_ADDR_OFFSET_OP0[OP_CNT-1:0] ),
-        .OP_MASK              ( UNPACK_OP_MASK           [OP_CNT-1:0] ),
-        .OP_XREG              ( UNPACK_OP_XREG           [OP_CNT-1:0] ),
-        .OP_NARROW            ( UNPACK_OP_NARROW         [OP_CNT-1:0] ),
-        .OP_ALLOW_ELEMWISE    ( UNPACK_OP_ALLOW_ELEMWISE [OP_CNT-1:0] ),
-        .OP_ALWAYS_ELEMWISE   ( UNPACK_OP_ALWAYS_ELEMWISE[OP_CNT-1:0] ),
-        .OP_HOLD_FLAG         ( UNPACK_OP_HOLD_FLAG      [OP_CNT-1:0] ),
+        .OP_ADDR_OFFSET_OP0   ( OP_ADDR_OFFSET_OP0[OP_CNT-1:0]        ),
+        .OP_MASK              ( OP_MASK           [OP_CNT-1:0]        ),
+        .OP_XREG              ( OP_XREG           [OP_CNT-1:0]        ),
+        .OP_NARROW            ( OP_NARROW         [OP_CNT-1:0]        ),
+        .OP_ALLOW_ELEMWISE    ( OP_ALLOW_ELEMWISE [OP_CNT-1:0]        ),
+        .OP_ALWAYS_ELEMWISE   ( OP_ALWAYS_ELEMWISE[OP_CNT-1:0]        ),
+        .OP_HOLD_FLAG         ( OP_HOLD_FLAG      [OP_CNT-1:0]        ),
         .UNPACK_STAGES        ( UNPACK_STAGES                         ),
         .FLAGS_T              ( unpack_flags                          ),
         .CTRL_DATA_W          ( $bits(ctrl_t)                         ),
@@ -909,10 +947,10 @@ module vproc_pipeline #(
         .pipe_in_ready_o      ( unpack_ready                          ),
         .pipe_in_ctrl_i       ( state_init                            ),
         .pipe_in_eew_i        ( state_init.eew                        ),
-        .pipe_in_op_load_i    ( unpack_op_load                        ),
-        .pipe_in_op_vaddr_i   ( unpack_op_vaddr                       ),
-        .pipe_in_op_flags_i   ( unpack_op_flags                       ),
-        .pipe_in_op_xval_i    ( unpack_op_xval                        ),
+        .pipe_in_op_load_i    ( state_init.op_load                    ),
+        .pipe_in_op_vaddr_i   ( state_init.op_vaddr                   ),
+        .pipe_in_op_flags_i   ( state_init.op_flags                   ),
+        .pipe_in_op_xval_i    ( state_init.op_xval                    ),
         .pipe_out_valid_o     ( unpack_out_valid                      ),
         .pipe_out_ready_i     ( unpack_out_ready                      ),
         .pipe_out_ctrl_o      ( unpack_out_ctrl                       ),
