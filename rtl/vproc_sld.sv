@@ -176,7 +176,7 @@ module vproc_sld #(
             end
             default: ;
         endcase
-        if (~pipe_in_ctrl_i.first_cycle & state_ex_q.rs2.vreg) begin
+        if (~pipe_in_ctrl_i.first_cycle & state_ex_q.op_flags[0].vreg) begin // state_ex_q.rs2.vreg) begin
             operand_low_valid_d = 1'b1;
             for (int i = 0; i < SLD_OP_W / 8; i++) begin
                 if (~pipe_in_ctrl_i.mode.sld.slide1 |
@@ -218,7 +218,7 @@ module vproc_sld #(
                 result_mask_d[i]        = operand_low_valid_q;
             end else begin
                 result_d     [i*8 +: 8] = operand_high_q[($clog2(SLD_OP_W)'(             i) - {3'b000, slide_bytes}) * 8 +: 8];
-                result_mask_d[i]        = state_ex_q.rs2.vreg;
+                result_mask_d[i]        = state_ex_q.op_flags[0].vreg; // state_ex_q.rs2.vreg;
             end
         end
 

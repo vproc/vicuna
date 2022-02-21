@@ -174,18 +174,6 @@ module vproc_pipeline #(
         logic                        vl_0;
         logic                        vl_mask;
         op_regs                      rs1;
-        logic                        vs1_narrow;
-        logic                        vs1_fetch;
-        logic                        vs1_shift;
-        op_regs                      rs2;
-        logic                        vs2_narrow;
-        logic                        vs2_fetch;
-        logic                        vs2_shift;
-        logic                        v0msk_fetch;
-        logic                        v0msk_shift;
-        logic                        vs3_fetch;
-        logic                        vs3_shift;
-        logic                        gather_fetch;
         logic [4:0]                  vd;
         logic                        vd_narrow;
         logic                        vd_store;
@@ -370,22 +358,6 @@ module vproc_pipeline #(
                     endcase
                 end
             end
-            state_d.vs1_narrow  = widenarrow_i != OP_SINGLEWIDTH;
-            state_d.vs1_fetch   = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) | rs1_i.vreg;
-            //state_d.vs1_shift   = 1'b1;
-            state_d.rs2         = ((UNIT == UNIT_ELEM) & op_reduction) ? rs1_i : rs2_i;
-            state_d.rs2.vreg    = ((UNIT == UNIT_ELEM) & op_reduction) | rs2_i.vreg;
-            if (UNIT == UNIT_SLD) begin
-                state_d.rs2.vreg = 1'b0; // use vreg bit as valid signal
-            end
-            state_d.vs2_narrow   = widenarrow_i == OP_WIDENING;
-            state_d.vs2_fetch    = ((UNIT == UNIT_LSU) | (UNIT == UNIT_ALU)) ? rs2_i.vreg : 1'b1;
-            //state_d.vs2_shift   = 1'b1;
-            state_d.v0msk_fetch  = (UNIT == UNIT_SLD) ? (mode_i.sld.dir == SLD_UP) : 1'b1;
-            //state_d.v0msk_shift = 1'b1;
-            state_d.vs3_fetch    = (UNIT == UNIT_LSU) ? mode_i.lsu.store : (
-                                   (UNIT == UNIT_MUL) ? (mode_i.mul.op == MUL_VMACC) : '0);
-            state_d.gather_fetch = 1'b1;
             state_d.vd           = vd_i;
             state_d.vd_narrow    = (UNIT == UNIT_ALU) ? (widenarrow_i == OP_NARROWING) : '0;
             state_d.vd_store     = 1'b0;
@@ -397,7 +369,7 @@ module vproc_pipeline #(
             state_d.op_flags[OP_CNT-2] = unpack_flags'('0);
             state_d.op_flags[OP_CNT-1] = unpack_flags'('0);
             if ((UNIT == UNIT_LSU) | (UNIT == UNIT_SLD)) begin
-                state_d.op_flags[0].vreg     = rs2_i.vreg;
+                state_d.op_flags[0].vreg     = (UNIT != UNIT_SLD) & rs2_i.vreg;
                 state_d.op_load [0]          = OP_ALWAYS_VREG[0] | rs2_i.vreg;
                 state_d.op_vaddr[0]          = rs2_i.r.vaddr;
                 state_d.op_xval [0]          = rs2_i.r.xval;
@@ -430,6 +402,7 @@ module vproc_pipeline #(
                     state_d.op_load [1]             = (((UNIT == UNIT_ELEM) & op_reduction) | rs2_i.vreg) & (mode_i.elem.op != ELEM_VRGATHER);
                     state_d.op_flags[OP_CNT-2].vreg = mode_i.elem.op == ELEM_VRGATHER;
                     state_d.op_load [OP_CNT-2]      = mode_i.elem.op == ELEM_VRGATHER;
+                    state_d.op_vaddr[OP_CNT-2]      = rs2_i.r.vaddr;
                 end
             end
             unique case (UNIT)
@@ -457,7 +430,7 @@ module vproc_pipeline #(
                 end
                 unique case (state_q.mode.lsu.stride)
                     LSU_UNITSTRIDE: state_d.rs1.r.xval = state_q.rs1.r.xval + (MAX_OP_W / 8);
-                    LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.rs2.r.xval;
+                    LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.op_xval[0];
                     default: ; // for indexed loads the base address stays the same
                 endcase
             end
@@ -493,22 +466,8 @@ module vproc_pipeline #(
                 state_d.count.val = state_q.count.val + 1;
             end
             state_d.first_cycle  = 1'b0;
-            state_d.vs1_fetch    = 1'b0;
-            state_d.vs2_fetch    = 1'b0;
-            state_d.vs3_fetch    = 1'b0;
-            state_d.gather_fetch = 1'b0;
             state_d.vd_store     = 1'b0;
             if ((state_q.count.part.low == '1) & ((UNIT != UNIT_ELEM) | state_q.aux_count == '1)) begin
-                if ((UNIT != UNIT_LSU) & state_q.rs1.vreg & (~state_q.vs1_narrow | state_q.count.part.mul[0])) begin
-                    state_d.rs1.r.vaddr[2:0] = state_q.rs1.r.vaddr[2:0] + 3'b1;
-                    state_d.vs1_fetch        = state_q.rs1.vreg & ((UNIT != UNIT_ELEM) | ~last_cycle);
-                end
-                if ((UNIT != UNIT_SLD) & (UNIT != UNIT_ELEM) & (~state_q.vs2_narrow | state_q.count.part.mul[0])) begin
-                    if ((UNIT != UNIT_LSU) | state_q.rs2.vreg) begin
-                        state_d.rs2.r.vaddr[2:0] = state_q.rs2.r.vaddr[2:0] + 3'b1;
-                        state_d.vs2_fetch        = state_q.rs2.vreg;
-                    end
-                end
                 unique case (UNIT)
                     UNIT_LSU: begin
                         state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
@@ -524,61 +483,10 @@ module vproc_pipeline #(
                     end
                     default: ;
                 endcase
-                state_d.vs3_fetch = (UNIT == UNIT_MUL) ? (state_q.mode.mul.op == MUL_VMACC) : '0;
-                if (UNIT == UNIT_LSU) begin
-                    state_d.vs3_fetch = state_q.mode.lsu.store;
-                end
-            end
-            if (UNIT == UNIT_LSU) begin
-                unique case (state_q.mode.lsu.eew)
-                    VSEW_8:  state_d.vs2_shift = state_q.count.val[1:0] == '1;
-                    VSEW_16: state_d.vs2_shift = state_q.count.val[1  ];
-                    VSEW_32: state_d.vs2_shift = 1'b1;
-                    default: ;
-                endcase
-            end
-            else if (UNIT == UNIT_ELEM) begin
-                if (~state_q.vs1_narrow) begin
-                    state_d.vs1_shift = state_q.count.val[1:0] == '1;
-                end else begin
-                    state_d.vs1_shift = state_q.count.val[2:0] == '1;
-                end
-                state_d.vs2_shift = DONT_CARE_ZERO ? '0 : 'x;
-                case (state_q.eew)
-                    VSEW_8:  state_d.vs2_shift = 5'(state_q.count) == '1;
-                    VSEW_16: state_d.vs2_shift = 6'(state_q.count) == '1;
-                    VSEW_32: state_d.vs2_shift = 7'(state_q.count) == '1;
-                    default: ;
-                endcase
-            end else begin
-                state_d.vs1_shift = ~state_q.vs1_narrow | state_q.count.part.low[0];
-                state_d.vs2_shift = ~state_q.vs2_narrow | state_q.count.part.low[0];
-            end
-            state_d.gather_fetch = (UNIT == UNIT_ELEM) & (state_q.aux_count == '1);
-            state_d.v0msk_fetch  = (UNIT == UNIT_SLD) ? state_q.count.part.sign : '0;
-            state_d.v0msk_shift  = '0;
-            unique case (state_q.eew)
-                VSEW_8:  state_d.v0msk_shift = 1'b1;
-                VSEW_16: state_d.v0msk_shift = state_q.count.val[0];
-                VSEW_32: state_d.v0msk_shift = state_q.count.val[1:0] == '1;
-                default: ;
-            endcase
-            if (UNIT == UNIT_LSU) begin
-                if (state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1) begin
-                    unique case (state_q.eew)
-                        VSEW_8:  state_d.v0msk_shift = 1'b1;
-                        VSEW_16: state_d.v0msk_shift = state_q.count.val[$clog2(MAX_OP_W/8)];
-                        VSEW_32: state_d.v0msk_shift = state_q.count.val[$clog2(MAX_OP_W/8) +: 2] == '1;
-                        default: ;
-                    endcase
-                end else begin
-                    state_d.v0msk_shift  = '0;
-                end
             end
             if ((UNIT == UNIT_SLD) & (state_q.count.part.low == slide_count.part.low)) begin
-                state_d.rs2.vreg = slide_fetch; // set vs2 valid bit after fetch
+                state_d.op_flags[0].vreg = slide_fetch; // set vs2 valid bit after fetch
             end
-            state_d.vs3_shift = (UNIT == UNIT_LSU) & (state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1);
 
 
             for (int i = 0; i < OP_CNT; i++) begin
@@ -653,21 +561,12 @@ module vproc_pipeline #(
         end
         if (UNIT == UNIT_SLD) begin
             unique case (state_q.emul)
-                EMUL_2: state_init.rs2.r.vaddr[0:0] = slide_mul_diff[0:0];
-                EMUL_4: state_init.rs2.r.vaddr[1:0] = slide_mul_diff[1:0];
-                EMUL_8: state_init.rs2.r.vaddr[2:0] = slide_mul_diff[2:0];
-                default: ;
-            endcase
-            state_init.rs2.vreg  = slide_fetch | state_q.rs2.vreg;
-            state_init.vs2_fetch = slide_fetch;
-
-            unique case (state_q.emul)
                 EMUL_2: state_init.op_vaddr[0][0:0] = slide_mul_diff[0:0];
                 EMUL_4: state_init.op_vaddr[0][1:0] = slide_mul_diff[1:0];
                 EMUL_8: state_init.op_vaddr[0][2:0] = slide_mul_diff[2:0];
                 default: ;
             endcase
-            state_init.op_flags[0].vreg  = slide_fetch | state_q.rs2.vreg;
+            state_init.op_flags[0].vreg  = slide_fetch | state_q.op_flags[0].vreg;
             state_init.op_load [0]       = slide_fetch;
         end
 
@@ -688,15 +587,19 @@ module vproc_pipeline #(
 
     logic [31:0] state_init_gather_vregs;
     always_comb begin
-        state_init_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_init.emul)
-            EMUL_1: state_init_gather_vregs = 32'h01 <<  state_init.rs2.r.vaddr;
-            EMUL_2: state_init_gather_vregs = 32'h03 << {state_init.rs2.r.vaddr[4:1], 1'b0};
-            EMUL_4: state_init_gather_vregs = 32'h0F << {state_init.rs2.r.vaddr[4:2], 2'b0};
-            EMUL_8: state_init_gather_vregs = 32'hFF << {state_init.rs2.r.vaddr[4:3], 3'b0};
-            default: ;
-        endcase
+        state_init_gather_vregs = '0;
+        if (OP_ADDR_OFFSET_OP0 != '0) begin
+            state_init_gather_vregs = DONT_CARE_ZERO ? '0 : 'x;
+            unique case (state_q.emul)
+                EMUL_1: state_init_gather_vregs = 32'h01 <<  state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)];
+                EMUL_2: state_init_gather_vregs = 32'h03 << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:1], 1'b0};
+                EMUL_4: state_init_gather_vregs = 32'h0F << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:2], 2'b0};
+                EMUL_8: state_init_gather_vregs = 32'hFF << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:3], 3'b0};
+                default: ;
+            endcase
+        end
     end
+
     logic [31:0] pending_gather_vreg_reads_q, pending_gather_vreg_reads_d;
     logic        pending_gather_vreg_reads_clear;
     always_ff @(posedge clk_i or negedge async_rst_ni) begin
@@ -724,171 +627,87 @@ module vproc_pipeline #(
     // Stall vreg reads until pending writes are complete; note that vreg read
     // stalling always happens in the init stage, since otherwise a substantial
     // amount of state would have to be forwarded (such as vreg_pend_wr_q)
-    generate
-        if (UNIT == UNIT_LSU) begin
-            assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
-                                      (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
-                                      (state_init.v0msk_fetch & state_init_masked & vreg_pend_wr_q[0]);
-        end
-        else if (UNIT == UNIT_ALU) begin
-            assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
-                                      (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
-                                      (state_init.v0msk_fetch & state_init_masked & vreg_pend_wr_q[0]);
-        end
-        else if (UNIT == UNIT_MUL) begin
-            assign state_init_stall = (state_init.vs1_fetch   & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
-                                      (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
-                                      (state_init.vs3_fetch   & vreg_pend_wr_q[state_init.vd         ]) |
-                                      (state_init.v0msk_fetch & state_init_masked & vreg_pend_wr_q[0]);
-        end
-        else if (UNIT == UNIT_SLD) begin
-            assign state_init_stall = (state_init.vs2_fetch   & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
-                                      (state_init.v0msk_fetch & state_init_masked & vreg_pend_wr_q[0]);
-        end
-        else if (UNIT == UNIT_ELEM) begin
-            assign state_init_stall = (state_init.vs1_fetch                                                                      & vreg_pend_wr_q[state_init.rs1.r.vaddr]) |
-                                      (state_init.rs2.vreg & state_init.first_cycle & (state_init.mode.elem.op != ELEM_VRGATHER) & vreg_pend_wr_q[state_init.rs2.r.vaddr]) |
-                                      ((state_init.mode.elem.op == ELEM_VRGATHER) & ((state_init_gather_vregs & vreg_pend_wr_q) != '0)) |
-                                      (state_init.v0msk_fetch & state_init_masked & vreg_pend_wr_q[0]);
-        end
-    endgenerate
-
-    // pending vreg reads
-    // Note: The pipeline might stall while reading a vreg, hence a vreg has to
-    // be part of the pending reads until the read is complete.
-    logic [31:0] pend_vs1, pend_vs2, pend_vs3;
     always_comb begin
-        pend_vs1 = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (UNIT)
-            UNIT_ALU, UNIT_MUL: begin
-                unique case ({state_init.emul, state_init.vs1_narrow})
-                    {EMUL_1, 1'b0}: pend_vs1 = {31'b0, state_init.vs1_fetch} << state_init.rs1.r.vaddr;
-                    {EMUL_2, 1'b1}: pend_vs1 = {31'b0, state_init.vs1_fetch} << state_init.rs1.r.vaddr;
-                    {EMUL_2, 1'b0}: pend_vs1 = (32'h03 & ((32'h02 | {31'b0, state_init.vs1_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs1.r.vaddr[4:1], 1'b0};
-                    {EMUL_4, 1'b1}: pend_vs1 = (32'h03 & ((32'h02 | {31'b0, state_init.vs1_fetch}) << state_init.count.part.mul[2:1])) << {state_init.rs1.r.vaddr[4:1], 1'b0};
-                    {EMUL_4, 1'b0}: pend_vs1 = (32'h0F & ((32'h0E | {31'b0, state_init.vs1_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs1.r.vaddr[4:2], 2'b0};
-                    {EMUL_8, 1'b1}: pend_vs1 = (32'h0F & ((32'h0E | {31'b0, state_init.vs1_fetch}) << state_init.count.part.mul[2:1])) << {state_init.rs1.r.vaddr[4:2], 2'b0};
-                    {EMUL_8, 1'b0}: pend_vs1 = (32'hFF & ((32'hFE | {31'b0, state_init.vs1_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs1.r.vaddr[4:3], 3'b0};
-                    default: ;
-                endcase
+        state_init_stall = '0;
+        for (int i = 0; i < OP_CNT; i++) begin
+            if (OP_ADDR_OFFSET_OP0[i]) begin
+                state_init_stall |= state_init.op_load[i] & ((state_init_gather_vregs & vreg_pend_wr_q) != '0);
+            end else begin
+                state_init_stall |= state_init.op_load[i] & vreg_pend_wr_q[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : state_init.op_vaddr[i]];
             end
-            UNIT_ELEM: begin
-                unique case ({state_init.emul, state_init.vs1_narrow})
-                    {EMUL_1, 1'b0}: pend_vs1 = 32'h01 <<  state_init.rs1.r.vaddr;
-                    {EMUL_2, 1'b1}: pend_vs1 = 32'h01 <<  state_init.rs1.r.vaddr;
-                    {EMUL_2, 1'b0}: pend_vs1 = 32'h03 << {state_init.rs1.r.vaddr[4:1], 1'b0};
-                    {EMUL_4, 1'b1}: pend_vs1 = 32'h03 << {state_init.rs1.r.vaddr[4:1], 1'b0};
-                    {EMUL_4, 1'b0}: pend_vs1 = 32'h0F << {state_init.rs1.r.vaddr[4:2], 2'b0};
-                    {EMUL_8, 1'b1}: pend_vs1 = 32'h0F << {state_init.rs1.r.vaddr[4:2], 2'b0};
-                    {EMUL_8, 1'b0}: pend_vs1 = 32'hFF << {state_init.rs1.r.vaddr[4:3], 3'b0};
-                    default: ;
-                endcase
-            end
-            default: ;
-        endcase
-        pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (UNIT)
-            UNIT_LSU: begin
-                unique case (state_init.emul)
-                    EMUL_1: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.rs2.r.vaddr;
-                    EMUL_2: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:1], 1'b0};
-                    EMUL_4: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:2], 2'b0};
-                    EMUL_8: pend_vs2 = (32'hFF & ((32'hFE | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:3], 3'b0};
-                    default: ;
-                endcase
-            end
-            UNIT_ALU, UNIT_MUL: begin
-                unique case ({state_init.emul, state_init.vs2_narrow})
-                    {EMUL_1, 1'b0}: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.rs2.r.vaddr;
-                    {EMUL_2, 1'b1}: pend_vs2 = {31'b0, state_init.vs2_fetch} << state_init.rs2.r.vaddr;
-                    {EMUL_2, 1'b0}: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:1], 1'b0};
-                    {EMUL_4, 1'b1}: pend_vs2 = (32'h03 & ((32'h02 | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:1])) << {state_init.rs2.r.vaddr[4:1], 1'b0};
-                    {EMUL_4, 1'b0}: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:2], 2'b0};
-                    {EMUL_8, 1'b1}: pend_vs2 = (32'h0F & ((32'h0E | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:1])) << {state_init.rs2.r.vaddr[4:2], 2'b0};
-                    {EMUL_8, 1'b0}: pend_vs2 = (32'hFF & ((32'hFE | {31'b0, state_init.vs2_fetch}) << state_init.count.part.mul[2:0])) << {state_init.rs2.r.vaddr[4:3], 3'b0};
-                    default: ;
-                endcase
-            end
-            UNIT_SLD: begin
-                unique case (state_q.emul)
-                    EMUL_1: pend_vs2 = 32'h01 <<  state_q.rs2.r.vaddr;
-                    EMUL_2: pend_vs2 = 32'h03 << {state_q.rs2.r.vaddr[4:1], 1'b0};
-                    EMUL_4: pend_vs2 = 32'h0F << {state_q.rs2.r.vaddr[4:2], 2'b0};
-                    EMUL_8: pend_vs2 = 32'hFF << {state_q.rs2.r.vaddr[4:3], 3'b0};
-                    default: ;
-                endcase
-            end
-            UNIT_ELEM: begin
-                // vs2 is either:
-                //  - a mask vreg, which is always a single vreg read in the first cycle
-                //  - the init vreg for reductions, which is also a single vreg read in the first cycle
-                //    (for reductions vs1 and vs2 are swapped, so actually this is vs1)
-                //  - the gather register group
-                pend_vs2 = DONT_CARE_ZERO ? '0 : 'x;
-                if (state_init.mode.elem.op == ELEM_VRGATHER) begin
-                    // entire gather register group remains pending throughout the operation
-                    pend_vs2 = state_init_gather_vregs;
-                end else begin
-                    // mask/init register is read right at the beginning
-                    pend_vs2 = state_init.first_cycle ? (32'h01 << state_init.rs2.r.vaddr) : '0;
+        end
+    end
+
+    logic [OP_CNT-1:0][31:0] op_pend_reads;
+    generate
+        for (genvar i = 0; i < OP_CNT; i++) begin
+            always_comb begin
+                op_pend_reads[i] = '0;
+                if (OP_ADDR_OFFSET_OP0[i]) begin
+                    if (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) begin
+                        op_pend_reads[i] = pending_gather_vreg_reads_q;
+                    end
+                end
+                else if (OP_MASK[i]) begin
+                    if ((OP_ALT_COUNTER != '0) & (OP_ALT_COUNTER[i] ? state_q.alt_count.part.sign : state_q.count.part.sign) & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
+                        op_pend_reads[i] = VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : (32'b1 << state_q.op_vaddr[i]);
+                    end
+                end
+                // TODO guard with VPORT_ADDR_ZERO[OP_SRC[i]]
+                else if (OP_ALT_COUNTER[i]) begin
+                    //if (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) begin
+                        op_pend_reads[i] = DONT_CARE_ZERO ? '0 : 'x;
+                        unique case ({state_q.emul, OP_NARROW[i] & state_q.op_flags[i].narrow})
+                            {EMUL_1, 1'b1},
+                            {EMUL_1, 1'b0},
+                            {EMUL_2, 1'b1}: op_pend_reads[i] = 32'h01 <<  state_q.op_vaddr[i];
+                            {EMUL_2, 1'b0},
+                            {EMUL_4, 1'b1}: op_pend_reads[i] = 32'h03 << {state_q.op_vaddr[i][4:1], 1'b0};
+                            {EMUL_4, 1'b0},
+                            {EMUL_8, 1'b1}: op_pend_reads[i] = 32'h0F << {state_q.op_vaddr[i][4:2], 2'b0};
+                            {EMUL_8, 1'b0}: op_pend_reads[i] = 32'hFF << {state_q.op_vaddr[i][4:3], 3'b0};
+                            default: ;
+                        endcase
+                    //end
+                end
+                //else if (OP_ALT_COUNTER != '0) begin
+                //end
+                else begin
+                    if (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) begin
+                        op_pend_reads[i] = DONT_CARE_ZERO ? '0 : 'x;
+                        unique case ({state_q.emul, OP_NARROW[i] & state_q.op_flags[i].narrow})
+                            {EMUL_1, 1'b1},
+                            {EMUL_1, 1'b0},
+                            {EMUL_2, 1'b1}: op_pend_reads[i] = '0;
+                            {EMUL_2, 1'b0}: op_pend_reads[i] = (32'h03 & (32'h02 << state_q.count.part.mul[2:0])) << {state_q.op_vaddr[i][4:1], 1'b0};
+                            {EMUL_4, 1'b1}: op_pend_reads[i] = (32'h03 & (32'h02 << state_q.count.part.mul[2:1])) << {state_q.op_vaddr[i][4:1], 1'b0};
+                            {EMUL_4, 1'b0}: op_pend_reads[i] = (32'h0F & (32'h0E << state_q.count.part.mul[2:0])) << {state_q.op_vaddr[i][4:2], 2'b0};
+                            {EMUL_8, 1'b1}: op_pend_reads[i] = (32'h0F & (32'h0E << state_q.count.part.mul[2:1])) << {state_q.op_vaddr[i][4:2], 2'b0};
+                            {EMUL_8, 1'b0}: op_pend_reads[i] = (32'hFF & (32'hFE << state_q.count.part.mul[2:0])) << {state_q.op_vaddr[i][4:3], 3'b0};
+                            default: ;
+                        endcase
+                    end
                 end
             end
-            default: ;
-        endcase
-        pend_vs3 = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_init.emul)
-            EMUL_1: pend_vs3 = {31'b0, state_init.vs3_fetch} << state_init.vd;
-            EMUL_2: pend_vs3 = (32'h03 & ((32'h02 | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:1], 1'b0};
-            EMUL_4: pend_vs3 = (32'h0F & ((32'h0E | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:2], 2'b0};
-            EMUL_8: pend_vs3 = (32'hFF & ((32'hFE | {31'b0, state_init.vs3_fetch}) << state_init.count.part.mul[2:0])) << {state_init.vd[4:3], 3'b0};
-            default: ;
-        endcase
-    end
-    // Note: vs2 is read in the second cycle; the v0 mask has no extra buffer
-    // and is always read in state_vs1
-    logic [31:0] unpack_pend_rd;
-    generate
-        if (UNIT == UNIT_LSU) begin
-            assign vreg_pend_rd_o = ((
-                    ((state_init_valid & state_init.rs2.vreg      ) ? pend_vs2                   : '0) |
-                    ((state_init_valid & state_init.mode.lsu.store) ? pend_vs3                   : '0) |
-                    ((state_init_valid & state_init.v0msk_fetch   ) ? {31'b0, state_init_masked} : '0)
-                ) & ~vreg_pend_wr_q) |
-            unpack_pend_rd;
-        end
-        else if (UNIT == UNIT_ALU) begin
-            assign vreg_pend_rd_o = ((
-                    ((state_init_valid & state_init.rs1.vreg   ) ? pend_vs1                   : '0) |
-                    ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                   : '0) |
-                    ((state_init_valid & state_init.v0msk_fetch) ? {31'b0, state_init_masked} : '0)
-                ) & ~vreg_pend_wr_q) |
-            unpack_pend_rd;
-        end
-        else if (UNIT == UNIT_MUL) begin
-            assign vreg_pend_rd_o = ((
-                    ((state_init_valid & state_init.rs1.vreg                  ) ? pend_vs1                   : '0) |
-                    ((state_init_valid                                        ) ? pend_vs2                   : '0) |
-                    ((state_init_valid & (state_init.mode.mul.op == MUL_VMACC)) ? pend_vs3                   : '0) |
-                    ((state_init_valid & state_init.v0msk_fetch               ) ? {31'b0, state_init_masked} : '0)
-                ) & ~vreg_pend_wr_q) |
-            unpack_pend_rd;
-        end
-        else if (UNIT == UNIT_SLD) begin
-            assign vreg_pend_rd_o = ((
-                    ( state_init_valid                                                          ? pend_vs2                   : '0) |
-                    ((state_init_valid & (state_init.count.part.sign | state_init.v0msk_fetch)) ? {31'b0, state_init_masked} : '0)
-                ) & ~vreg_pend_wr_q) |
-            unpack_pend_rd;
-        end
-        else if (UNIT == UNIT_ELEM) begin
-            assign vreg_pend_rd_o = ((
-                    ((state_init_valid & state_init.rs1.vreg   ) ? pend_vs1                   : '0) |
-                    ((state_init_valid & state_init.rs2.vreg   ) ? pend_vs2                   : '0) |
-                    ((state_init_valid & state_init.v0msk_fetch) ? {31'b0, state_init_masked} : '0)
-                ) & ~vreg_pend_wr_q) |
-            pending_gather_vreg_reads_q | unpack_pend_rd;
         end
     endgenerate
+    logic [31:0] op_pend_reads_all;
+    always_comb begin
+        op_pend_reads_all = '0;
+        for (int i = 0; i < OP_CNT; i++) begin
+            op_pend_reads_all |= op_pend_reads[i];
+            if (state_init.op_load[i]) begin
+                if (OP_ADDR_OFFSET_OP0[i]) begin
+                    op_pend_reads_all |= state_init_gather_vregs;
+                end else begin
+                    op_pend_reads_all[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : state_init.op_vaddr[i]] = 1'b1;
+                end
+            end
+        end
+    end
+
+    logic [31:0] unpack_pend_rd;
+    assign vreg_pend_rd_o = state_init_valid ? ((op_pend_reads_all & ~vreg_pend_wr_q) | unpack_pend_rd) : '0;
 
     ctrl_t unpack_flags_all, unpack_flags_any;
     logic  lsu_pending_load, lsu_pending_store;
@@ -904,8 +723,6 @@ module vproc_pipeline #(
 
     ///////////////////////////////////////////////////////////////////////////
     // REGISTER READ/WRITE AND UNIT INSTANTIATION
-
-
 
     logic [VPORT_CNT-1:0][4:0]          unpack_vreg_addr;
     logic [VPORT_CNT-1:0][VREG_W  -1:0] unpack_vreg_data;
