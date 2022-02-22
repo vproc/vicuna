@@ -128,7 +128,9 @@ module vproc_pipeline #(
 
 
     // Select operands that are always vector registers and always used (avoids check for vreg flag)
-    localparam bit [3:0] OP_ALWAYS_VREG   = '0;
+    localparam bit [3:0] OP_ALWAYS_VREG = (UNIT == UNIT_SLD) ? 4'b01 : '0;
+
+    localparam bit [3:0] OP_ALT_COUNTER = (UNIT == UNIT_SLD) ? 4'b01 : '0;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -215,7 +217,7 @@ module vproc_pipeline #(
             EMUL_8: last_cycle = (state_q.count.part.mul[2:0] == '1) & (state_q.count.part.low == '1);
             default: ;
         endcase
-        if ((UNIT == UNIT_SLD) & state_q.count.part.sign) begin
+        if ((OP_ALT_COUNTER != '0) & state_q.count.part.sign) begin
             last_cycle = '0;
         end
         if ((UNIT == UNIT_ELEM) & (state_q.aux_count != '1)) begin
@@ -311,6 +313,45 @@ module vproc_pipeline #(
                 state_d.count.part.sign = '1;
                 state_d.count.part.mul  = '1;
             end
+
+            state_d.alt_count.val = '0;
+            if (UNIT == UNIT_SLD) begin
+                state_d.alt_count.val = DONT_CARE_ZERO ? '0 : 'x;
+                if (mode_i.sld.slide1) begin
+                    if (mode_i.sld.dir == SLD_UP) begin
+                        // slide counter is all zeroes for up slide, except for a byte slide of 4
+                        // when the operand width is 32 bits, then it is 1, since the counter then
+                        // captures all but the 2 lowest bits of the byte slide value
+                        unique case (vsew_i)
+                            VSEW_8,
+                            VSEW_16: state_d.alt_count.val = '0;
+                            VSEW_32: state_d.alt_count.val = {{COUNTER_W-1{1'b0}}, MAX_OP_W == 32};
+                            default: ;
+                        endcase
+                    end else begin
+                        // slide counter is all ones for down slide, even with a byte slide value of
+                        // -4 since this has no effect on any but the 2 lowest bits of the byte
+                        // slide value
+                        state_d.alt_count.val = {4'b1111, {(COUNTER_W-5){1'b0}}, 1'b1};
+                    end
+                end
+                else if (mode_i.sld.dir == SLD_UP) begin
+                    unique case (vsew_i)
+                        VSEW_8:  state_d.alt_count.val = -{1'b0, rs1_i.r.xval[$clog2(MAX_OP_W/8)   +: COUNTER_W-1]};
+                        VSEW_16: state_d.alt_count.val = -{1'b0, rs1_i.r.xval[$clog2(MAX_OP_W/8)-1 +: COUNTER_W-1]};
+                        VSEW_32: state_d.alt_count.val = -{1'b0, rs1_i.r.xval[$clog2(MAX_OP_W/8)-2 +: COUNTER_W-1]};
+                        default: ;
+                    endcase
+                end else begin
+                    unique case (vsew_i)
+                        VSEW_8:  state_d.alt_count.val = ({4'b1111, {(COUNTER_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} + {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+2:0]      }) >> $clog2(MAX_OP_W/8);
+                        VSEW_16: state_d.alt_count.val = ({4'b1111, {(COUNTER_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} + {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+1:0], 1'b0}) >> $clog2(MAX_OP_W/8);
+                        VSEW_32: state_d.alt_count.val = ({4'b1111, {(COUNTER_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} + {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+0:0], 2'b0}) >> $clog2(MAX_OP_W/8);
+                        default: ;
+                    endcase
+                end
+            end
+
             state_d.aux_count      = (mode_i.elem.op == ELEM_VRGATHER) ? '0 : '1;
             state_d.first_cycle    = 1'b1;
             state_d.requires_flush = (UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_VCOMPRESS) | op_reduction);
@@ -408,28 +449,41 @@ module vproc_pipeline #(
             // increment counter
             if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
                 if ((OP_ALWAYS_ELEMWISE != '0) | (OP_ALLOW_ELEMWISE != '0)) begin
-                    state_d.count.val = state_q.count.val + (1 << $clog2(MAX_OP_W/8));
+                    state_d.count.val     = state_q.count.val     + (1 << $clog2(MAX_OP_W/8));
+                    state_d.alt_count.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/8));
                     // Count individual elements if any valid operand requires element-wise access
                     //for (int i = 0; i < OP_CNT; i++) begin
                     //    if ((OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) & (
                     //        OP_ALWAYS_ELEMWISE[i] |
                     //        (OP_ALLOW_ELEMWISE[i] & state_q.op_flags[i].elemwise)
                     //    )) begin
-                            state_d.count.val = DONT_CARE_ZERO ? '0 : 'x;
+                            state_d.count.val     = DONT_CARE_ZERO ? '0 : 'x;
+                            state_d.alt_count.val = DONT_CARE_ZERO ? '0 : 'x;
                             unique case (state_q.eew)
-                                VSEW_8:  state_d.count.val = state_q.count.val + 1;
-                                VSEW_16: state_d.count.val = state_q.count.val + 2;
-                                VSEW_32: state_d.count.val = state_q.count.val + 4;
+                                VSEW_8: begin
+                                    state_d.count.val     = state_q.count.val     + 1;
+                                    state_d.alt_count.val = state_q.alt_count.val + 1;
+                                end
+                                VSEW_16: begin
+                                    state_d.count.val     = state_q.count.val     + 2;
+                                    state_d.alt_count.val = state_q.alt_count.val + 2;
+                                end
+                                VSEW_32: begin
+                                    state_d.count.val     = state_q.count.val     + 4;
+                                    state_d.alt_count.val = state_q.alt_count.val + 4;
+                                end
                                 default: ;
                             endcase
                     //    end
                     //end
                     // TODO fix errors in above code and remove below statement
                     if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
-                        state_d.count.val = state_q.count.val + (1 << $clog2(MAX_OP_W/8));
+                        state_d.count.val     = state_q.count.val     + (1 << $clog2(MAX_OP_W/8));
+                        state_d.alt_count.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/8));
                     end
                 end else begin
-                    state_d.count.val = state_q.count.val + 1;
+                    state_d.count.val     = state_q.count.val     + 1;
+                    state_d.alt_count.val = state_q.alt_count.val + 1;
                 end
             end
             for (int i = 0; i < OP_CNT; i++) begin
@@ -858,8 +912,6 @@ module vproc_pipeline #(
                 .xif_mem_if               ( xif_mem_if                        ),
                 .xif_memres_if            ( xif_memres_if                     )
             );
-            logic [COUNTER_W       -1:0] debug_count        = unit_out_ctrl.count.val;
-            logic [STRIDE_COUNTER_W-1:0] debug_count_stride = unit_out_ctrl.count_stride;
             always_comb begin
                 pack_res_data = '0;
                 pack_res_mask = '0;
