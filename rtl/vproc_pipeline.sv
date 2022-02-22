@@ -163,6 +163,9 @@ module vproc_pipeline #(
     typedef struct packed {
         counter_t                    count;
         counter_t                    alt_count;
+
+        counter_t                    count_dup;
+
         count_inc_e                  count_inc;      // counter increment policy
         logic [AUX_COUNTER_W-1:0]    aux_count;
         logic                        first_cycle;
@@ -193,6 +196,8 @@ module vproc_pipeline #(
     logic        state_valid_q,  state_valid_d;
     ctrl_t       state_q,        state_d;
     logic [31:0] vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
+    logic [OP_CNT-1:0] op_load_q,  op_load_d;
+    logic [OP_CNT-1:0] op_shift_q, op_shift_d;
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_pipeline_state_valid
         if (~async_rst_ni) begin
             state_valid_q <= 1'b0;
@@ -206,6 +211,9 @@ module vproc_pipeline #(
     always_ff @(posedge clk_i) begin : vproc_pipeline_state
         state_q        <= state_d;
         vreg_pend_wr_q <= vreg_pend_wr_d;
+        op_load_q      <= op_load_d;
+        op_shift_q     <= op_shift_d;
+    end
 
     // whether the auxiliary counter is used
     logic aux_count_used;
@@ -363,6 +371,12 @@ module vproc_pipeline #(
                 end
             end
 
+            state_d.count_dup = '0;
+            if ((UNIT == UNIT_SLD) & (mode_i.sld.dir == SLD_DOWN)) begin
+                state_d.count_dup.part.sign = '1;
+                state_d.count_dup.part.mul  = '1;
+            end
+
             state_d.count_inc = COUNT_INC_1;
             if ((OP_ALLOW_ELEMWISE != '0) | (OP_ALWAYS_ELEMWISE != '0)) begin
                 state_d.count_inc = DONT_CARE_ZERO ? '0 : 'x;
@@ -421,47 +435,39 @@ module vproc_pipeline #(
             state_d.op_flags[OP_CNT-1] = unpack_flags'('0);
             if ((UNIT == UNIT_LSU) | (UNIT == UNIT_SLD)) begin
                 state_d.op_flags[0].vreg     = (UNIT != UNIT_SLD) & rs2_i.vreg;
-                state_d.op_load [0]          = OP_ALWAYS_VREG[0] | rs2_i.vreg;
                 state_d.op_vaddr[0]          = rs2_i.r.vaddr;
                 state_d.op_xval [0]          = rs2_i.r.xval;
                 state_d.op_flags[1].vreg     = mode_i.lsu.store;
-                state_d.op_load [1]          = mode_i.lsu.store;
                 state_d.op_vaddr[1]          = vd_i;
             end else begin
                 state_d.op_flags[0].vreg     = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) | rs1_i.vreg;
                 state_d.op_flags[0].narrow   = widenarrow_i != OP_SINGLEWIDTH;
                 state_d.op_flags[0].sigext   = ((UNIT == UNIT_ALU) & mode_i.alu.sigext) | ((UNIT == UNIT_MUL) & mode_i.mul.op1_signed) | ((UNIT == UNIT_ELEM) & mode_i.elem.sigext);
-                //state_d.op_load [0]          = OP_ALWAYS_VREG[0] | rs1_i.vreg;
-                state_d.op_load [0]          = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) | rs1_i.vreg;
                 //state_d.op_vaddr[0]          = rs1_i.r.vaddr;
                 state_d.op_vaddr[0]          = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) ? rs2_i.r.vaddr : rs1_i.r.vaddr;
                 state_d.op_xval [0]          = rs1_i.r.xval;
                 state_d.op_flags[1].vreg     = rs2_i.vreg;
                 state_d.op_flags[1].narrow   = widenarrow_i == OP_WIDENING;
                 state_d.op_flags[1].sigext   = ((UNIT == UNIT_ALU) & mode_i.alu.sigext) | ((UNIT == UNIT_MUL) & mode_i.mul.op2_signed);
-                state_d.op_load [1]          = OP_ALWAYS_VREG[1] | rs2_i.vreg;
                 //state_d.op_vaddr[1]          = rs2_i.r.vaddr;
                 state_d.op_vaddr[1]          = ((UNIT == UNIT_ELEM) & op_reduction) ? rs1_i.r.vaddr : rs2_i.r.vaddr;
                 if (UNIT == UNIT_MUL) begin
                     state_d.op_vaddr[1]             = mode_i.mul.op2_is_vd ? vd_i : rs2_i.r.vaddr;
                     state_d.op_flags[OP_CNT-2].vreg = mode_i.mul.op == MUL_VMACC;
-                    state_d.op_load [OP_CNT-2]      = mode_i.mul.op == MUL_VMACC;
                     state_d.op_vaddr[OP_CNT-2]      = mode_i.mul.op2_is_vd ? rs2_i.r.vaddr : vd_i;
                 end
                 if (UNIT == UNIT_ELEM) begin
                     state_d.op_flags[1].vreg        = (((UNIT == UNIT_ELEM) & op_reduction) | rs2_i.vreg) & (mode_i.elem.op != ELEM_VRGATHER);
-                    state_d.op_load [1]             = (((UNIT == UNIT_ELEM) & op_reduction) | rs2_i.vreg) & (mode_i.elem.op != ELEM_VRGATHER);
                     state_d.op_flags[OP_CNT-2].vreg = mode_i.elem.op == ELEM_VRGATHER;
-                    state_d.op_load [OP_CNT-2]      = mode_i.elem.op == ELEM_VRGATHER;
                     state_d.op_vaddr[OP_CNT-2]      = rs2_i.r.vaddr;
                 end
             end
             unique case (UNIT)
-                UNIT_LSU:  state_d.op_load[OP_CNT-1] = mode_i.lsu.masked;
-                UNIT_ALU:  state_d.op_load[OP_CNT-1] = mode_i.alu.op_mask != ALU_MASK_NONE;
-                UNIT_MUL:  state_d.op_load[OP_CNT-1] = mode_i.mul.masked;
-                UNIT_SLD:  state_d.op_load[OP_CNT-1] = mode_i.sld.masked;
-                UNIT_ELEM: state_d.op_load[OP_CNT-1] = mode_i.elem.masked;
+                UNIT_LSU:  state_d.op_flags[OP_CNT-1].vreg = mode_i.lsu.masked;
+                UNIT_ALU:  state_d.op_flags[OP_CNT-1].vreg = mode_i.alu.op_mask != ALU_MASK_NONE;
+                UNIT_MUL:  state_d.op_flags[OP_CNT-1].vreg = mode_i.mul.masked;
+                UNIT_SLD:  state_d.op_flags[OP_CNT-1].vreg = mode_i.sld.masked;
+                UNIT_ELEM: state_d.op_flags[OP_CNT-1].vreg = mode_i.elem.masked;
                 default: ;
             endcase
             state_d.op_flags[OP_CNT-1].elemwise = (UNIT == UNIT_LSU) & (mode_i.lsu.stride != LSU_UNITSTRIDE);
@@ -530,6 +536,20 @@ module vproc_pipeline #(
                         state_d.alt_count.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/8));
                     end
                 endcase
+                unique case (state_q.count_inc)
+                    COUNT_INC_1: begin
+                        state_d.count_dup.val     = state_q.count_dup.val     + COUNTER_W'(1);
+                    end
+                    COUNT_INC_2: begin
+                        state_d.count_dup.val     = state_q.count_dup.val     + COUNTER_W'(2);
+                    end
+                    COUNT_INC_4: begin
+                        state_d.count_dup.val     = state_q.count_dup.val     + COUNTER_W'(4);
+                    end
+                    COUNT_INC_MAX: begin
+                        state_d.count_dup.val     = state_q.count_dup.val     + (1 << $clog2(MAX_OP_W/8));
+                    end
+                endcase
             end
             if (aux_count_used) begin
                 state_d.aux_count = state_q.aux_count + 1;
@@ -566,42 +586,14 @@ module vproc_pipeline #(
 
 
             for (int i = 0; i < OP_CNT; i++) begin
-                state_d.op_load [i]       = '0;
-                state_d.op_flags[i].shift = '0;
-                if (OP_ADDR_OFFSET_OP0[i]) begin
-                    if (state_q.aux_count == '1) begin
-                        state_d.op_load[i] = OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg;
-                    end
-                    state_d.op_flags[i].shift = 1'b1;
-                end
-                else if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
+                if (~OP_ADDR_OFFSET_OP0[i] & ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1))) begin
                     if (~OP_MASK[i]) begin
-                        if ((state_q.count.part.low == '1) & (
-                            ~OP_NARROW[i] | ~state_q.op_flags[i].narrow | state_q.count.part.mul[0]
-                        )) begin
-                            state_d.op_load [i] = (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) &
-                                                  ((UNIT != UNIT_ELEM) | ~last_cycle); // may need flushing
-
+                        if ((state_q.count.part.low == '1) &
+                            (~OP_NARROW[i] | ~state_q.op_flags[i].narrow | state_q.count.part.mul[0])
+                        ) begin
                             if (UNIT != UNIT_SLD) begin
                                 state_d.op_vaddr[i] = state_q.op_vaddr[i] + 1;
                             end
-                        end
-
-                        // Operands are shifted after OP_W bits have been consumed.
-                        if ((state_q.count.val | ({COUNTER_W{1'b1}} << $clog2(OP_W[i] / SMALLEST_OP_W))) == '1) begin
-                            state_d.op_flags[i].shift = ~OP_NARROW[i] | ~state_q.op_flags[i].narrow |
-                                                        state_q.count.val[$clog2(OP_W[i] / SMALLEST_OP_W)];
-                        end
-                    end else begin
-                        // Masks are only fetched in the first cycle but never anytime later
-                        if ((state_q.count.val | ({COUNTER_W{1'b1}} << $clog2(OP_W[i] / (SMALLEST_OP_W / 8)))) == '1) begin
-                            state_d.op_flags[i].shift = DONT_CARE_ZERO ? '0 : 'x;
-                            unique case (state_q.eew)
-                                VSEW_8:  state_d.op_flags[i].shift = 1'b1;
-                                VSEW_16: state_d.op_flags[i].shift = state_q.count.val[$clog2(OP_W[i] / (SMALLEST_OP_W / 8))];
-                                VSEW_32: state_d.op_flags[i].shift = state_q.count.val[$clog2(OP_W[i] / (SMALLEST_OP_W / 8)) +: 2] == '1;
-                                default: ;
-                            endcase
                         end
                     end
                 end
@@ -627,8 +619,80 @@ module vproc_pipeline #(
                     state_d.requires_flush = 1'b0;
                     //state_d.rs1.vreg       = 1'b0;
                     for (int i = 0; i < OP_CNT; i++) begin
-                        state_d.op_load [i]      = '0;
+                        //state_d.op_load [i]      = '0;
                         state_d.op_flags[i].vreg = '0;
+                    end
+                end
+            end
+        end
+    end
+
+    counter_t [OP_CNT-1:0] op_count;
+    always_comb begin
+        for (int i = 0; i < OP_CNT; i++) begin
+            // use next value of counter rather than current
+            op_count[i] = OP_ALT_COUNTER[i] ? state_d.alt_count : state_d.count_dup;
+        end
+    end
+    always_comb begin
+        op_load_d  = '0;
+        op_shift_d = '0;
+        for (int i = 0; i < OP_CNT; i++) begin
+            if (OP_ADDR_OFFSET_OP0[i]) begin
+                if (state_d.aux_count == '0) begin
+                    op_load_d[i] = OP_ALWAYS_VREG[i] | state_d.op_flags[i].vreg;
+                end
+                op_shift_d[i] = 1'b1;
+            end
+            else if (~aux_count_used | (state_d.aux_count == '0)) begin
+                if (~OP_MASK[i]) begin
+                    if ((op_count[i].part.low == '0) &
+                        (~OP_NARROW[i] | ~state_d.op_flags[i].narrow | ~op_count[i].part.mul[0])
+                    ) begin
+                        op_load_d[i] = (OP_ALWAYS_VREG[i] | state_d.op_flags[i].vreg) &
+                                       ((UNIT != UNIT_ELEM) | ~last_cycle); // may need flushing
+
+                        // if the alternative counter is used for some operands the counter's
+                        // sign and MUL part might be invalid for the current EMUL, in which
+                        // case the load needs to be suppressed
+                        if (OP_ALT_COUNTER != '0) begin
+                            unique case (state_d.emul)
+                                EMUL_1: if (  op_count[i].val[COUNTER_W-1 -: 4]             != '0) begin
+                                    op_load_d[i] = '0;
+                                end
+                                EMUL_2: if (((op_count[i].val[COUNTER_W-1 -: 4]) & 4'b1110) != '0) begin
+                                    op_load_d[i] = '0;
+                                end
+                                EMUL_4: if (((op_count[i].val[COUNTER_W-1 -: 4]) & 4'b1100) != '0) begin
+                                    op_load_d[i] = '0;
+                                end
+                                EMUL_8: if (((op_count[i].val[COUNTER_W-1 -: 4]) & 4'b1000) != '0) begin
+                                    op_load_d[i] = '0;
+                                end
+                                default: ;
+                            endcase
+                        end
+                    end
+
+                    // Operands are shifted after OP_W bits have been consumed.
+                    if ((op_count[i].val & ~({COUNTER_W{1'b1}} << $clog2(OP_W[i] / SMALLEST_OP_W))) == '0) begin
+                        op_shift_d[i] = ~OP_NARROW[i] | ~state_d.op_flags[i].narrow |
+                                        ~op_count[i].val[$clog2(OP_W[i] / SMALLEST_OP_W)];
+                    end
+                end else begin
+                    // Masks are only fetched in the first cycle but never anytime later
+                    if (op_count[i].val == '0) begin
+                        op_load_d[i] = OP_ALWAYS_VREG[i] | state_d.op_flags[i].vreg;
+                    end
+                    // The amount of mask bits consumed each cycle depends on the element width
+                    if ((op_count[i].val & ~({COUNTER_W{1'b1}} << $clog2(OP_W[i] / (SMALLEST_OP_W / 8)))) == '0) begin
+                        op_shift_d[i] = DONT_CARE_ZERO ? '0 : 'x;
+                        unique case (state_d.eew)
+                            VSEW_8:  op_shift_d[i] = 1'b1;
+                            VSEW_16: op_shift_d[i] = op_count[i].val[$clog2(OP_W[i] / (SMALLEST_OP_W / 8))     ] == '0;
+                            VSEW_32: op_shift_d[i] = op_count[i].val[$clog2(OP_W[i] / (SMALLEST_OP_W / 8)) +: 2] == '0;
+                            default: ;
+                        endcase
                     end
                 end
             end
@@ -674,7 +738,11 @@ module vproc_pipeline #(
                 default: ;
             endcase
             state_init.op_flags[0].vreg  = slide_fetch | state_q.op_flags[0].vreg;
-            state_init.op_load [0]       = slide_fetch;
+            //state_init.op_load [0]       = slide_fetch;
+        end
+        for (int i = 0; i < OP_CNT; i++) begin
+            state_init.op_load [i]       = op_load_q [i];
+            state_init.op_flags[i].shift = op_shift_q[i];
         end
 
         // Determine whether there is a pending read of v0 as a mask
