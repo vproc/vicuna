@@ -586,17 +586,6 @@ module vproc_pipeline #(
 
 
             for (int i = 0; i < OP_CNT; i++) begin
-                if (~OP_ADDR_OFFSET_OP0[i] & ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1))) begin
-                    if (~OP_MASK[i]) begin
-                        if ((state_q.count.part.low == '1) &
-                            (~OP_NARROW[i] | ~state_q.op_flags[i].narrow | state_q.count.part.mul[0])
-                        ) begin
-                            if (UNIT != UNIT_SLD) begin
-                                state_d.op_vaddr[i] = state_q.op_vaddr[i] + 1;
-                            end
-                        end
-                    end
-                end
                 if ((OP_ADDR_OFFSET_OP0 != '0) & ~OP_ADDR_OFFSET_OP0[i]) begin
                     state_d.op_flags[i].hold = state_q.aux_count != '1;
                 end
@@ -731,18 +720,18 @@ module vproc_pipeline #(
             endcase
         end
         if (UNIT == UNIT_SLD) begin
-            unique case (state_q.emul)
-                EMUL_2: state_init.op_vaddr[0][0:0] = slide_mul_diff[0:0];
-                EMUL_4: state_init.op_vaddr[0][1:0] = slide_mul_diff[1:0];
-                EMUL_8: state_init.op_vaddr[0][2:0] = slide_mul_diff[2:0];
-                default: ;
-            endcase
             state_init.op_flags[0].vreg  = slide_fetch | state_q.op_flags[0].vreg;
-            //state_init.op_load [0]       = slide_fetch;
         end
         for (int i = 0; i < OP_CNT; i++) begin
             state_init.op_load [i]       = op_load_q [i];
             state_init.op_flags[i].shift = op_shift_q[i];
+            if (op_load_q[i]) begin
+                if (OP_NARROW[i] & state_q.op_flags[i].narrow) begin
+                    state_init.op_vaddr[i][1:0] = state_q.op_vaddr[i][1:0] | (OP_ALT_COUNTER[i] ? state_q.alt_count.part.mul[2:1] : state_q.count.part.mul[2:1]);
+                end else begin
+                    state_init.op_vaddr[i][2:0] = state_q.op_vaddr[i][2:0] | (OP_ALT_COUNTER[i] ? state_q.alt_count.part.mul      : state_q.count.part.mul     );
+                end
+            end
         end
 
         // Determine whether there is a pending read of v0 as a mask
