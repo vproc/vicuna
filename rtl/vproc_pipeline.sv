@@ -206,6 +206,16 @@ module vproc_pipeline #(
     always_ff @(posedge clk_i) begin : vproc_pipeline_state
         state_q        <= state_d;
         vreg_pend_wr_q <= vreg_pend_wr_d;
+
+    // whether the auxiliary counter is used
+    logic aux_count_used;
+    always_comb begin
+        aux_count_used = '0;
+        for (int i = 0; i < OP_CNT; i++) begin
+            if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
+                aux_count_used = 1'b1;
+            end
+        end
     end
 
     logic last_cycle;
@@ -521,10 +531,8 @@ module vproc_pipeline #(
                     end
                 endcase
             end
-            for (int i = 0; i < OP_CNT; i++) begin
-                if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
-                    state_d.aux_count = state_q.aux_count + 1;
-                end
+            if (aux_count_used) begin
+                state_d.aux_count = state_q.aux_count + 1;
             end
 
             if ((state_q.count.part.low == '1) & ((UNIT != UNIT_ELEM) | state_q.aux_count == '1)) begin
