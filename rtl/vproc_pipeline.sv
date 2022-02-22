@@ -163,6 +163,7 @@ module vproc_pipeline #(
     typedef struct packed {
         counter_t                    count;
         counter_t                    alt_count;
+        count_inc_e                  count_inc;      // counter increment policy
         logic [AUX_COUNTER_W-1:0]    aux_count;
         logic                        first_cycle;
         logic                        last_cycle;
@@ -352,6 +353,20 @@ module vproc_pipeline #(
                 end
             end
 
+            state_d.count_inc = COUNT_INC_1;
+            if ((OP_ALLOW_ELEMWISE != '0) | (OP_ALWAYS_ELEMWISE != '0)) begin
+                state_d.count_inc = DONT_CARE_ZERO ? '0 : 'x;
+                unique case ((UNIT == UNIT_LSU) ? mode_i.lsu.eew : vsew_i)
+                    VSEW_8:  state_d.count_inc = COUNT_INC_1;
+                    VSEW_16: state_d.count_inc = COUNT_INC_2;
+                    VSEW_32: state_d.count_inc = COUNT_INC_4;
+                    default: ;
+                endcase
+            end
+            if ((UNIT == UNIT_LSU) & (mode_i.lsu.stride == LSU_UNITSTRIDE)) begin
+                state_d.count_inc = COUNT_INC_MAX;
+            end
+
             state_d.aux_count      = (mode_i.elem.op == ELEM_VRGATHER) ? '0 : '1;
             state_d.first_cycle    = 1'b1;
             state_d.requires_flush = (UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_VCOMPRESS) | op_reduction);
@@ -448,6 +463,7 @@ module vproc_pipeline #(
 
             // increment counter
             if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
+                /*
                 if ((OP_ALWAYS_ELEMWISE != '0) | (OP_ALLOW_ELEMWISE != '0)) begin
                     state_d.count.val     = state_q.count.val     + (1 << $clog2(MAX_OP_W/8));
                     state_d.alt_count.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/8));
@@ -485,6 +501,25 @@ module vproc_pipeline #(
                     state_d.count.val     = state_q.count.val     + 1;
                     state_d.alt_count.val = state_q.alt_count.val + 1;
                 end
+                */
+                unique case (state_q.count_inc)
+                    COUNT_INC_1: begin
+                        state_d.count.val     = state_q.count.val     + COUNTER_W'(1);
+                        state_d.alt_count.val = state_q.alt_count.val + COUNTER_W'(1);
+                    end
+                    COUNT_INC_2: begin
+                        state_d.count.val     = state_q.count.val     + COUNTER_W'(2);
+                        state_d.alt_count.val = state_q.alt_count.val + COUNTER_W'(2);
+                    end
+                    COUNT_INC_4: begin
+                        state_d.count.val     = state_q.count.val     + COUNTER_W'(4);
+                        state_d.alt_count.val = state_q.alt_count.val + COUNTER_W'(4);
+                    end
+                    COUNT_INC_MAX: begin
+                        state_d.count.val     = state_q.count.val     + (1 << $clog2(MAX_OP_W/8));
+                        state_d.alt_count.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/8));
+                    end
+                endcase
             end
             for (int i = 0; i < OP_CNT; i++) begin
                 if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin

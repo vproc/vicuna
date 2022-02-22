@@ -77,6 +77,13 @@ typedef enum logic [2:0] {
 } op_unit;
 
 typedef enum logic [1:0] {
+    COUNT_INC_1,
+    COUNT_INC_2,
+    COUNT_INC_4,
+    COUNT_INC_MAX
+} count_inc_e;
+
+typedef enum logic [1:0] {
     LSU_UNITSTRIDE,
     LSU_STRIDED,
     LSU_INDEXED
