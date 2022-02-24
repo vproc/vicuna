@@ -126,7 +126,7 @@ module vproc_elem #(
     // XREG write-back
     assign pipe_out_xreg_valid_o = state_res_q.mode.elem.xreg & ((state_res_q.mode.elem.op == ELEM_XMV) ? state_res_q.first_cycle : state_res_q.last_cycle);
     assign pipe_out_xreg_data_o  = result_q;
-    assign pipe_out_xreg_addr_o  = state_res_q.vd;
+    assign pipe_out_xreg_addr_o  = state_res_q.res_vaddr;
 
     assign pipe_out_valid_o     = state_res_valid_q;
     assign pipe_out_ctrl_o      = state_res_q;

@@ -4,8 +4,6 @@
 
 
 module vproc_sld #(
-        parameter int unsigned        VREG_W         = 128,  // width in bits of vector registers
-        parameter int unsigned        CFG_VL_W       = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned        SLD_OP_W       = 64,   // SLD unit operand width in bits
         parameter bit                 BUF_OPERANDS   = 1'b1, // insert pipeline stage after operand extraction
         parameter bit                 BUF_RESULTS    = 1'b1, // insert pipeline stage after computing result
@@ -132,16 +130,16 @@ module vproc_sld #(
         if (pipe_in_ctrl_i.mode.sld.slide1) begin
             if (pipe_in_ctrl_i.mode.sld.dir == SLD_UP) begin
                 unique case (pipe_in_ctrl_i.eew)
-                    VSEW_8:  state_ex_d.rs1.r.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b001};
-                    VSEW_16: state_ex_d.rs1.r.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b010};
-                    VSEW_32: state_ex_d.rs1.r.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b100};
+                    VSEW_8:  state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b001};
+                    VSEW_16: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b010};
+                    VSEW_32: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b100};
                     default: ;
                 endcase
             end else begin
                 unique case (pipe_in_ctrl_i.eew)
-                    VSEW_8:  state_ex_d.rs1.r.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b111};
-                    VSEW_16: state_ex_d.rs1.r.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b110};
-                    VSEW_32: state_ex_d.rs1.r.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b100};
+                    VSEW_8:  state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b111};
+                    VSEW_16: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b110};
+                    VSEW_32: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b100};
                     default: ;
                 endcase
             end
@@ -154,29 +152,29 @@ module vproc_sld #(
         operand_low_d       = DONT_CARE_ZERO ? '0 : 'x;
         operand_low_valid_d = 1'b0;
         if ((pipe_in_ctrl_i.mode.sld.dir == SLD_DOWN) & pipe_in_ctrl_i.mode.sld.slide1 &
-            (pipe_in_ctrl_i.count.val[$clog2(VREG_W/SLD_OP_W)+2:0] == pipe_in_ctrl_i.vl[CFG_VL_W-1:$clog2(SLD_OP_W/8)])
+            pipe_in_ctrl_i.last_vl_part
         ) begin
-            operand_high_d[31:0] = pipe_in_ctrl_i.rs1.r.xval;
+            operand_high_d[31:0] = pipe_in_ctrl_i.xval;
         end
         unique case (pipe_in_ctrl_i.eew)
             VSEW_8: begin
                 for (int i = 0; i < SLD_OP_W / 8 ; i++) begin
-                    operand_low_d[i*8  +: 8 ] = pipe_in_ctrl_i.rs1.r.xval[7 :0];
+                    operand_low_d[i*8  +: 8 ] = pipe_in_ctrl_i.xval[7 :0];
                 end
             end
             VSEW_16: begin
                 for (int i = 0; i < SLD_OP_W / 16; i++) begin
-                    operand_low_d[i*16 +: 16] = pipe_in_ctrl_i.rs1.r.xval[15:0];
+                    operand_low_d[i*16 +: 16] = pipe_in_ctrl_i.xval[15:0];
                 end
             end
             VSEW_32: begin
                 for (int i = 0; i < SLD_OP_W / 32; i++) begin
-                    operand_low_d[i*32 +: 32] = pipe_in_ctrl_i.rs1.r.xval;
+                    operand_low_d[i*32 +: 32] = pipe_in_ctrl_i.xval;
                 end
             end
             default: ;
         endcase
-        if (~pipe_in_ctrl_i.first_cycle & state_ex_q.op_flags[0].vreg) begin // state_ex_q.rs2.vreg) begin
+        if (~pipe_in_ctrl_i.first_cycle & state_ex_q.alt_count_valid) begin
             operand_low_valid_d = 1'b1;
             for (int i = 0; i < SLD_OP_W / 8; i++) begin
                 if (~pipe_in_ctrl_i.mode.sld.slide1 | (i <= pipe_in_ctrl_i.vl_part)) begin
@@ -202,7 +200,7 @@ module vproc_sld #(
     // SLIDING OPERATION
 
     logic [$clog2(SLD_OP_W/8)-1:0] slide_bytes;
-    assign slide_bytes = state_ex_q.rs1.r.xval[$clog2(SLD_OP_W/8)-1:0];
+    assign slide_bytes = state_ex_q.xval[$clog2(SLD_OP_W/8)-1:0];
 
     always_comb begin
         result_d      = DONT_CARE_ZERO ? '0 : 'x;
@@ -214,7 +212,7 @@ module vproc_sld #(
                 result_mask_d[i]        = operand_low_valid_q;
             end else begin
                 result_d     [i*8 +: 8] = operand_high_q[($clog2(SLD_OP_W)'(             i) - {3'b000, slide_bytes}) * 8 +: 8];
-                result_mask_d[i]        = state_ex_q.op_flags[0].vreg; // state_ex_q.rs2.vreg;
+                result_mask_d[i]        = state_ex_q.alt_count_valid;
             end
         end
 

@@ -133,6 +133,13 @@ module vproc_pipeline #(
     localparam bit [3:0] OP_ALT_COUNTER = (UNIT == UNIT_SLD) ? 4'b01 : '0;
 
 
+    localparam bit [1:0] RES_ALWAYS_VREG     = '0;
+    localparam bit [1:0] RES_MASK            = (UNIT == UNIT_ALU ) ? 2'b10 : '0;
+    localparam bit [1:0] RES_NARROW          = (UNIT == UNIT_ALU ) ? 2'b01 : '0;
+    localparam bit [1:0] RES_ALLOW_ELEMWISE  = (UNIT == UNIT_LSU ) ? 2'b1  : '0;
+    localparam bit [1:0] RES_ALWAYS_ELEMWISE = (UNIT == UNIT_ELEM) ? 2'b1  : '0;
+
+
     ///////////////////////////////////////////////////////////////////////////
     // STATE LOGIC
 
@@ -163,9 +170,7 @@ module vproc_pipeline #(
     typedef struct packed {
         counter_t                    count;
         counter_t                    alt_count;
-
-        counter_t                    count_dup;
-
+        logic                        alt_count_valid;
         count_inc_e                  count_inc;      // counter increment policy
         logic [AUX_COUNTER_W-1:0]    aux_count;
         logic                        first_cycle;
@@ -180,22 +185,27 @@ module vproc_pipeline #(
         logic                        vl_0;
         logic [$clog2(MAX_OP_W/8)-1:0] vl_part;
         logic                          vl_part_0;
-        op_regs                      rs1;
-        logic [4:0]                  vd;
-        logic                        vd_narrow;
-        logic                        vd_store;
-        logic                        vd_shift;
+        logic                          last_vl_part;    // last VL part that is not 0
+        //op_regs                      rs1;
+        logic [31:0]                   xval;
 
 
         unpack_flags [OP_CNT-1:0]       op_flags;
         logic        [OP_CNT-1:0]       op_load;
         logic        [OP_CNT-1:0][4 :0] op_vaddr;
         logic        [OP_CNT-1:0][31:0] op_xval;
+
+        logic        [RES_CNT-1:0]      res_vreg;
+        logic        [RES_CNT-1:0]      res_narrow;
+        logic                           res_store;
+        logic                           res_shift;
+        logic        [4:0]              res_vaddr;
     } ctrl_t;
 
     logic        state_valid_q,  state_valid_d;
     ctrl_t       state_q,        state_d;
     logic [31:0] vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
+    logic              last_cycle_q, last_cycle_d;
     logic [OP_CNT-1:0] op_load_q,  op_load_d;
     logic [OP_CNT-1:0] op_shift_q, op_shift_d;
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_pipeline_state_valid
@@ -211,8 +221,11 @@ module vproc_pipeline #(
     always_ff @(posedge clk_i) begin : vproc_pipeline_state
         state_q        <= state_d;
         vreg_pend_wr_q <= vreg_pend_wr_d;
-        op_load_q      <= op_load_d;
-        op_shift_q     <= op_shift_d;
+        if (~state_valid_q | pipeline_ready) begin
+            last_cycle_q   <= last_cycle_d;
+            op_load_q      <= op_load_d;
+            op_shift_q     <= op_shift_d;
+        end
     end
 
     // whether the auxiliary counter is used
@@ -223,61 +236,6 @@ module vproc_pipeline #(
             if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
                 aux_count_used = 1'b1;
             end
-        end
-    end
-
-    logic last_cycle;
-    always_comb begin
-        last_cycle = DONT_CARE_ZERO ? 1'b0 : 1'bx;
-        unique case (state_q.emul)
-            EMUL_1: last_cycle =                                        state_q.count.part.low == '1;
-            EMUL_2: last_cycle = (state_q.count.part.mul[  0] == '1) & (state_q.count.part.low == '1);
-            EMUL_4: last_cycle = (state_q.count.part.mul[1:0] == '1) & (state_q.count.part.low == '1);
-            EMUL_8: last_cycle = (state_q.count.part.mul[2:0] == '1) & (state_q.count.part.low == '1);
-            default: ;
-        endcase
-        if ((OP_ALT_COUNTER != '0) & state_q.count.part.sign) begin
-            last_cycle = '0;
-        end
-        if ((UNIT == UNIT_ELEM) & (state_q.aux_count != '1)) begin
-            last_cycle = '0;
-        end
-    end
-
-    counter_t slide_count;
-    always_comb begin
-        slide_count.val = state_q.rs1.r.xval[$clog2(MAX_OP_W/8) +: COUNTER_W];
-        if (state_q.mode.sld.slide1) begin
-            if (state_q.mode.sld.dir == SLD_UP) begin
-                // slide_count is all zeroes for up slide, except for a byte slide of 4 when the
-                // operand width is 32 bits, then it is 1 (right shift by log2(MAX_OP_W/8) = 2 bits)
-                unique case (state_q.eew)
-                    VSEW_8,
-                    VSEW_16: slide_count.val = '0;
-                    VSEW_32: slide_count.val = {{COUNTER_W-1{1'b0}}, MAX_OP_W == 32};
-                    default: ;
-                endcase
-            end else begin
-                // slide_count is all ones for down slide, even with a byte slide value of -4
-                slide_count.val = '1;
-            end
-        end
-    end
-
-    logic [3:0] slide_mul_diff;
-    assign slide_mul_diff = state_q.count.val[COUNTER_W-1 -: 4] - slide_count.val[COUNTER_W-1 -: 4];
-
-    logic slide_fetch;
-    always_comb begin
-        slide_fetch = 1'b0;
-        if (state_q.count.part.low == slide_count.part.low) begin
-            unique case (state_q.emul)
-                EMUL_1: slide_fetch =   slide_mul_diff             == '0;
-                EMUL_2: slide_fetch = ((slide_mul_diff) & 4'b1110) == '0;
-                EMUL_4: slide_fetch = ((slide_mul_diff) & 4'b1100) == '0;
-                EMUL_8: slide_fetch = ((slide_mul_diff) & 4'b1000) == '0;
-                default: ;
-            endcase
         end
     end
 
@@ -306,28 +264,18 @@ module vproc_pipeline #(
     end
 
     logic pipeline_ready;
+    counter_t count_next_inc, alt_count_next_inc;
     always_comb begin
         op_ack_o       = 1'b0;
         state_valid_d  = state_valid_q;
         state_d        = state_q;
         vreg_pend_wr_d = vreg_pend_wr_q & vreg_pend_wr_i;
 
-        if (((~state_valid_q) | (last_cycle & pipeline_ready & ((UNIT != UNIT_ELEM) | ~state_q.requires_flush))) & op_rdy_i) begin
-            op_ack_o            = 1'b1;
-            state_valid_d       = 1'b1;
-            state_d.count.val   = '0;
-            if ((OP_ALLOW_ELEMWISE != '0) | (OP_ALWAYS_ELEMWISE != '0)) begin
-                state_d.count.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
-                unique case ((UNIT == UNIT_LSU) ? mode_i.lsu.eew : vsew_i)
-                    VSEW_8:  state_d.count.val[1:0] = 2'b00;
-                    VSEW_16: state_d.count.val[1:0] = 2'b01;
-                    VSEW_32: state_d.count.val[1:0] = 2'b11;
-                    default: ;
-                endcase
-            end
-            if ((UNIT == UNIT_LSU) & (mode_i.lsu.stride == LSU_UNITSTRIDE)) begin
-                state_d.count.val[$clog2(MAX_OP_W/8)-1:0] = '1;
-            end
+        if ((~state_valid_q) | (last_cycle_q & pipeline_ready & ((UNIT != UNIT_ELEM) | ~state_q.requires_flush))) begin
+            op_ack_o      = 1'b1;
+            state_valid_d = op_rdy_i;
+
+            state_d.count = '0;
             if ((UNIT == UNIT_SLD) & (mode_i.sld.dir == SLD_DOWN)) begin
                 state_d.count.part.sign = '1;
                 state_d.count.part.mul  = '1;
@@ -371,15 +319,9 @@ module vproc_pipeline #(
                 end
             end
 
-            state_d.count_dup = '0;
-            if ((UNIT == UNIT_SLD) & (mode_i.sld.dir == SLD_DOWN)) begin
-                state_d.count_dup.part.sign = '1;
-                state_d.count_dup.part.mul  = '1;
-            end
-
             state_d.count_inc = COUNT_INC_1;
             if ((OP_ALLOW_ELEMWISE != '0) | (OP_ALWAYS_ELEMWISE != '0)) begin
-                state_d.count_inc = DONT_CARE_ZERO ? '0 : 'x;
+                state_d.count_inc = DONT_CARE_ZERO ? count_inc_e'('0) : count_inc_e'('x);
                 unique case ((UNIT == UNIT_LSU) ? mode_i.lsu.eew : vsew_i)
                     VSEW_8:  state_d.count_inc = COUNT_INC_1;
                     VSEW_16: state_d.count_inc = COUNT_INC_2;
@@ -401,31 +343,26 @@ module vproc_pipeline #(
             state_d.vxrm           = vxrm_i;
             state_d.vl             = vl_i;
             state_d.vl_0           = vl_0_i;
-            state_d.rs1            = rs1_i;
-            state_d.rs1            = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) ? rs2_i : rs1_i;
-            state_d.rs1.vreg       = ((UNIT == UNIT_ELEM) & ((mode_i.elem.op == ELEM_XMV) | op_reduction)) | rs1_i.vreg;
+            state_d.xval           = rs1_i.r.xval;
             if ((UNIT == UNIT_SLD) & ~mode_i.sld.slide1) begin
                 // convert element offset to byte offset for the relevant section of rs1 and negate
                 // for down slides
                 if (mode_i.sld.dir == SLD_UP) begin
                     unique case (vsew_i)
-                        VSEW_8:  state_d.rs1.r.xval[$clog2(VREG_W/8)+3:0] =  {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+2:0]      };
-                        VSEW_16: state_d.rs1.r.xval[$clog2(VREG_W/8)+3:0] =  {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+1:0], 1'b0};
-                        VSEW_32: state_d.rs1.r.xval[$clog2(VREG_W/8)+3:0] =  {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+0:0], 2'b0};
+                        VSEW_8:  state_d.xval[$clog2(VREG_W/8)+3:0] =  {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+2:0]      };
+                        VSEW_16: state_d.xval[$clog2(VREG_W/8)+3:0] =  {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+1:0], 1'b0};
+                        VSEW_32: state_d.xval[$clog2(VREG_W/8)+3:0] =  {1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+0:0], 2'b0};
                         default: ;
                     endcase
                 end else begin
                     unique case (vsew_i)
-                        VSEW_8:  state_d.rs1.r.xval[$clog2(VREG_W/8)+3:0] = -{1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+2:0]      };
-                        VSEW_16: state_d.rs1.r.xval[$clog2(VREG_W/8)+3:0] = -{1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+1:0], 1'b0};
-                        VSEW_32: state_d.rs1.r.xval[$clog2(VREG_W/8)+3:0] = -{1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+0:0], 2'b0};
+                        VSEW_8:  state_d.xval[$clog2(VREG_W/8)+3:0] = -{1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+2:0]      };
+                        VSEW_16: state_d.xval[$clog2(VREG_W/8)+3:0] = -{1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+1:0], 1'b0};
+                        VSEW_32: state_d.xval[$clog2(VREG_W/8)+3:0] = -{1'b0, rs1_i.r.xval[$clog2(VREG_W/8)+0:0], 2'b0};
                         default: ;
                     endcase
                 end
             end
-            state_d.vd           = vd_i;
-            state_d.vd_narrow    = (UNIT == UNIT_ALU) ? (widenarrow_i == OP_NARROWING) : '0;
-            state_d.vd_store     = 1'b0;
             vreg_pend_wr_d       = vreg_pend_wr_i;
 
 
@@ -434,7 +371,7 @@ module vproc_pipeline #(
             state_d.op_flags[OP_CNT-2] = unpack_flags'('0);
             state_d.op_flags[OP_CNT-1] = unpack_flags'('0);
             if ((UNIT == UNIT_LSU) | (UNIT == UNIT_SLD)) begin
-                state_d.op_flags[0].vreg     = (UNIT != UNIT_SLD) & rs2_i.vreg;
+                state_d.op_flags[0].vreg     = rs2_i.vreg;
                 state_d.op_vaddr[0]          = rs2_i.r.vaddr;
                 state_d.op_xval [0]          = rs2_i.r.xval;
                 state_d.op_flags[1].vreg     = mode_i.lsu.store;
@@ -471,119 +408,24 @@ module vproc_pipeline #(
                 default: ;
             endcase
             state_d.op_flags[OP_CNT-1].elemwise = (UNIT == UNIT_LSU) & (mode_i.lsu.stride != LSU_UNITSTRIDE);
+
+            state_d.res_vreg  [0] = (UNIT != UNIT_LSU) | ~mode_i.lsu.store;
+            state_d.res_narrow[0] = (UNIT == UNIT_ALU) ? (widenarrow_i == OP_NARROWING) : '0;
+            state_d.res_vaddr     = vd_i;
+            if (UNIT == UNIT_ALU) begin
+                state_d.res_vreg [0        ] = ~mode_i.alu.cmp;
+                state_d.res_vreg [RES_CNT-1] =  mode_i.alu.cmp;
+            end
         end
         else if (state_valid_q & pipeline_ready) begin
-            state_valid_d        = ~last_cycle;
+            state_valid_d        = ~last_cycle_q;
             state_d.first_cycle  = 1'b0;
-            state_d.vd_store     = 1'b0;
 
-            // increment counter
-            if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
-                /*
-                if ((OP_ALWAYS_ELEMWISE != '0) | (OP_ALLOW_ELEMWISE != '0)) begin
-                    state_d.count.val     = state_q.count.val     + (1 << $clog2(MAX_OP_W/8));
-                    state_d.alt_count.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/8));
-                    // Count individual elements if any valid operand requires element-wise access
-                    //for (int i = 0; i < OP_CNT; i++) begin
-                    //    if ((OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) & (
-                    //        OP_ALWAYS_ELEMWISE[i] |
-                    //        (OP_ALLOW_ELEMWISE[i] & state_q.op_flags[i].elemwise)
-                    //    )) begin
-                            state_d.count.val     = DONT_CARE_ZERO ? '0 : 'x;
-                            state_d.alt_count.val = DONT_CARE_ZERO ? '0 : 'x;
-                            unique case (state_q.eew)
-                                VSEW_8: begin
-                                    state_d.count.val     = state_q.count.val     + 1;
-                                    state_d.alt_count.val = state_q.alt_count.val + 1;
-                                end
-                                VSEW_16: begin
-                                    state_d.count.val     = state_q.count.val     + 2;
-                                    state_d.alt_count.val = state_q.alt_count.val + 2;
-                                end
-                                VSEW_32: begin
-                                    state_d.count.val     = state_q.count.val     + 4;
-                                    state_d.alt_count.val = state_q.alt_count.val + 4;
-                                end
-                                default: ;
-                            endcase
-                    //    end
-                    //end
-                    // TODO fix errors in above code and remove below statement
-                    if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
-                        state_d.count.val     = state_q.count.val     + (1 << $clog2(MAX_OP_W/8));
-                        state_d.alt_count.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/8));
-                    end
-                end else begin
-                    state_d.count.val     = state_q.count.val     + 1;
-                    state_d.alt_count.val = state_q.alt_count.val + 1;
-                end
-                */
-                unique case (state_q.count_inc)
-                    COUNT_INC_1: begin
-                        state_d.count.val     = state_q.count.val     + COUNTER_W'(1);
-                        state_d.alt_count.val = state_q.alt_count.val + COUNTER_W'(1);
-                    end
-                    COUNT_INC_2: begin
-                        state_d.count.val     = state_q.count.val     + COUNTER_W'(2);
-                        state_d.alt_count.val = state_q.alt_count.val + COUNTER_W'(2);
-                    end
-                    COUNT_INC_4: begin
-                        state_d.count.val     = state_q.count.val     + COUNTER_W'(4);
-                        state_d.alt_count.val = state_q.alt_count.val + COUNTER_W'(4);
-                    end
-                    COUNT_INC_MAX: begin
-                        state_d.count.val     = state_q.count.val     + (1 << $clog2(MAX_OP_W/8));
-                        state_d.alt_count.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/8));
-                    end
-                endcase
-                unique case (state_q.count_inc)
-                    COUNT_INC_1: begin
-                        state_d.count_dup.val     = state_q.count_dup.val     + COUNTER_W'(1);
-                    end
-                    COUNT_INC_2: begin
-                        state_d.count_dup.val     = state_q.count_dup.val     + COUNTER_W'(2);
-                    end
-                    COUNT_INC_4: begin
-                        state_d.count_dup.val     = state_q.count_dup.val     + COUNTER_W'(4);
-                    end
-                    COUNT_INC_MAX: begin
-                        state_d.count_dup.val     = state_q.count_dup.val     + (1 << $clog2(MAX_OP_W/8));
-                    end
-                endcase
-            end
+            state_d.count     = count_next_inc;
+            state_d.alt_count = alt_count_next_inc;
             if (aux_count_used) begin
                 state_d.aux_count = state_q.aux_count + 1;
             end
-
-            if ((state_q.count.part.low == '1) & ((UNIT != UNIT_ELEM) | state_q.aux_count == '1)) begin
-                unique case (UNIT)
-                    UNIT_LSU: begin
-                        state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
-                    end
-                    UNIT_ALU: if (~state_q.mode.alu.cmp & (~state_q.vd_narrow | state_q.count.part.mul[0])) begin
-                        state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
-                    end
-                    UNIT_SLD: if (~state_q.count.part.sign) begin
-                        state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
-                    end
-                    UNIT_MUL: begin
-                        state_d.vd[2:0] = state_q.vd[2:0] + 3'b1;
-                    end
-                    default: ;
-                endcase
-            end
-            if (UNIT == UNIT_LSU) begin
-                unique case (state_q.mode.lsu.stride)
-                    LSU_UNITSTRIDE: state_d.rs1.r.xval = state_q.rs1.r.xval + (MAX_OP_W / 8);
-                    LSU_STRIDED:    state_d.rs1.r.xval = state_q.rs1.r.xval + state_q.op_xval[0];
-                    default: ; // for indexed loads the base address stays the same
-                endcase
-                state_d.vd_shift = state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1;
-            end
-            if ((UNIT == UNIT_SLD) & (state_q.count.part.low == slide_count.part.low)) begin
-                state_d.op_flags[0].vreg = slide_fetch; // set vs2 valid bit after fetch
-            end
-
 
             for (int i = 0; i < OP_CNT; i++) begin
                 if ((OP_ADDR_OFFSET_OP0 != '0) & ~OP_ADDR_OFFSET_OP0[i]) begin
@@ -592,18 +434,10 @@ module vproc_pipeline #(
             end
 
             if (UNIT == UNIT_ELEM) begin
-                state_valid_d = ~last_cycle | state_q.requires_flush;
-                //if (last_cycle & state_q.requires_flush) begin
-                if (last_cycle) begin
+                state_valid_d = ~last_cycle_q | state_q.requires_flush;
+                if (last_cycle_q) begin
                     state_d.count.val      = '0;
-                    state_d.count.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
-                    unique case (vsew_i)
-                        VSEW_8:  state_d.count.val[1:0] = 2'b00;
-                        VSEW_16: state_d.count.val[1:0] = 2'b01;
-                        VSEW_32: state_d.count.val[1:0] = 2'b11;
-                        default: ;
-                    endcase
-                    state_d.count.part.mul = '1; // flush only one vreg
+                    state_d.count.part.mul = '1;
                     state_d.mode.elem.op   = ELEM_FLUSH;
                     state_d.requires_flush = 1'b0;
                     //state_d.rs1.vreg       = 1'b0;
@@ -616,11 +450,74 @@ module vproc_pipeline #(
         end
     end
 
+    always_comb begin
+        count_next_inc     = state_q.count;
+        alt_count_next_inc = state_q.alt_count.val;
+        if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
+            unique case (state_q.count_inc)
+                COUNT_INC_1: begin
+                    count_next_inc.val     = state_q.count.val     + COUNTER_W'(1);
+                    alt_count_next_inc.val = state_q.alt_count.val + COUNTER_W'(1);
+                end
+                COUNT_INC_2: begin
+                    count_next_inc.val     = state_q.count.val     + COUNTER_W'(2);
+                    alt_count_next_inc.val = state_q.alt_count.val + COUNTER_W'(2);
+                end
+                COUNT_INC_4: begin
+                    count_next_inc.val     = state_q.count.val     + COUNTER_W'(4);
+                    alt_count_next_inc.val = state_q.alt_count.val + COUNTER_W'(4);
+                end
+                COUNT_INC_MAX: begin
+                    count_next_inc.val     = state_q.count.val     + (1 << $clog2(MAX_OP_W/SMALLEST_OP_W));
+                    alt_count_next_inc.val = state_q.alt_count.val + (1 << $clog2(MAX_OP_W/SMALLEST_OP_W));
+                end
+                default: ;
+            endcase
+        end
+    end
+
+    always_comb begin
+        last_cycle_d = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        // first cycle is not last cycle unless EMUL is 1 and the counter has no low part
+        if (op_ack_o) begin
+            // TODO take exceptions into account (OP_ALT_COUNTER != 0 and auxiliary counter)
+            last_cycle_d = (emul_i == EMUL_1) & (COUNTER_W == 4);
+        end else begin
+            last_cycle_d = count_next_inc.val[COUNTER_W-5:$clog2(MAX_OP_W/SMALLEST_OP_W)] == '1;
+            // clear last cycle in case lower bits are not set for lower counter increments
+            unique case (state_q.count_inc)
+                COUNT_INC_1: for (int i = 0; i < $clog2(MAX_OP_W/SMALLEST_OP_W); i++) begin
+                    last_cycle_d &= count_next_inc.val[i];
+                end
+                COUNT_INC_2: for (int i = 1; i < $clog2(MAX_OP_W/SMALLEST_OP_W); i++) begin
+                    last_cycle_d &= count_next_inc.val[i];
+                end
+                COUNT_INC_4: for (int i = 2; i < $clog2(MAX_OP_W/SMALLEST_OP_W); i++) begin
+                    last_cycle_d &= count_next_inc.val[i];
+                end
+                default: ;
+            endcase
+            // clear last cycle based on EMUL
+            unique case (state_q.emul)
+                EMUL_2: last_cycle_d &= count_next_inc.part.mul[  0] == '1;
+                EMUL_4: last_cycle_d &= count_next_inc.part.mul[1:0] == '1;
+                EMUL_8: last_cycle_d &= count_next_inc.part.mul[2:0] == '1;
+                default: ;
+            endcase
+            if ((OP_ALT_COUNTER != '0) & state_q.count.part.sign) begin
+                last_cycle_d = '0;
+            end
+            if (aux_count_used & ((state_q.aux_count ^ AUX_COUNTER_W'(1)) != '1)) begin
+                last_cycle_d = '0;
+            end
+        end
+    end
+
     counter_t [OP_CNT-1:0] op_count;
     always_comb begin
         for (int i = 0; i < OP_CNT; i++) begin
-            // use next value of counter rather than current
-            op_count[i] = OP_ALT_COUNTER[i] ? state_d.alt_count : state_d.count_dup;
+            // use next value of counter rather than current (including potential new instruction)
+            op_count[i] = OP_ALT_COUNTER[i] ? state_d.alt_count : state_d.count;
         end
     end
     always_comb begin
@@ -639,7 +536,7 @@ module vproc_pipeline #(
                         (~OP_NARROW[i] | ~state_d.op_flags[i].narrow | ~op_count[i].part.mul[0])
                     ) begin
                         op_load_d[i] = (OP_ALWAYS_VREG[i] | state_d.op_flags[i].vreg) &
-                                       ((UNIT != UNIT_ELEM) | ~last_cycle); // may need flushing
+                                       ((UNIT != UNIT_ELEM) | ~last_cycle_q); // may need flushing
 
                         // if the alternative counter is used for some operands the counter's
                         // sign and MUL part might be invalid for the current EMUL, in which
@@ -688,6 +585,26 @@ module vproc_pipeline #(
         end
     end
 
+    logic res_store;
+    logic res_shift;
+    always_comb begin
+        res_store = '0;
+        res_shift = '0;
+        // Store uses next counter value (after increment, but not taking into account a potential
+        // new instruction) and current state (i.e., also disregarding new instructions)
+        // TODO consider the auxiliary counter
+        if ((count_next_inc.part.low == '0) & ((OP_ALT_COUNTER == '0) | ~state_q.count.part.sign) &
+            ((RES_ALWAYS_VREG | state_q.res_vreg) != '0) // at least one valid vreg
+        ) begin
+            res_store = ((RES_NARROW & state_q.res_narrow) == '0) | ~count_next_inc.part.mul[0];
+        end
+        // Shifting is delayed by one cycle compared to the store and hence uses the current counter
+        if ((state_q.count.val & ~({COUNTER_W{1'b1}} << $clog2(RES_W[0] / SMALLEST_OP_W))) == '0) begin
+            res_shift = ((RES_NARROW & state_d.res_narrow) == '0) |
+                        ~state_q.count[$clog2(RES_W[0] / SMALLEST_OP_W)];
+        end
+    end
+
 
     ///////////////////////////////////////////////////////////////////////////
     // FIRST STAGE
@@ -695,55 +612,79 @@ module vproc_pipeline #(
     logic  state_init_stall;
     logic  state_init_valid;
     ctrl_t state_init;
-    logic  state_init_masked;
     always_comb begin
         state_init_valid      = state_valid_q;
         state_init            = state_q;
-        state_init.last_cycle = state_valid_q & last_cycle;
+        state_init.last_cycle = state_valid_q & last_cycle_q;
         // TODO consider only the relevant counter bits for vl_part (i.e., for element-wise access,
         // the lower counter bits should be ignored for EEW > 8; also, the stride bits should be
         // ignored for LSU operation)
-        state_init.vl_part    = (state_q.count.val == state_q.vl[CFG_VL_W-1:$clog2(SMALLEST_OP_W/8)]) ? state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
-        state_init.vl_part_0  = (state_q.count.val >  state_q.vl[CFG_VL_W-1:$clog2(SMALLEST_OP_W/8)]) | state_q.vl_0;
+        state_init.vl_part      = (state_q.count.val == state_q.vl[CFG_VL_W-1:$clog2(SMALLEST_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
+        state_init.vl_part_0    = (state_q.count.val >  state_q.vl[CFG_VL_W-1:$clog2(SMALLEST_OP_W/8)]) |  state_q.vl_0;
+        state_init.last_vl_part = (state_q.count.val == state_q.vl[CFG_VL_W-1:$clog2(SMALLEST_OP_W/8)]) & ~state_q.vl_0;
         if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
-            state_init.vl_part    = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) ? state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
-            state_init.vl_part_0  = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] >  state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) | state_q.vl_0;
-        end
-        state_init.vd_store   = '0;
-        if (state_q.count.part.low == '1) begin
-            unique case (UNIT)
-                UNIT_LSU: state_init.vd_store = state_q.count.val[$clog2(MAX_OP_W/8)-1:0] == '1;
-                UNIT_ALU: state_init.vd_store = ~state_q.vd_narrow | state_q.count.part.mul[0];
-                UNIT_SLD: state_init.vd_store = ~state_q.count.part.sign;
-                UNIT_MUL: state_init.vd_store = 1'b1;
-                default: ;
-            endcase
-        end
-        if (UNIT == UNIT_SLD) begin
-            state_init.op_flags[0].vreg  = slide_fetch | state_q.op_flags[0].vreg;
+            state_init.vl_part      = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
+            state_init.vl_part_0    = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] >  state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) |  state_q.vl_0;
+            state_init.last_vl_part = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) & ~state_q.vl_0;
         end
         for (int i = 0; i < OP_CNT; i++) begin
             state_init.op_load [i]       = op_load_q [i];
             state_init.op_flags[i].shift = op_shift_q[i];
-            if (op_load_q[i]) begin
+            if (op_load_q[i] & ~OP_ADDR_OFFSET_OP0[i]) begin
                 if (OP_NARROW[i] & state_q.op_flags[i].narrow) begin
                     state_init.op_vaddr[i][1:0] = state_q.op_vaddr[i][1:0] | (OP_ALT_COUNTER[i] ? state_q.alt_count.part.mul[2:1] : state_q.count.part.mul[2:1]);
                 end else begin
                     state_init.op_vaddr[i][2:0] = state_q.op_vaddr[i][2:0] | (OP_ALT_COUNTER[i] ? state_q.alt_count.part.mul      : state_q.count.part.mul     );
                 end
             end
+            if (OP_ALT_COUNTER[i]) begin
+                state_init.op_flags[i].vreg = OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg;
+                unique case (state_q.emul)
+                    EMUL_1: if (  state_q.alt_count.val[COUNTER_W-1 -: 4]             != '0) begin
+                        state_init.op_flags[i].vreg = '0;
+                    end
+                    EMUL_2: if (((state_q.alt_count.val[COUNTER_W-1 -: 4]) & 4'b1110) != '0) begin
+                        state_init.op_flags[i].vreg = '0;
+                    end
+                    EMUL_4: if (((state_q.alt_count.val[COUNTER_W-1 -: 4]) & 4'b1100) != '0) begin
+                        state_init.op_flags[i].vreg = '0;
+                    end
+                    EMUL_8: if (((state_q.alt_count.val[COUNTER_W-1 -: 4]) & 4'b1000) != '0) begin
+                        state_init.op_flags[i].vreg = '0;
+                    end
+                    default: ;
+                endcase
+            end
+        end
+        state_init.res_store = res_store;
+        state_init.res_shift = res_shift;
+        state_init.res_vaddr = state_q.res_vaddr;
+        for (int i = 0; i < RES_CNT; i++) begin
+            if ((UNIT != UNIT_ELEM) & ~RES_MASK[i] & (RES_ALWAYS_VREG[i] | state_q.res_vreg[i])) begin
+                if (RES_NARROW[i] & state_q.res_narrow[i]) begin
+                    state_init.res_vaddr[1:0] = state_q.res_vaddr[1:0] | state_q.count.part.mul[2:1];
+                end else begin
+                    state_init.res_vaddr[2:0] = state_q.res_vaddr[2:0] | state_q.count.part.mul;
+                end
+            end
         end
 
-        // Determine whether there is a pending read of v0 as a mask
-        state_init_masked = '0;
-        unique case (UNIT)
-            UNIT_LSU:  state_init_masked = state_init.mode.lsu.masked;
-            UNIT_ALU:  state_init_masked = state_init.mode.alu.op_mask != ALU_MASK_NONE;
-            UNIT_MUL:  state_init_masked = state_init.mode.mul.masked;
-            UNIT_SLD:  state_init_masked = state_init.mode.sld.masked;
-            UNIT_ELEM: state_init_masked = state_init.mode.elem.masked;
+        unique case (state_q.emul)
+            EMUL_1: state_init.alt_count_valid =   state_q.alt_count.val[COUNTER_W-1 -: 4]             == '0;
+            EMUL_2: state_init.alt_count_valid = ((state_q.alt_count.val[COUNTER_W-1 -: 4]) & 4'b1110) == '0;
+            EMUL_4: state_init.alt_count_valid = ((state_q.alt_count.val[COUNTER_W-1 -: 4]) & 4'b1100) == '0;
+            EMUL_8: state_init.alt_count_valid = ((state_q.alt_count.val[COUNTER_W-1 -: 4]) & 4'b1000) == '0;
             default: ;
         endcase
+
+        if ((UNIT == UNIT_LSU) & ~state_q.first_cycle) begin
+            state_init.xval = DONT_CARE_ZERO ? '0 : 'x;
+            unique case (state_q.mode.lsu.stride)
+                LSU_STRIDED: state_init.xval = state_q.op_xval[0];
+                LSU_INDEXED: state_init.xval = state_q.xval;
+                default: ;
+            endcase
+        end
     end
     logic unpack_ready;
     assign pipeline_ready = unpack_ready & ~state_init_stall;
@@ -1017,9 +958,9 @@ module vproc_pipeline #(
                 pack_res_mask = '0;
 
                 pack_res_flags[0]                 = pack_flags'('0);
-                pack_res_flags[0].shift           = unit_out_ctrl.vd_shift;
+                pack_res_flags[0].shift           = unit_out_ctrl.res_shift;
                 pack_res_flags[0].elemwise        = unit_out_ctrl.mode.lsu.stride != LSU_UNITSTRIDE;
-                pack_res_store[0]                 = unit_out_ctrl.vd_store;
+                pack_res_store[0]                 = unit_out_ctrl.res_store;
                 pack_res_valid[0]                 = unit_out_valid;
                 pack_res_data [0]                 = unit_out_res;
                 pack_res_mask [0][MAX_OP_W/8-1:0] = unit_out_mask;
@@ -1057,9 +998,9 @@ module vproc_pipeline #(
                 pack_res_mask = '0;
 
                 pack_res_flags[0]                 = pack_flags'('0);
-                pack_res_store[0]                 = unit_out_ctrl.vd_store & ~unit_out_ctrl.mode.alu.cmp;
-                pack_res_flags[0].shift           = ~unit_out_ctrl.vd_narrow | ~unit_out_ctrl.count.val[0];
-                pack_res_flags[0].narrow          = unit_out_ctrl.vd_narrow;
+                pack_res_store[0]                 = unit_out_ctrl.res_store & ~unit_out_ctrl.mode.alu.cmp;
+                pack_res_flags[0].shift           = unit_out_ctrl.res_shift;
+                pack_res_flags[0].narrow          = unit_out_ctrl.res_narrow[0];
                 pack_res_flags[0].saturate        = unit_out_ctrl.mode.alu.sat_res;
                 pack_res_flags[0].sig             = unit_out_ctrl.mode.alu.sigext;
                 pack_res_valid[0]                 = unit_out_valid;
@@ -1068,12 +1009,12 @@ module vproc_pipeline #(
 
                 pack_res_flags[1]                 = pack_flags'('0);
                 pack_res_flags[1].mul_idx         = unit_out_ctrl.count.part.mul;
-                pack_res_store[1]                 = unit_out_ctrl.vd_store & unit_out_ctrl.mode.alu.cmp;
+                pack_res_store[1]                 = unit_out_ctrl.res_store & unit_out_ctrl.mode.alu.cmp;
                 pack_res_valid[1]                 = unit_out_valid;
                 pack_res_data [1][MAX_OP_W/8-1:0] = unit_out_res_cmp;
                 pack_res_mask [1][MAX_OP_W/8-1:0] = unit_out_mask;
             end
-            assign pack_pend_clear     = unit_out_ctrl.mode.alu.cmp ? unit_out_ctrl.last_cycle : unit_out_ctrl.vd_store;
+            assign pack_pend_clear     = unit_out_ctrl.mode.alu.cmp ? unit_out_ctrl.last_cycle : unit_out_ctrl.res_store;
             assign pack_pend_clear_cnt = '0;
             assign unit_out_instr_done = unit_out_ctrl.last_cycle;
         end
@@ -1107,12 +1048,12 @@ module vproc_pipeline #(
                 pack_res_mask = '0;
 
                 pack_res_flags[0]                 = pack_flags'('0);
-                pack_res_store[0]                 = unit_out_ctrl.vd_store;
+                pack_res_store[0]                 = unit_out_ctrl.res_store;
                 pack_res_valid[0]                 = unit_out_valid;
                 pack_res_data [0]                 = unit_out_res;
                 pack_res_mask [0][MAX_OP_W/8-1:0] = unit_out_mask;
             end
-            assign pack_pend_clear     = unit_out_ctrl.vd_store;
+            assign pack_pend_clear     = unit_out_ctrl.res_store;
             assign pack_pend_clear_cnt = '0;
             assign unit_out_instr_done = unit_out_ctrl.last_cycle;
         end
@@ -1120,8 +1061,6 @@ module vproc_pipeline #(
             logic [MAX_OP_W  -1:0] unit_out_res;
             logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_sld #(
-                .VREG_W           ( VREG_W                            ),
-                .CFG_VL_W         ( CFG_VL_W                          ),
                 .SLD_OP_W         ( MAX_OP_W                          ),
                 .CTRL_T           ( ctrl_t                            ),
                 .DONT_CARE_ZERO   ( DONT_CARE_ZERO                    )
@@ -1144,12 +1083,12 @@ module vproc_pipeline #(
                 pack_res_data = '0;
                 pack_res_mask = '0;
                 pack_res_flags[0]                 = pack_flags'('0);
-                pack_res_store[0]                 = unit_out_ctrl.vd_store;
+                pack_res_store[0]                 = unit_out_ctrl.res_store;
                 pack_res_valid[0]                 = unit_out_valid;
                 pack_res_data [0]                 = unit_out_res;
                 pack_res_mask [0][MAX_OP_W/8-1:0] = unit_out_mask;
             end
-            assign pack_pend_clear     = unit_out_ctrl.vd_store;
+            assign pack_pend_clear     = unit_out_ctrl.res_store;
             assign pack_pend_clear_cnt = '0;
             assign unit_out_instr_done = unit_out_ctrl.last_cycle;
         end
@@ -1230,14 +1169,13 @@ module vproc_pipeline #(
             end
             always_comb begin
                 unit_out_ctrl           = elem_out_ctrl;
-                unit_out_ctrl.count.val = {1'b0, vd_count_d.val};
-                unit_out_ctrl.vd_store  = ~elem_out_ctrl.mode.elem.xreg & unit_out_res_valid & (vd_count_d.part.low == '1);
-                unit_out_ctrl.vd        = DONT_CARE_ZERO ? '0 : 'x;
+                unit_out_ctrl.res_store = ~elem_out_ctrl.mode.elem.xreg & unit_out_res_valid & (vd_count_d.part.low == '1);
+                unit_out_ctrl.res_vaddr = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (elem_out_ctrl.emul)
-                    EMUL_1: unit_out_ctrl.vd = elem_out_ctrl.vd;
-                    EMUL_2: unit_out_ctrl.vd = elem_out_ctrl.vd | {4'b0, vd_count_d.part.mul[0:0]};
-                    EMUL_4: unit_out_ctrl.vd = elem_out_ctrl.vd | {3'b0, vd_count_d.part.mul[1:0]};
-                    EMUL_8: unit_out_ctrl.vd = elem_out_ctrl.vd | {2'b0, vd_count_d.part.mul[2:0]};
+                    EMUL_1: unit_out_ctrl.res_vaddr = elem_out_ctrl.res_vaddr;
+                    EMUL_2: unit_out_ctrl.res_vaddr = elem_out_ctrl.res_vaddr | {4'b0, vd_count_d.part.mul[0:0]};
+                    EMUL_4: unit_out_ctrl.res_vaddr = elem_out_ctrl.res_vaddr | {3'b0, vd_count_d.part.mul[1:0]};
+                    EMUL_8: unit_out_ctrl.res_vaddr = elem_out_ctrl.res_vaddr | {2'b0, vd_count_d.part.mul[2:0]};
                     default: ;
                 endcase
             end
@@ -1252,12 +1190,12 @@ module vproc_pipeline #(
                 pack_res_flags[0]       = pack_flags'('0);
                 pack_res_flags[0].shift = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (unit_out_ctrl.eew)
-                    VSEW_8:  pack_res_flags[0].shift = unit_out_ctrl.count.val[1:0] == '0;
-                    VSEW_16: pack_res_flags[0].shift = unit_out_ctrl.count.val[1:1] == '0;
+                    VSEW_8:  pack_res_flags[0].shift = vd_count_d.val[1:0] == '0;
+                    VSEW_16: pack_res_flags[0].shift = vd_count_d.val[1:1] == '0;
                     VSEW_32: pack_res_flags[0].shift = 1'b1;
                     default: ;
                 endcase
-                pack_res_store[0]      = unit_out_ctrl.vd_store;
+                pack_res_store[0]      = unit_out_ctrl.res_store;
                 pack_res_valid[0]      = unit_out_res_valid;
                 pack_res_data [0]      = unit_out_res;
                 pack_res_mask [0][3:0] = unit_out_mask;
@@ -1280,11 +1218,6 @@ module vproc_pipeline #(
     assign instr_done_valid_o      = (UNIT != UNIT_LSU) ? pack_instr_done_valid : lsu_instr_done_valid;
     assign instr_done_id_o         = (UNIT != UNIT_LSU) ? pack_instr_done_id    : lsu_instr_done_id;
 
-
-    localparam bit [1:0] PACK_RES_MASK        = (UNIT == UNIT_ALU ) ? 2'b10 : '0;
-    localparam bit [1:0] PACK_RES_NARROW      = (UNIT == UNIT_ALU ) ? 2'b01 : '0;
-    localparam bit [1:0] PACK_ALLOW_ELEMWISE  = (UNIT == UNIT_LSU ) ? 2'b1  : '0;
-    localparam bit [1:0] PACK_ALWAYS_ELEMWISE = (UNIT == UNIT_ELEM) ? 2'b1  : '0;
     vproc_vregpack #(
         .VPORT_W                     ( VREG_W                            ),
         .VADDR_W                     ( 5                                 ),
@@ -1293,11 +1226,11 @@ module vproc_pipeline #(
         .MAX_RES_W                   ( MAX_RES_W                         ),
         .RES_CNT                     ( RES_CNT                           ),
         .RES_W                       ( RES_W                             ),
-        .RES_MASK                    ( PACK_RES_MASK       [RES_CNT-1:0] ),
+        .RES_MASK                    ( RES_MASK           [RES_CNT-1:0]  ),
         .RES_XREG                    ( '0                                ),
-        .RES_NARROW                  ( PACK_RES_NARROW     [RES_CNT-1:0] ),
-        .RES_ALLOW_ELEMWISE          ( PACK_ALLOW_ELEMWISE [RES_CNT-1:0] ),
-        .RES_ALWAYS_ELEMWISE         ( PACK_ALWAYS_ELEMWISE[RES_CNT-1:0] ),
+        .RES_NARROW                  ( RES_NARROW         [RES_CNT-1:0]  ),
+        .RES_ALLOW_ELEMWISE          ( RES_ALLOW_ELEMWISE [RES_CNT-1:0]  ),
+        .RES_ALWAYS_ELEMWISE         ( RES_ALWAYS_ELEMWISE[RES_CNT-1:0]  ),
         .FLAGS_T                     ( pack_flags                        ),
         .INSTR_ID_W                  ( XIF_ID_W                          ),
         .INSTR_ID_CNT                ( XIF_ID_CNT                        ),
@@ -1310,7 +1243,7 @@ module vproc_pipeline #(
         .pipe_in_ready_o             ( unit_out_ready                    ),
         .pipe_in_instr_id_i          ( unit_out_ctrl.id                  ),
         .pipe_in_eew_i               ( unit_out_ctrl.eew                 ),
-        .pipe_in_vaddr_i             ( unit_out_ctrl.vd                  ),
+        .pipe_in_vaddr_i             ( unit_out_ctrl.res_vaddr           ),
         .pipe_in_res_store_i         ( pack_res_store                    ),
         .pipe_in_res_valid_i         ( pack_res_valid                    ),
         .pipe_in_res_flags_i         ( pack_res_flags                    ),

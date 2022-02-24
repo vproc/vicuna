@@ -54,17 +54,17 @@ module vproc_lsu #(
 
     // reduced LSU state for passing through the queue
     typedef struct packed {
-        logic                first_cycle;
-        logic                last_cycle;
-        logic [XIF_ID_W-1:0] id;
-        op_mode_lsu          mode;
+        logic                        first_cycle;
+        logic                        last_cycle;
+        logic [XIF_ID_W-1:0]         id;
+        op_mode_lsu                  mode;
         logic [$clog2(VMEM_W/8)-1:0] vl_part;
-        logic                vl_part_0;
-        logic [4:0]          vd;
-        logic                vd_store;
-        logic                vd_shift;
-        logic                exc;
-        logic [5:0]          exccode;
+        logic                        vl_part_0;
+        logic [4:0]                  res_vaddr;
+        logic                        res_store;
+        logic                        res_shift;
+        logic                        exc;
+        logic [5:0]                  exccode;
     } lsu_state_red;
 
 
@@ -189,7 +189,7 @@ module vproc_lsu #(
     // Stall vreg writes until pending reads of the destination register are
     // complete and while the instruction is speculative; for the LSU stalling
     // has to happen at the request stage, since later stalling is not possible
-    assign state_req_stall = (~state_req_q.mode.lsu.store & state_req_q.vd_store & vreg_pend_rd_i[state_req_q.vd]) | instr_spec_i[state_req_q.id] | ~lsu_queue_ready;
+    assign state_req_stall = (~state_req_q.mode.lsu.store & state_req_q.res_store & vreg_pend_rd_i[state_req_q.res_vaddr]) | instr_spec_i[state_req_q.id] | ~lsu_queue_ready;
 
     assign instr_done_valid_o = state_req_valid_q & state_req_q.last_cycle & xif_mem_if.mem_valid & xif_mem_if.mem_ready;
     assign instr_done_id_o    = state_req_q.id;
@@ -211,16 +211,29 @@ module vproc_lsu #(
 
     // compose memory address:
     always_comb begin
-        req_addr_d = state_req_d.rs1.r.xval;
-        if (state_req_d.mode.lsu.stride == LSU_INDEXED) begin
-            req_addr_d = DONT_CARE_ZERO ? '0 : 'x;
-            unique case (state_req_d.mode.lsu.eew)
-                VSEW_8:  req_addr_d = state_req_d.rs1.r.xval + {24'b0, vs2_data[7 :0]};
-                VSEW_16: req_addr_d = state_req_d.rs1.r.xval + {16'b0, vs2_data[15:0]};
-                VSEW_32: req_addr_d = state_req_d.rs1.r.xval +         vs2_data[31:0] ;
-                default: ;
-            endcase
-        end
+        req_addr_d = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (pipe_in_ctrl_i.mode.lsu.stride)
+            // For (unit-)strided memory requests, the address is initialized with the X register
+            // value during the first cycle and incremented during later cycles, but it is left
+            // unchanged in case the input is invalid (avoids corrupting the address).  Note that
+            // for strided loads, the X register value holds the base address in the first cycle
+            // and then switches to the increment value.
+            LSU_UNITSTRIDE: req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.first_cycle ?
+                pipe_in_ctrl_i.xval : req_addr_q + 32'(VMEM_W / 8)
+            ) : req_addr_q;
+            LSU_STRIDED:    req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.first_cycle ?
+                pipe_in_ctrl_i.xval : req_addr_q + pipe_in_ctrl_i.xval
+            ) : req_addr_q;
+            LSU_INDEXED: begin
+                unique case (pipe_in_ctrl_i.mode.lsu.eew)
+                    VSEW_8:  req_addr_d = pipe_in_ctrl_i.xval + {24'b0, vs2_data[7 :0]};
+                    VSEW_16: req_addr_d = pipe_in_ctrl_i.xval + {16'b0, vs2_data[15:0]};
+                    VSEW_32: req_addr_d = pipe_in_ctrl_i.xval +         vs2_data[31:0] ;
+                    default: ;
+                endcase
+            end
+            default: ;
+        endcase
     end
 
     assign vmsk_tmp_d = vmsk_data;
@@ -228,17 +241,17 @@ module vproc_lsu #(
     // write data conversion and masking:
     logic [VMEM_W/8-1:0] wdata_unit_vl_mask;
     logic                wdata_stri_mask;
-    assign wdata_unit_vl_mask = ~state_req_d.vl_part_0 ? ({(VMEM_W/8){1'b1}} >> (~state_req_d.vl_part)) : '0;
-    assign wdata_stri_mask    = ~state_req_d.vl_part_0 &
-                                (state_req_d.mode.lsu.masked ? vmsk_data[0] : 1'b1);
+    assign wdata_unit_vl_mask = ~pipe_in_ctrl_i.vl_part_0 ? ({(VMEM_W/8){1'b1}} >> (~pipe_in_ctrl_i.vl_part)) : '0;
+    assign wdata_stri_mask    = ~pipe_in_ctrl_i.vl_part_0 &
+                                (pipe_in_ctrl_i.mode.lsu.masked ? vmsk_data[0] : 1'b1);
     always_comb begin
         wdata_buf_d = DONT_CARE_ZERO ? '0 : 'x;
         wmask_buf_d = DONT_CARE_ZERO ? '0 : 'x;
-        if (state_req_d.mode.lsu.stride == LSU_UNITSTRIDE) begin
+        if (pipe_in_ctrl_i.mode.lsu.stride == LSU_UNITSTRIDE) begin
             wdata_buf_d = vs3_data[VMEM_W-1:0];
-            wmask_buf_d = (state_req_d.mode.lsu.masked ? vmsk_data : '1) & wdata_unit_vl_mask;
+            wmask_buf_d = (pipe_in_ctrl_i.mode.lsu.masked ? vmsk_data : '1) & wdata_unit_vl_mask;
         end else begin
-            unique case (state_req_d.mode.lsu.eew)
+            unique case (pipe_in_ctrl_i.mode.lsu.eew)
                 VSEW_8: begin
                     for (int i = 0; i < VMEM_W / 8 ; i++)
                         wdata_buf_d[i*8  +: 8 ] = vs3_data[7 :0];
@@ -290,9 +303,9 @@ module vproc_lsu #(
         state_req_red.mode        = state_req_q.mode.lsu;
         state_req_red.vl_part     = state_req_q.vl_part;
         state_req_red.vl_part_0   = state_req_q.vl_part_0;
-        state_req_red.vd          = state_req_q.vd;
-        state_req_red.vd_store    = state_req_q.vd_store;
-        state_req_red.vd_shift    = state_req_q.vd_shift;
+        state_req_red.res_vaddr   = state_req_q.res_vaddr;
+        state_req_red.res_store   = state_req_q.res_store;
+        state_req_red.res_shift   = state_req_q.res_shift;
         state_req_red.exc         = xif_mem_if.mem_resp.exc;
         state_req_red.exccode     = xif_mem_if.mem_resp.exccode;
     end
@@ -362,11 +375,11 @@ module vproc_lsu #(
         pipe_out_ctrl_o.eew          = state_rdata_q.mode.eew;
         pipe_out_ctrl_o.vl_part      = state_rdata_q.vl_part;
         pipe_out_ctrl_o.vl_part_0    = state_rdata_q.vl_part_0;
-        pipe_out_ctrl_o.vd           = state_rdata_q.vd;
-        pipe_out_ctrl_o.vd_store     = state_rdata_q.vd_store & ~state_rdata_q.exc;
-        pipe_out_ctrl_o.vd_shift     = state_rdata_q.vd_shift;
+        pipe_out_ctrl_o.res_vaddr    = state_rdata_q.res_vaddr;
+        pipe_out_ctrl_o.res_store    = state_rdata_q.res_store & ~state_rdata_q.exc;
+        pipe_out_ctrl_o.res_shift    = state_rdata_q.res_shift;
     end
-    assign pipe_out_pend_clr_o = state_rdata_q.vd_store;
+    assign pipe_out_pend_clr_o = state_rdata_q.res_store;
     always_comb begin
         if (state_rdata_q.mode.stride == LSU_UNITSTRIDE) begin
             pipe_out_res_o = rdata_buf_q;
