@@ -8,13 +8,13 @@
         for (genvar g = 0; g < 32; g++) begin
             assert property (
                 @(posedge clk_i)
-                $rose(vreg_pend_wr_q[g]) |-> state_q.first_cycle
+                $rose(state_q.pend_vreg_wr[g]) |-> state_q.first_cycle
             ) else begin
                 $error("local pending write for vreg %d added midway", g);
             end
             assert property (
                 @(posedge clk_i)
-                $rose(vreg_pend_rd_o[g]) |-> (state_q.first_cycle | $fell(vreg_pend_wr_q[g]))
+                $rose(vreg_pend_rd_o[g]) |-> (state_q.first_cycle | $fell(state_q.pend_vreg_wr[g]))
             ) else begin
                 $error("pending read for vreg %d added midway", g);
             end
