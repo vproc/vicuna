@@ -147,6 +147,7 @@ module vproc_pipeline #(
         logic                            vl_0;
         logic                     [31:0] xval;
         unpack_flags [OP_CNT -1:0]       op_flags;
+        logic        [OP_CNT -1:0]       op_load;
         logic        [OP_CNT -1:0][4 :0] op_vaddr;
         logic        [OP_CNT -1:0][31:0] op_xval;
         logic        [RES_CNT-1:0]       res_vreg;
@@ -162,11 +163,6 @@ module vproc_pipeline #(
     logic        state_valid_q,  state_valid_d;
     state_t      state_q,        state_d;
     logic        state_ready;
-
-    //logic [31:0] vreg_pend_wr_q, vreg_pend_wr_d; // local copy of global vreg write mask
-    //logic              last_cycle_q, last_cycle_d;
-    logic [OP_CNT-1:0] op_load_q,  op_load_d;
-    logic [OP_CNT-1:0] op_shift_q, op_shift_d;
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_pipeline_state_valid
         if (~async_rst_ni) begin
             state_valid_q <= 1'b0;
@@ -174,25 +170,42 @@ module vproc_pipeline #(
         else if (~sync_rst_ni) begin
             state_valid_q <= 1'b0;
         end else begin
-            //if (~state_valid_q | pipeline_ready) begin
-                state_valid_q <= state_valid_d;
-            //end
+            state_valid_q <= state_valid_d;
         end
     end
     always_ff @(posedge clk_i) begin : vproc_pipeline_state
-        state_q        <= state_d;
-        //vreg_pend_wr_q <= vreg_pend_wr_d;
-        if (~state_valid_q | state_ready) begin
-            //last_cycle_q   <= last_cycle_d;
-            op_load_q      <= op_load_d;
-            op_shift_q     <= op_shift_d;
-        end
+        state_q <= state_d;
     end
 
     logic state_stall, unpack_ready;
-    assign state_ready = ~state_valid_q | (~state_stall & unpack_ready);
+    assign state_ready     = ~state_valid_q | (~state_stall & unpack_ready);
+    assign pipe_in_ready_o = state_ready & (~state_valid_q | (state_q.last_cycle &
+                             (~MAY_FLUSH | ~state_q.requires_flush)));
 
-    // whether the auxiliary counter is used
+    // State update logic
+    state_t            state_next;
+    counter_t          count_next_inc, alt_count_next_inc;
+    logic              last_cycle_next;
+    logic [OP_CNT-1:0] op_load_next, op_shift_next;
+    always_comb begin
+        state_valid_d = state_valid_q;
+        state_d       = state_q;
+        if (state_ready) begin
+            state_d            = state_next;
+            state_d.last_cycle = last_cycle_next;
+            state_d.op_load    = op_load_next;
+            for (int i = 0; i < OP_CNT; i++) begin
+                state_d.op_flags[i].shift = op_shift_next[i];
+            end
+        end
+        state_d.pend_vreg_wr = state_q.pend_vreg_wr & vreg_pend_wr_i;
+        if (pipe_in_ready_o) begin
+            state_valid_d        = pipe_in_valid_i;
+            state_d.pend_vreg_wr = vreg_pend_wr_i;
+        end
+    end
+
+    // Identify whether the auxiliary counter is used
     logic aux_count_used;
     always_comb begin
         aux_count_used = '0;
@@ -203,97 +216,67 @@ module vproc_pipeline #(
         end
     end
 
-    counter_t          count_next_inc, alt_count_next_inc;
-    logic              last_cycle_next;
-    logic [OP_CNT-1:0] op_load_next, op_shift_next;
+    // Next-state logic
     always_comb begin
-        pipe_in_ready_o      = 1'b0;
-        state_valid_d        = state_valid_q;
-        state_d              = state_q;
-        state_d.pend_vreg_wr = state_q.pend_vreg_wr & vreg_pend_wr_i;
-
-        if (state_ready) begin
-            state_d.last_cycle = last_cycle_next;
-
-            if (~state_valid_q | state_q.last_cycle) begin
-                if (state_valid_q & MAY_FLUSH & state_q.requires_flush) begin
-                    pipe_in_ready_o        = '0;
-                    state_valid_d          = 1'b1;
-                    state_d.count.val      = '0;
-                    state_d.count.part.mul = '1;
-                    state_d.first_cycle    = '0;
-                    state_d.mode.elem.op   = ELEM_FLUSH;
-                    state_d.requires_flush = '0;
-                    for (int i = 0; i < OP_CNT; i++) begin
-                        state_d.op_flags[i].vreg = '0;
-                    end
-                end else begin
-
-                pipe_in_ready_o      = 1'b1;
-                state_valid_d = pipe_in_valid_i;
-                state_d.count = '0;
-                if (pipe_in_state_i.count_extra_phase) begin
-                    state_d.count.part.sign = '1;
-                    state_d.count.part.mul  = '1;
+        state_next = state_q;
+        if (pipe_in_ready_o) begin
+            state_next.count = '0;
+            if (pipe_in_state_i.count_extra_phase) begin
+                state_next.count.part.sign = '1;
+                state_next.count.part.mul  = '1;
+            end
+            state_next.alt_count               = pipe_in_state_i.alt_count_init;
+            state_next.count_inc               = pipe_in_state_i.count_inc;
+            state_next.aux_count = '1;
+            for (int i = 0; i < OP_CNT; i++) begin
+                if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | pipe_in_state_i.op_flags[i].vreg)) begin
+                    state_next.aux_count = '0;
                 end
-                state_d.alt_count               = pipe_in_state_i.alt_count_init;
-                state_d.count_inc               = pipe_in_state_i.count_inc;
-                state_d.aux_count = '1;
+            end
+            state_next.first_cycle             = 1'b1;
+            state_next.requires_flush          = pipe_in_state_i.requires_flush;
+            state_next.id                      = pipe_in_state_i.id;
+            state_next.mode                    = pipe_in_state_i.mode;
+            state_next.eew                     = pipe_in_state_i.eew;
+            state_next.emul                    = pipe_in_state_i.emul;
+            state_next.vxrm                    = pipe_in_state_i.vxrm;
+            state_next.vl                      = pipe_in_state_i.vl;
+            state_next.vl_0                    = pipe_in_state_i.vl_0;
+            state_next.xval                    = pipe_in_state_i.xval;
+            state_next.op_flags                = pipe_in_state_i.op_flags;
+            state_next.op_vaddr                = pipe_in_state_i.op_vaddr;
+            state_next.op_xval                 = pipe_in_state_i.op_xval;
+            state_next.res_vreg                = pipe_in_state_i.res_vreg;
+            state_next.res_narrow              = pipe_in_state_i.res_narrow;
+            state_next.res_vaddr               = pipe_in_state_i.res_vaddr;
+        end else begin
+            state_next.first_cycle = '0;
+            state_next.count     = count_next_inc;
+            state_next.alt_count = alt_count_next_inc;
+            if (aux_count_used) begin
+                state_next.aux_count = state_q.aux_count + AUX_COUNTER_W'(1);
+            end
+            for (int i = 0; i < OP_CNT; i++) begin
+                if ((OP_ADDR_OFFSET_OP0 != '0) & ~OP_ADDR_OFFSET_OP0[i]) begin
+                    state_next.op_flags[i].hold = state_q.aux_count != '1;
+                end
+            end
+
+            // flush pipeline if required
+            if (MAY_FLUSH & state_q.last_cycle) begin
+                state_next.count.val      = '0;
+                state_next.count.part.mul = '1;
+                state_next.first_cycle    = '0;
+                state_next.mode.elem.op   = ELEM_FLUSH;
+                state_next.requires_flush = '0;
                 for (int i = 0; i < OP_CNT; i++) begin
-                    if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | pipe_in_state_i.op_flags[i].vreg)) begin
-                        state_d.aux_count = '0;
-                    end
-                end
-                state_d.first_cycle             = 1'b1;
-                state_d.requires_flush          = pipe_in_state_i.requires_flush;
-                state_d.id                      = pipe_in_state_i.id;
-                state_d.mode                    = pipe_in_state_i.mode;
-                state_d.eew                     = pipe_in_state_i.eew;
-                state_d.emul                    = pipe_in_state_i.emul;
-                state_d.vxrm                    = pipe_in_state_i.vxrm;
-                state_d.vl                      = pipe_in_state_i.vl;
-                state_d.vl_0                    = pipe_in_state_i.vl_0;
-                state_d.xval                    = pipe_in_state_i.xval;
-                state_d.op_flags                = pipe_in_state_i.op_flags;
-                state_d.op_vaddr                = pipe_in_state_i.op_vaddr;
-                state_d.op_xval                 = pipe_in_state_i.op_xval;
-                state_d.res_vreg                = pipe_in_state_i.res_vreg;
-                state_d.res_narrow              = pipe_in_state_i.res_narrow;
-                state_d.res_vaddr               = pipe_in_state_i.res_vaddr;
-
-                state_d.pend_vreg_wr = vreg_pend_wr_i;
-
-                end
-                /*
-                if (state_valid_q & MAY_FLUSH & state_q.requires_flush) begin
-                    pipe_in_ready_o        = '0;
-                    state_valid_d          = 1'b1;
-                    state_d.count.val      = '0;
-                    state_d.count.part.mul = '1;
-                    state_d.first_cycle    = '0;
-                    state_d.mode.elem.op   = ELEM_FLUSH;
-                    state_d.requires_flush = '0;
-                    for (int i = 0; i < OP_CNT; i++) begin
-                        state_d.op_flags[i].vreg = '0;
-                    end
-                end
-                */
-            end else begin
-                state_d.first_cycle = '0;
-                state_d.count       = count_next_inc;
-                state_d.alt_count   = alt_count_next_inc;
-                if (aux_count_used) begin
-                    state_d.aux_count = state_q.aux_count + AUX_COUNTER_W'(1);
-                end
-                for (int i = 0; i < OP_CNT; i++) begin
-                    if ((OP_ADDR_OFFSET_OP0 != '0) & ~OP_ADDR_OFFSET_OP0[i]) begin
-                        state_d.op_flags[i].hold = state_q.aux_count != '1;
-                    end
+                    state_next.op_flags[i].vreg = '0;
                 end
             end
         end
     end
 
+    // Counter increment logic
     always_comb begin
         count_next_inc     = state_q.count;
         alt_count_next_inc = state_q.alt_count.val;
@@ -320,6 +303,7 @@ module vproc_pipeline #(
         end
     end
 
+    // Last cycle logic
     always_comb begin
         last_cycle_next = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         // first cycle is not last cycle unless EMUL is 1 and the counter has no low part
@@ -357,47 +341,48 @@ module vproc_pipeline #(
         end
     end
 
+    // Operand load and shift signals
     counter_t [OP_CNT-1:0] op_count;
     always_comb begin
         for (int i = 0; i < OP_CNT; i++) begin
             // use next value of counter rather than current (including potential new instruction)
-            op_count[i] = OP_ALT_COUNTER[i] ? state_d.alt_count : state_d.count;
+            op_count[i] = OP_ALT_COUNTER[i] ? state_next.alt_count : state_next.count;
         end
     end
     always_comb begin
-        op_load_d  = '0;
-        op_shift_d = '0;
+        op_load_next  = '0;
+        op_shift_next = '0;
         for (int i = 0; i < OP_CNT; i++) begin
             if (OP_ADDR_OFFSET_OP0[i]) begin
-                if (state_d.aux_count == '0) begin
-                    op_load_d[i] = OP_ALWAYS_VREG[i] | state_d.op_flags[i].vreg;
+                if (state_next.aux_count == '0) begin
+                    op_load_next[i] = OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg;
                 end
-                op_shift_d[i] = 1'b1;
+                op_shift_next[i] = 1'b1;
             end
-            else if (~aux_count_used | (state_d.aux_count == '0)) begin
+            else if (~aux_count_used | (state_next.aux_count == '0)) begin
                 if (~OP_MASK[i]) begin
                     if ((op_count[i].part.low == '0) &
-                        (~OP_NARROW[i] | ~state_d.op_flags[i].narrow | ~op_count[i].part.mul[0])
+                        (~OP_NARROW[i] | ~state_next.op_flags[i].narrow | ~op_count[i].part.mul[0])
                     ) begin
-                        op_load_d[i] = (OP_ALWAYS_VREG[i] | state_d.op_flags[i].vreg) &
-                                       (~MAY_FLUSH | ~state_q.last_cycle); // may need flushing
+                        op_load_next[i] = (OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg) &
+                                          (~MAY_FLUSH | ~state_q.last_cycle); // may need flushing
 
                         // if the alternative counter is used for some operands the counter's
                         // sign and MUL part might be invalid for the current EMUL, in which
                         // case the load needs to be suppressed
                         if (OP_ALT_COUNTER != '0) begin
-                            unique case (state_d.emul)
+                            unique case (state_next.emul)
                                 EMUL_1: if (  op_count[i].val[COUNTER_W-1 -: 4]             != '0) begin
-                                    op_load_d[i] = '0;
+                                    op_load_next[i] = '0;
                                 end
                                 EMUL_2: if (((op_count[i].val[COUNTER_W-1 -: 4]) & 4'b1110) != '0) begin
-                                    op_load_d[i] = '0;
+                                    op_load_next[i] = '0;
                                 end
                                 EMUL_4: if (((op_count[i].val[COUNTER_W-1 -: 4]) & 4'b1100) != '0) begin
-                                    op_load_d[i] = '0;
+                                    op_load_next[i] = '0;
                                 end
                                 EMUL_8: if (((op_count[i].val[COUNTER_W-1 -: 4]) & 4'b1000) != '0) begin
-                                    op_load_d[i] = '0;
+                                    op_load_next[i] = '0;
                                 end
                                 default: ;
                             endcase
@@ -406,21 +391,21 @@ module vproc_pipeline #(
 
                     // Operands are shifted after OP_W bits have been consumed.
                     if ((op_count[i].val & ~({COUNTER_W{1'b1}} << $clog2(OP_W[i] / COUNTER_OP_W))) == '0) begin
-                        op_shift_d[i] = ~OP_NARROW[i] | ~state_d.op_flags[i].narrow |
-                                        ~op_count[i].val[$clog2(OP_W[i] / COUNTER_OP_W)];
+                        op_shift_next[i] = ~OP_NARROW[i] | ~state_next.op_flags[i].narrow |
+                                           ~op_count[i].val[$clog2(OP_W[i] / COUNTER_OP_W)];
                     end
                 end else begin
                     // Masks are only fetched in the first cycle but never anytime later
                     if (op_count[i].val == '0) begin
-                        op_load_d[i] = OP_ALWAYS_VREG[i] | state_d.op_flags[i].vreg;
+                        op_load_next[i] = OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg;
                     end
                     // The amount of mask bits consumed each cycle depends on the element width
                     if ((op_count[i].val & ~({COUNTER_W{1'b1}} << $clog2(OP_W[i] / (COUNTER_OP_W / 8)))) == '0) begin
-                        op_shift_d[i] = DONT_CARE_ZERO ? '0 : 'x;
-                        unique case (state_d.eew)
-                            VSEW_8:  op_shift_d[i] = 1'b1;
-                            VSEW_16: op_shift_d[i] = op_count[i].val[$clog2(OP_W[i] / (COUNTER_OP_W / 8))     ] == '0;
-                            VSEW_32: op_shift_d[i] = op_count[i].val[$clog2(OP_W[i] / (COUNTER_OP_W / 8)) +: 2] == '0;
+                        op_shift_next[i] = DONT_CARE_ZERO ? '0 : 'x;
+                        unique case (state_next.eew)
+                            VSEW_8:  op_shift_next[i] = 1'b1;
+                            VSEW_16: op_shift_next[i] = op_count[i].val[$clog2(OP_W[i] / (COUNTER_OP_W / 8))     ] == '0;
+                            VSEW_32: op_shift_next[i] = op_count[i].val[$clog2(OP_W[i] / (COUNTER_OP_W / 8)) +: 2] == '0;
                             default: ;
                         endcase
                     end
@@ -429,6 +414,7 @@ module vproc_pipeline #(
         end
     end
 
+    // Result store and shift signals
     logic res_store;
     logic res_shift;
     always_comb begin
@@ -444,7 +430,7 @@ module vproc_pipeline #(
         end
         // Shifting is delayed by one cycle compared to the store and hence uses the current counter
         if ((state_q.count.val & ~({COUNTER_W{1'b1}} << $clog2(RES_W[0] / COUNTER_OP_W))) == '0) begin
-            res_shift = ((RES_NARROW & state_d.res_narrow) == '0) |
+            res_shift = ((RES_NARROW & state_next.res_narrow) == '0) |
                         ~state_q.count[$clog2(RES_W[0] / COUNTER_OP_W)];
         end
     end
@@ -462,9 +448,9 @@ module vproc_pipeline #(
         op_vaddr = state_q.op_vaddr;
         op_xval  = state_q.op_xval;
         for (int i = 0; i < OP_CNT; i++) begin
-            op_load [i]       = op_load_q [i];
-            op_flags[i].shift = op_shift_q[i];
-            if (op_load_q[i] & ~OP_ADDR_OFFSET_OP0[i]) begin
+            op_load [i]       = state_q.op_load [i];
+            op_flags[i].shift = state_q.op_flags[i].shift;
+            if (state_q.op_load[i] & ~OP_ADDR_OFFSET_OP0[i]) begin
                 if (OP_NARROW[i] & state_q.op_flags[i].narrow) begin
                     op_vaddr[i][1:0] = state_q.op_vaddr[i][1:0] | (OP_ALT_COUNTER[i] ? state_q.alt_count.part.mul[2:1] : state_q.count.part.mul[2:1]);
                 end else begin
