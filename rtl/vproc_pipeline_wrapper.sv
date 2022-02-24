@@ -8,7 +8,7 @@ module vproc_pipeline_wrapper #(
         parameter int unsigned          CFG_VL_W         = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned          XIF_ID_W         = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT       = 8,    // total count of instruction IDs
-        parameter vproc_pkg::op_unit    UNIT             = UNIT_ALU,
+        parameter vproc_pkg::op_unit    UNIT             = vproc_pkg::UNIT_ALU,
         parameter int unsigned          MAX_OP_W         = 64,   // operand width in bits
         parameter vproc_pkg::mul_type   MUL_TYPE         = vproc_pkg::MUL_GENERIC,
         parameter int unsigned          MAX_WR_ATTEMPTS  = 1,    // max required vregfile write attempts

@@ -8,7 +8,7 @@ module vproc_pipeline #(
         parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
-        parameter vproc_pkg::op_unit    UNIT                = UNIT_ALU,
+        parameter vproc_pkg::op_unit    UNIT                = vproc_pkg::UNIT_ALU,
         parameter int unsigned          VPORT_CNT           = 1,
         parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
         parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
