@@ -675,12 +675,12 @@ module vproc_core #(
     // REGISTER FILE AND EXECUTION UNITS
 
     // register file:
-    logic              vregfile_wr_en_q  [2], vregfile_wr_en_d  [2];
-    logic [4:0]        vregfile_wr_addr_q[2], vregfile_wr_addr_d[2];
-    logic [VREG_W-1:0] vregfile_wr_data_q[2], vregfile_wr_data_d[2];
-    logic [VMSK_W-1:0] vregfile_wr_mask_q[2], vregfile_wr_mask_d[2];
-    logic [4:0]        vregfile_rd_addr[7];
-    logic [VREG_W-1:0] vregfile_rd_data[7];
+    logic [1:0]             vregfile_wr_en_q,   vregfile_wr_en_d;
+    logic [1:0][4:0]        vregfile_wr_addr_q, vregfile_wr_addr_d;
+    logic [1:0][VREG_W-1:0] vregfile_wr_data_q, vregfile_wr_data_d;
+    logic [1:0][VMSK_W-1:0] vregfile_wr_mask_q, vregfile_wr_mask_d;
+    logic [6:0][4:0]        vregfile_rd_addr;
+    logic [6:0][VREG_W-1:0] vregfile_rd_data;
     vproc_vregfile #(
         .VREG_W       ( VREG_W             ),
         .PORT_W       ( VREG_W             ),

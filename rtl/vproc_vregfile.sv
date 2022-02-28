@@ -4,23 +4,23 @@
 
 
 module vproc_vregfile #(
-        parameter int unsigned                   VREG_W   = 128,  // vector register width in bits
-        parameter int unsigned                   PORT_W   = 128,  // port width in bits
-        parameter int unsigned                   PORTS_RD = 0,    // number of read ports
-        parameter int unsigned                   PORTS_WR = 0,    // number of write ports
-        parameter vproc_pkg::ram_type            RAM_TYPE = vproc_pkg::RAM_GENERIC
+        parameter int unsigned                                 VREG_W   = 128,  // vector register width in bits
+        parameter int unsigned                                 PORT_W   = 128,  // port width in bits
+        parameter int unsigned                                 PORTS_RD = 0,    // number of read ports
+        parameter int unsigned                                 PORTS_WR = 0,    // number of write ports
+        parameter vproc_pkg::ram_type                          RAM_TYPE = vproc_pkg::RAM_GENERIC
     )(
-        input  logic                             clk_i,
-        input  logic                             async_rst_ni,
-        input  logic                             sync_rst_ni,
+        input  logic                                           clk_i,
+        input  logic                                           async_rst_ni,
+        input  logic                                           sync_rst_ni,
 
-        input  logic [4+$clog2(VREG_W/PORT_W):0] wr_addr_i[PORTS_WR],
-        input  logic [PORT_W  -1:0]              wr_data_i[PORTS_WR],
-        input  logic [PORT_W/8-1:0]              wr_be_i  [PORTS_WR],
-        input  logic                             wr_we_i  [PORTS_WR],
+        input  logic [PORTS_WR-1:0][4+$clog2(VREG_W/PORT_W):0] wr_addr_i,
+        input  logic [PORTS_WR-1:0][PORT_W  -1:0]              wr_data_i,
+        input  logic [PORTS_WR-1:0][PORT_W/8-1:0]              wr_be_i,
+        input  logic [PORTS_WR-1:0]                            wr_we_i,
 
-        input  logic [4+$clog2(VREG_W/PORT_W):0] rd_addr_i[PORTS_RD],
-        output logic [PORT_W-1:0]                rd_data_o[PORTS_RD]
+        input  logic [PORTS_RD-1:0][4+$clog2(VREG_W/PORT_W):0] rd_addr_i,
+        output logic [PORTS_RD-1:0][PORT_W-1:0]                rd_data_o
     );
 
     ///////////////////////////////////////////////////////////////////////////
@@ -65,7 +65,7 @@ module vproc_vregfile #(
     localparam int unsigned PORTS_RD_TOTAL = PORTS_RD + PORTS_WR - 1;
 
     // read address assignment
-    logic [4+$clog2(VREG_W/PORT_W):0] rd_addr[PORTS_RD_TOTAL][PORTS_WR];
+    logic [PORTS_RD_TOTAL-1:0][PORTS_WR-1:0][4+$clog2(VREG_W/PORT_W):0] rd_addr;
     always_comb begin
         for (int i = 0; i < PORTS_RD; i++) begin
             for (int j = 0; j < PORTS_WR; j++) begin
@@ -80,7 +80,7 @@ module vproc_vregfile #(
     end
 
     // RAM instantiation
-    logic [PORT_W-1:0] rd_data[PORTS_RD_TOTAL][PORTS_WR];
+    logic [PORTS_RD_TOTAL-1:0][PORTS_WR-1:0][PORT_W-1:0] rd_data;
     generate
         for (genvar gw = 0; gw < PORTS_WR; gw++) begin
 
