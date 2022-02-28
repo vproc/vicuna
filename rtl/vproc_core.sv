@@ -769,6 +769,15 @@ module vproc_core #(
     assign vreg_pend_rd_to_sld_d  = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_elem_q;
     assign vreg_pend_rd_to_elem_d = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_sld_q;
 
+    localparam int unsigned VPORT_W        [2] = '{VREG_W, VREG_W};
+    localparam int unsigned VADDR_W        [2] = '{5, 5};
+    localparam bit [1:0]    VPORT_ADDR_ZERO    = 2'b10;
+    localparam bit [1:0]    VPORT_BUFFER       = 2'b01;
+
+    localparam int unsigned MUL_VPORT_W        [3] = '{VREG_W, VREG_W, VREG_W};
+    localparam int unsigned MUL_VADDR_W        [3] = '{5, 5, 5};
+    localparam bit [2:0]    MUL_VPORT_ADDR_ZERO    = 3'b100;
+    localparam bit [2:0]    MUL_VPORT_BUFFER       = 3'b001;
 
     // LSU
     logic [VREG_W-1:0]   lsu_wr_data;
@@ -779,12 +788,25 @@ module vproc_core #(
     logic [XIF_ID_W-1:0] lsu_trans_complete_id;
     logic                lsu_trans_complete_exc;
     logic [5:0]          lsu_trans_complete_exccode;
+
+    logic [1:0][4       :0] lsu_vreg_rd_addr;
+    logic [1:0][VREG_W-1:0] lsu_vreg_rd_data;
+    assign vregfile_rd_addr[1] = lsu_vreg_rd_addr[0];
+    assign lsu_vreg_rd_data[0] = vregfile_rd_data[1];
+    assign lsu_vreg_rd_data[1] = vreg_mask;
     vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                     ),
         .CFG_VL_W                 ( CFG_VL_W                   ),
         .XIF_ID_W                 ( XIF_ID_W                   ),
         .XIF_ID_CNT               ( XIF_ID_CNT                 ),
         .UNIT                     ( UNIT_LSU                   ),
+        .MAX_VPORT_W              ( VREG_W                     ),
+        .MAX_VADDR_W              ( 5                          ),
+        .VPORT_CNT                ( 2                          ),
+        .VPORT_W                  ( VPORT_W                    ),
+        .VADDR_W                  ( VADDR_W                    ),
+        .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO            ),
+        .VPORT_BUFFER             ( VPORT_BUFFER               ),
         .MAX_OP_W                 ( VMEM_W                     ),
         .MAX_WR_ATTEMPTS          ( 1                          ),
         .DECODER_DATA_T           ( decoder_data               ),
@@ -804,11 +826,8 @@ module vproc_core #(
         .instr_killed_i           ( instr_killed_q             ),
         .instr_done_valid_o       ( instr_complete_valid[0]    ),
         .instr_done_id_o          ( instr_complete_id   [0]    ),
-        .vreg_mask_i              ( vreg_mask                  ),
-        .vreg_rd_i                ( vregfile_rd_data[1]        ),
-        .vreg_rd3_i               ( '0                         ),
-        .vreg_rd_addr_o           ( vregfile_rd_addr[1]        ),
-        .vreg_rd3_addr_o          (                            ),
+        .vreg_rd_addr_o           ( lsu_vreg_rd_addr           ),
+        .vreg_rd_data_i           ( lsu_vreg_rd_data           ),
         .vreg_wr_o                ( lsu_wr_data                ),
         .vreg_wr_addr_o           ( lsu_wr_addr                ),
         .vreg_wr_mask_o           ( lsu_wr_mask                ),
@@ -834,12 +853,25 @@ module vproc_core #(
     logic [4:0]        alu_wr_addr;
     logic              alu_wr_en;
     vproc_xif          alu_dummy_xif();
+
+    logic [1:0][4       :0] alu_vreg_rd_addr;
+    logic [1:0][VREG_W-1:0] alu_vreg_rd_data;
+    assign vregfile_rd_addr[2] = alu_vreg_rd_addr[0];
+    assign alu_vreg_rd_data[0] = vregfile_rd_data[2];
+    assign alu_vreg_rd_data[1] = vreg_mask;
     vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                  ),
         .CFG_VL_W                 ( CFG_VL_W                ),
         .XIF_ID_W                 ( XIF_ID_W                ),
         .XIF_ID_CNT               ( XIF_ID_CNT              ),
         .UNIT                     ( UNIT_ALU                ),
+        .MAX_VPORT_W              ( VREG_W                  ),
+        .MAX_VADDR_W              ( 5                       ),
+        .VPORT_CNT                ( 2                       ),
+        .VPORT_W                  ( VPORT_W                 ),
+        .VADDR_W                  ( VADDR_W                 ),
+        .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO         ),
+        .VPORT_BUFFER             ( VPORT_BUFFER            ),
         .MAX_OP_W                 ( ALU_OP_W                ),
         .MAX_WR_ATTEMPTS          ( 2                       ),
         .DECODER_DATA_T           ( decoder_data            ),
@@ -859,11 +891,8 @@ module vproc_core #(
         .instr_killed_i           ( instr_killed_q          ),
         .instr_done_valid_o       ( instr_complete_valid[1] ),
         .instr_done_id_o          ( instr_complete_id   [1] ),
-        .vreg_mask_i              ( vreg_mask               ),
-        .vreg_rd_i                ( vregfile_rd_data[2]     ),
-        .vreg_rd3_i               ( '0                      ),
-        .vreg_rd_addr_o           ( vregfile_rd_addr[2]     ),
-        .vreg_rd3_addr_o          (                         ),
+        .vreg_rd_addr_o           ( alu_vreg_rd_addr        ),
+        .vreg_rd_data_i           ( alu_vreg_rd_data        ),
         .vreg_wr_o                ( alu_wr_data             ),
         .vreg_wr_addr_o           ( alu_wr_addr             ),
         .vreg_wr_mask_o           ( alu_wr_mask             ),
@@ -889,12 +918,27 @@ module vproc_core #(
     logic [4:0]        mul_wr_addr;
     logic              mul_wr_en;
     vproc_xif          mul_dummy_xif();
+
+    logic [2:0][4       :0] mul_vreg_rd_addr;
+    logic [2:0][VREG_W-1:0] mul_vreg_rd_data;
+    assign vregfile_rd_addr[3] = mul_vreg_rd_addr[0];
+    assign vregfile_rd_addr[4] = mul_vreg_rd_addr[1];
+    assign mul_vreg_rd_data[0] = vregfile_rd_data[3];
+    assign mul_vreg_rd_data[1] = vregfile_rd_data[4];
+    assign mul_vreg_rd_data[2] = vreg_mask;
     vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                  ),
         .CFG_VL_W                 ( CFG_VL_W                ),
         .XIF_ID_W                 ( XIF_ID_W                ),
         .XIF_ID_CNT               ( XIF_ID_CNT              ),
         .UNIT                     ( UNIT_MUL                ),
+        .MAX_VPORT_W              ( VREG_W                  ),
+        .MAX_VADDR_W              ( 5                       ),
+        .VPORT_CNT                ( 3                       ),
+        .VPORT_W                  ( MUL_VPORT_W             ),
+        .VADDR_W                  ( MUL_VADDR_W             ),
+        .VPORT_ADDR_ZERO          ( MUL_VPORT_ADDR_ZERO     ),
+        .VPORT_BUFFER             ( MUL_VPORT_BUFFER        ),
         .MAX_OP_W                 ( MUL_OP_W                ),
         .MUL_TYPE                 ( MUL_TYPE                ),
         .MAX_WR_ATTEMPTS          ( 1                       ),
@@ -915,11 +959,8 @@ module vproc_core #(
         .instr_killed_i           ( instr_killed_q          ),
         .instr_done_valid_o       ( instr_complete_valid[2] ),
         .instr_done_id_o          ( instr_complete_id   [2] ),
-        .vreg_mask_i              ( vreg_mask               ),
-        .vreg_rd_i                ( vregfile_rd_data[3]     ),
-        .vreg_rd3_i               ( vregfile_rd_data[4]     ),
-        .vreg_rd_addr_o           ( vregfile_rd_addr[3]     ),
-        .vreg_rd3_addr_o          ( vregfile_rd_addr[4]     ),
+        .vreg_rd_addr_o           ( mul_vreg_rd_addr        ),
+        .vreg_rd_data_i           ( mul_vreg_rd_data        ),
         .vreg_wr_o                ( mul_wr_data             ),
         .vreg_wr_addr_o           ( mul_wr_addr             ),
         .vreg_wr_mask_o           ( mul_wr_mask             ),
@@ -945,12 +986,25 @@ module vproc_core #(
     logic [4:0]        sld_wr_addr;
     logic              sld_wr_en;
     vproc_xif          sld_dummy_xif();
+
+    logic [1:0][4       :0] sld_vreg_rd_addr;
+    logic [1:0][VREG_W-1:0] sld_vreg_rd_data;
+    assign vregfile_rd_addr[5] = sld_vreg_rd_addr[0];
+    assign sld_vreg_rd_data[0] = vregfile_rd_data[5];
+    assign sld_vreg_rd_data[1] = vreg_mask;
     vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                  ),
         .CFG_VL_W                 ( CFG_VL_W                ),
         .XIF_ID_W                 ( XIF_ID_W                ),
         .XIF_ID_CNT               ( XIF_ID_CNT              ),
         .UNIT                     ( UNIT_SLD                ),
+        .MAX_VPORT_W              ( VREG_W                  ),
+        .MAX_VADDR_W              ( 5                       ),
+        .VPORT_CNT                ( 2                       ),
+        .VPORT_W                  ( VPORT_W                 ),
+        .VADDR_W                  ( VADDR_W                 ),
+        .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO         ),
+        .VPORT_BUFFER             ( VPORT_BUFFER            ),
         .MAX_OP_W                 ( SLD_OP_W                ),
         .MAX_WR_ATTEMPTS          ( 2                       ),
         .DECODER_DATA_T           ( decoder_data            ),
@@ -970,11 +1024,8 @@ module vproc_core #(
         .instr_killed_i           ( instr_killed_q          ),
         .instr_done_valid_o       ( instr_complete_valid[3] ),
         .instr_done_id_o          ( instr_complete_id   [3] ),
-        .vreg_mask_i              ( vreg_mask               ),
-        .vreg_rd_i                ( vregfile_rd_data[5]     ),
-        .vreg_rd3_i               ( '0                      ),
-        .vreg_rd_addr_o           ( vregfile_rd_addr[5]     ),
-        .vreg_rd3_addr_o          (                         ),
+        .vreg_rd_addr_o           ( sld_vreg_rd_addr        ),
+        .vreg_rd_data_i           ( sld_vreg_rd_data        ),
         .vreg_wr_o                ( sld_wr_data             ),
         .vreg_wr_addr_o           ( sld_wr_addr             ),
         .vreg_wr_mask_o           ( sld_wr_mask             ),
@@ -1004,12 +1055,25 @@ module vproc_core #(
     logic [XIF_ID_W-1:0] elem_xreg_id;
     logic [4:0]          elem_xreg_addr;
     logic [31:0]         elem_xreg_data;
+
+    logic [1:0][4       :0] elem_vreg_rd_addr;
+    logic [1:0][VREG_W-1:0] elem_vreg_rd_data;
+    assign vregfile_rd_addr [6] = elem_vreg_rd_addr[0];
+    assign elem_vreg_rd_data[0] = vregfile_rd_data [6];
+    assign elem_vreg_rd_data[1] = vreg_mask;
     vproc_pipeline_wrapper #(
         .VREG_W                   ( VREG_W                  ),
         .CFG_VL_W                 ( CFG_VL_W                ),
         .XIF_ID_W                 ( XIF_ID_W                ),
         .XIF_ID_CNT               ( XIF_ID_CNT              ),
         .UNIT                     ( UNIT_ELEM               ),
+        .MAX_VPORT_W              ( VREG_W                  ),
+        .MAX_VADDR_W              ( 5                       ),
+        .VPORT_CNT                ( 2                       ),
+        .VPORT_W                  ( VPORT_W                 ),
+        .VADDR_W                  ( VADDR_W                 ),
+        .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO         ),
+        .VPORT_BUFFER             ( VPORT_BUFFER            ),
         .MAX_OP_W                 ( GATHER_OP_W             ),
         .MAX_WR_ATTEMPTS          ( 3                       ),
         .DECODER_DATA_T           ( decoder_data            ),
@@ -1029,11 +1093,8 @@ module vproc_core #(
         .instr_killed_i           ( instr_killed_q          ),
         .instr_done_valid_o       ( instr_complete_valid[4] ),
         .instr_done_id_o          ( instr_complete_id   [4] ),
-        .vreg_mask_i              ( vreg_mask               ),
-        .vreg_rd_i                ( vregfile_rd_data[6]     ),
-        .vreg_rd3_i               ( '0                      ),
-        .vreg_rd_addr_o           ( vregfile_rd_addr[6]     ),
-        .vreg_rd3_addr_o          (                         ),
+        .vreg_rd_addr_o           ( elem_vreg_rd_addr       ),
+        .vreg_rd_data_i           ( elem_vreg_rd_data       ),
         .vreg_wr_o                ( elem_wr_data            ),
         .vreg_wr_addr_o           ( elem_wr_addr            ),
         .vreg_wr_mask_o           ( elem_wr_mask            ),

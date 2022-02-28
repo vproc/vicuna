@@ -9,6 +9,8 @@ module vproc_pipeline #(
         parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
         parameter vproc_pkg::op_unit    UNIT                = vproc_pkg::UNIT_ALU,
+        parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
+        parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
         parameter int unsigned          VPORT_CNT           = 1,
         parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
         parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
@@ -63,12 +65,10 @@ module vproc_pipeline #(
         output logic                    instr_done_valid_o,
         output logic [XIF_ID_W-1:0]     instr_done_id_o,
 
-        // connections to register file:
-        input  logic [VREG_W-1:0]       vreg_mask_i,
-        input  logic [VREG_W-1:0]       vreg_rd_i,
-        output logic [4:0]              vreg_rd_addr_o,
-        input  logic [VREG_W-1:0]       vreg_rd3_i,
-        output logic [4:0]              vreg_rd3_addr_o,
+        // connections to register file
+        output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
+        input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
+
         output logic [VREG_W-1:0]       vreg_wr_o,
         output logic [4:0]              vreg_wr_addr_o,
         output logic [VREG_W/8-1:0]     vreg_wr_mask_o,
@@ -719,8 +719,8 @@ module vproc_pipeline #(
     ctrl_t                              unpack_out_ctrl;
     logic [OP_CNT   -1:0][MAX_OP_W-1:0] unpack_out_ops;
     vproc_vregunpack #(
-        .MAX_VPORT_W          ( VREG_W                       ),
-        .MAX_VADDR_W          ( 5                            ),
+        .MAX_VPORT_W          ( MAX_VPORT_W                  ),
+        .MAX_VADDR_W          ( MAX_VADDR_W                  ),
         .VPORT_CNT            ( VPORT_CNT                    ),
         .VPORT_W              ( VPORT_W                      ),
         .VADDR_W              ( VADDR_W                      ),
@@ -746,8 +746,8 @@ module vproc_pipeline #(
         .clk_i                ( clk_i                        ),
         .async_rst_ni         ( async_rst_ni                 ),
         .sync_rst_ni          ( sync_rst_ni                  ),
-        .vreg_rd_addr_o       ( unpack_vreg_addr             ),
-        .vreg_rd_data_i       ( unpack_vreg_data             ),
+        .vreg_rd_addr_o       ( vreg_rd_addr_o               ),
+        .vreg_rd_data_i       ( vreg_rd_data_i               ),
         .pipe_in_valid_i      ( state_valid_q & ~state_stall ),
         .pipe_in_ready_o      ( unpack_ready                 ),
         .pipe_in_ctrl_i       ( unpack_ctrl                  ),
@@ -765,22 +765,6 @@ module vproc_pipeline #(
         .ctrl_flags_any_o     ( unpack_flags_any             ),
         .ctrl_flags_all_o     ( unpack_flags_all             )
     );
-    assign vreg_rd_addr_o  = unpack_vreg_addr[0];
-    assign vreg_rd3_addr_o = unpack_vreg_addr[1];
-    generate
-        if (UNIT == UNIT_MUL) begin
-            always_comb begin
-                unpack_vreg_data[0] = vreg_rd_i;
-                unpack_vreg_data[1] = vreg_rd3_i;
-                unpack_vreg_data[2] = vreg_mask_i;
-            end
-        end else begin
-            always_comb begin
-                unpack_vreg_data[0] = vreg_rd_i;
-                unpack_vreg_data[1] = vreg_mask_i;
-            end
-        end
-    endgenerate
 
     assign op_addr_offset_pend_reads_clear = unpack_out_valid & unpack_out_ctrl.last_cycle;
 

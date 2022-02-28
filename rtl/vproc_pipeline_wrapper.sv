@@ -4,16 +4,23 @@
 
 
 module vproc_pipeline_wrapper #(
-        parameter int unsigned          VREG_W           = 128,  // width in bits of vector registers
-        parameter int unsigned          CFG_VL_W         = 7,    // width of VL reg in bits (= log2(VREG_W))
-        parameter int unsigned          XIF_ID_W         = 3,    // width in bits of instruction IDs
-        parameter int unsigned          XIF_ID_CNT       = 8,    // total count of instruction IDs
-        parameter vproc_pkg::op_unit    UNIT             = vproc_pkg::UNIT_ALU,
-        parameter int unsigned          MAX_OP_W         = 64,   // operand width in bits
-        parameter vproc_pkg::mul_type   MUL_TYPE         = vproc_pkg::MUL_GENERIC,
-        parameter int unsigned          MAX_WR_ATTEMPTS  = 1,    // max required vregfile write attempts
-        parameter type                  DECODER_DATA_T   = logic,
-        parameter bit                   DONT_CARE_ZERO   = 1'b0  // initialize don't care values to zero
+        parameter int unsigned          VREG_W              = 128,  // width in bits of vector registers
+        parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
+        parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
+        parameter vproc_pkg::op_unit    UNIT                = vproc_pkg::UNIT_ALU,
+        parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
+        parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
+        parameter int unsigned          VPORT_CNT           = 1,
+        parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
+        parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
+        parameter bit [VPORT_CNT-1:0]   VPORT_ADDR_ZERO     = '0,   // set addr to 0
+        parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER        = '0,   // buffer port
+        parameter int unsigned          MAX_OP_W            = 64,   // operand width in bits
+        parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
+        parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
+        parameter type                  DECODER_DATA_T      = logic,
+        parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
     )(
         input  logic                    clk_i,
         input  logic                    async_rst_ni,
@@ -34,11 +41,9 @@ module vproc_pipeline_wrapper #(
         output logic                    instr_done_valid_o,
         output logic [XIF_ID_W-1:0]     instr_done_id_o,
 
-        input  logic [VREG_W-1:0]       vreg_mask_i,
-        input  logic [VREG_W-1:0]       vreg_rd_i,
-        output logic [4:0]              vreg_rd_addr_o,
-        input  logic [VREG_W-1:0]       vreg_rd3_i,
-        output logic [4:0]              vreg_rd3_addr_o,
+        output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
+        input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
+
         output logic [VREG_W-1:0]       vreg_wr_o,
         output logic [4:0]              vreg_wr_addr_o,
         output logic [VREG_W/8-1:0]     vreg_wr_mask_o,
@@ -62,8 +67,6 @@ module vproc_pipeline_wrapper #(
     );
 
     import vproc_pkg::*;
-
-    localparam int unsigned VPORT_CNT  =  (UNIT == UNIT_MUL)                        ? 3 : 2;
 
     localparam int unsigned OP_CNT     = ((UNIT == UNIT_MUL) | (UNIT == UNIT_ELEM)) ? 4 : (
                                           (UNIT == UNIT_SLD)                        ? 2 : 3);
@@ -302,12 +305,7 @@ module vproc_pipeline_wrapper #(
     // PIPELINE INSTANTIATION
 
     generate
-        if (VPORT_CNT == 2 && OP_CNT == 2 && RES_CNT == 1) begin
-            localparam int unsigned VPORT_W        [2] = '{VREG_W, VREG_W};
-            localparam int unsigned VADDR_W        [2] = '{5, 5};
-            localparam bit [1:0]    VPORT_ADDR_ZERO    = 2'b10;
-            localparam bit [1:0]    VPORT_BUFFER       = 2'b01;
-
+        if (OP_CNT == 2 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [2] = '{FIRST_OP_W, MASK_OP_W};
             localparam int unsigned OP_STAGE       [2] = '{1, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [2] = '{0, VPORT_CNT-1};
@@ -336,6 +334,8 @@ module vproc_pipeline_wrapper #(
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
                 .UNIT                ( UNIT                ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
@@ -375,12 +375,7 @@ module vproc_pipeline_wrapper #(
                 .*
             );
         end
-        else if (VPORT_CNT == 2 && OP_CNT == 3 && RES_CNT == 1) begin
-            localparam int unsigned VPORT_W        [2] = '{VREG_W, VREG_W};
-            localparam int unsigned VADDR_W        [2] = '{5, 5};
-            localparam bit [1:0]    VPORT_ADDR_ZERO    = 2'b10;
-            localparam bit [1:0]    VPORT_BUFFER       = 2'b01;
-
+        else if (OP_CNT == 3 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [3] = '{FIRST_OP_W, DFLT_OP_W, MASK_OP_W};
             localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT-1};
@@ -409,6 +404,8 @@ module vproc_pipeline_wrapper #(
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
                 .UNIT                ( UNIT                ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
@@ -448,12 +445,7 @@ module vproc_pipeline_wrapper #(
                 .*
             );
         end
-        else if (VPORT_CNT == 2 && OP_CNT == 3 && RES_CNT == 2) begin
-            localparam int unsigned VPORT_W        [2] = '{VREG_W, VREG_W};
-            localparam int unsigned VADDR_W        [2] = '{5, 5};
-            localparam bit [1:0]    VPORT_ADDR_ZERO    = 2'b10;
-            localparam bit [1:0]    VPORT_BUFFER       = 2'b01;
-
+        else if (OP_CNT == 3 && RES_CNT == 2) begin
             localparam int unsigned OP_W           [3] = '{FIRST_OP_W, DFLT_OP_W, MASK_OP_W};
             localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT-1};
@@ -482,6 +474,8 @@ module vproc_pipeline_wrapper #(
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
                 .UNIT                ( UNIT                ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
@@ -521,12 +515,7 @@ module vproc_pipeline_wrapper #(
                 .*
             );
         end
-        else if (VPORT_CNT == 2 && OP_CNT == 4 && RES_CNT == 1) begin
-            localparam int unsigned VPORT_W        [2] = '{VREG_W, VREG_W};
-            localparam int unsigned VADDR_W        [2] = '{5, 5};
-            localparam bit [1:0]    VPORT_ADDR_ZERO    = 2'b10;
-            localparam bit [1:0]    VPORT_BUFFER       = 2'b01;
-
+        else if (OP_CNT == 4 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [4] = '{FIRST_OP_W, DFLT_OP_W, EXTRA_OP_W, MASK_OP_W};
             localparam int unsigned OP_STAGE       [4] = '{1, 2, UNPACK_STAGES-1, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [4] = '{0, 0, VPORT_CNT-2, VPORT_CNT-1};
@@ -555,80 +544,8 @@ module vproc_pipeline_wrapper #(
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
                 .UNIT                ( UNIT                ),
-                .VPORT_CNT           ( VPORT_CNT           ),
-                .VPORT_W             ( VPORT_W             ),
-                .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
-                .VPORT_BUFFER        ( VPORT_BUFFER        ),
-                .MAX_OP_W            ( MAX_OP_W            ),
-                .OP_CNT              ( OP_CNT              ),
-                .OP_W                ( OP_W                ),
-                .OP_STAGE            ( OP_STAGE            ),
-                .OP_SRC              ( OP_SRC              ),
-                .OP_ADDR_OFFSET_OP0  ( OP_ADDR_OFFSET_OP0  ),
-                .OP_MASK             ( OP_MASK             ),
-                .OP_XREG             ( OP_XREG             ),
-                .OP_NARROW           ( OP_NARROW           ),
-                .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
-                .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
-                .OP_HOLD_FLAG        ( OP_HOLD_FLAG        ),
-                .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
-                .UNPACK_STAGES       ( UNPACK_STAGES       ),
-                .MAX_RES_W           ( MAX_RES_W           ),
-                .RES_CNT             ( RES_CNT             ),
-                .RES_W               ( RES_W               ),
-                .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
-                .RES_NARROW          ( RES_NARROW          ),
-                .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
-                .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
-                .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
-                .INIT_STATE_T        ( state_t             ),
-                .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
-            ) pipeline (
-                .pipe_in_state_i     ( state_init          ),
-                .*
-            );
-        end
-        // TODO move VPORT_CNT and associated parameter arrays (VPORT_W and VADDR_W) to vproc_core.sv and merge below branch with the branch above
-        else if (VPORT_CNT == 3 && OP_CNT == 4 && RES_CNT == 1) begin
-            localparam int unsigned VPORT_W        [3] = '{VREG_W, VREG_W, VREG_W};
-            localparam int unsigned VADDR_W        [3] = '{5, 5, 5};
-            localparam bit [2:0]    VPORT_ADDR_ZERO    = 3'b100;
-            localparam bit [2:0]    VPORT_BUFFER       = 3'b001;
-
-            localparam int unsigned OP_W           [4] = '{FIRST_OP_W, DFLT_OP_W, EXTRA_OP_W, MASK_OP_W};
-            localparam int unsigned OP_STAGE       [4] = '{1, 2, UNPACK_STAGES-1, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [4] = '{0, 0, VPORT_CNT-2, VPORT_CNT-1};
-            localparam bit [3:0]    OP_ADDR_OFFSET_OP0 = EXTRA_OP_ADDR_OFFSET ? 4'b0100 : '0;
-            localparam bit [3:0]    OP_MASK            = SECOND_OP_MASK ? 4'b1010 : 4'b1000;
-            localparam bit [3:0]    OP_XREG            = FIRST_OP_XREG  ? 4'b0001 : '0;
-            localparam bit [3:0]    OP_NARROW          = {2'b0, SECOND_OP_NARROW, FIRST_OP_NARROW};
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [3:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 4'b1110 : '0;
-            localparam bit [3:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {3'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [3:0]    OP_HOLD_FLAG       = FIRST_OP_HOLD_FLAG   ? 4'b0001 : '0;
-            localparam bit [3:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 4'b0001 : '0;
-            localparam bit [3:0]    OP_ALWAYS_VREG     = {1'b0, EXTRA_OP_ALWAYS_VREG, SECOND_OP_ALWAYS_VREG, FIRST_OP_ALWAYS_VREG};
-
-            localparam int unsigned RES_W           [1] = '{MAX_RES_W};
-            localparam bit [0:0]    RES_ALWAYS_VREG     = '0;
-            localparam bit [0:0]    RES_MASK            = '0;
-            localparam bit [0:0]    RES_XREG            = '0;
-            localparam bit [0:0]    RES_NARROW          = FIRST_RES_NARROW;
-            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = FIRST_RES_ALLOW_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_ELEMWISE = FIRST_RES_ALWAYS_ELEMWISE;
-
-            vproc_pipeline #(
-                .VREG_W              ( VREG_W              ),
-                .CFG_VL_W            ( CFG_VL_W            ),
-                .XIF_ID_W            ( XIF_ID_W            ),
-                .XIF_ID_CNT          ( XIF_ID_CNT          ),
-                .UNIT                ( UNIT                ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
