@@ -430,7 +430,7 @@ module vproc_pipeline #(
         end
         // Shifting is delayed by one cycle compared to the store and hence uses the current counter
         if ((state_q.count.val & ~({COUNTER_W{1'b1}} << $clog2(RES_W[0] / COUNTER_OP_W))) == '0) begin
-            res_shift = ((RES_NARROW & state_next.res_narrow) == '0) |
+            res_shift = ((RES_NARROW & state_q.res_narrow) == '0) |
                         ~state_q.count[$clog2(RES_W[0] / COUNTER_OP_W)];
         end
     end
