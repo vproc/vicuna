@@ -769,350 +769,205 @@ module vproc_core #(
     assign vreg_pend_rd_to_sld_d  = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_elem_q;
     assign vreg_pend_rd_to_elem_d = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_sld_q;
 
-    localparam int unsigned VPORT_W        [2] = '{VREG_W, VREG_W};
-    localparam int unsigned VADDR_W        [2] = '{5, 5};
-    localparam bit [1:0]    VPORT_ADDR_ZERO    = 2'b10;
-    localparam bit [1:0]    VPORT_BUFFER       = 2'b01;
+    logic [VREG_W-1:0]   lsu_wr_data, alu_wr_data, mul_wr_data, sld_wr_data, elem_wr_data;
+    logic [VMSK_W-1:0]   lsu_wr_mask, alu_wr_mask, mul_wr_mask, sld_wr_mask, elem_wr_mask;
+    logic [4:0]          lsu_wr_addr, alu_wr_addr, mul_wr_addr, sld_wr_addr, elem_wr_addr;
+    logic                lsu_wr_en  , alu_wr_en  , mul_wr_en  , sld_wr_en  , elem_wr_en  ;
 
-    localparam int unsigned MUL_VPORT_W        [3] = '{VREG_W, VREG_W, VREG_W};
-    localparam int unsigned MUL_VADDR_W        [3] = '{5, 5, 5};
-    localparam bit [2:0]    MUL_VPORT_ADDR_ZERO    = 3'b100;
-    localparam bit [2:0]    MUL_VPORT_BUFFER       = 3'b001;
-
-    // LSU
-    logic [VREG_W-1:0]   lsu_wr_data;
-    logic [VMSK_W-1:0]   lsu_wr_mask;
-    logic [4:0]          lsu_wr_addr;
-    logic                lsu_wr_en;
     logic                lsu_trans_complete_valid;
     logic [XIF_ID_W-1:0] lsu_trans_complete_id;
     logic                lsu_trans_complete_exc;
     logic [5:0]          lsu_trans_complete_exccode;
 
-    logic [1:0][4       :0] lsu_vreg_rd_addr;
-    logic [1:0][VREG_W-1:0] lsu_vreg_rd_data;
-    assign vregfile_rd_addr[1] = lsu_vreg_rd_addr[0];
-    assign lsu_vreg_rd_data[0] = vregfile_rd_data[1];
-    assign lsu_vreg_rd_data[1] = vreg_mask;
-    vproc_pipeline_wrapper #(
-        .VREG_W                   ( VREG_W                     ),
-        .CFG_VL_W                 ( CFG_VL_W                   ),
-        .XIF_ID_W                 ( XIF_ID_W                   ),
-        .XIF_ID_CNT               ( XIF_ID_CNT                 ),
-        .UNIT                     ( UNIT_LSU                   ),
-        .MAX_VPORT_W              ( VREG_W                     ),
-        .MAX_VADDR_W              ( 5                          ),
-        .VPORT_CNT                ( 2                          ),
-        .VPORT_W                  ( VPORT_W                    ),
-        .VADDR_W                  ( VADDR_W                    ),
-        .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO            ),
-        .VPORT_BUFFER             ( VPORT_BUFFER               ),
-        .MAX_OP_W                 ( VMEM_W                     ),
-        .MAX_WR_ATTEMPTS          ( 1                          ),
-        .DECODER_DATA_T           ( decoder_data               ),
-        .DONT_CARE_ZERO           ( DONT_CARE_ZERO             )
-    ) lsu (
-        .clk_i                    ( clk_i                      ),
-        .async_rst_ni             ( async_rst_n                ),
-        .sync_rst_ni              ( sync_rst_n                 ),
-        .pipe_in_valid_i          ( op_rdy_lsu                 ),
-        .pipe_in_ready_o          ( op_ack_lsu                 ),
-        .pipe_in_data_i           ( queue_data_q               ),
-        .vreg_pend_wr_i           ( vreg_wr_hazard_map_q       ),
-        .vreg_pend_rd_o           ( vreg_pend_rd_by_lsu_d      ),
-        .vreg_pend_rd_i           ( vreg_pend_rd_to_lsu_q      ),
-        .clear_wr_hazards_o       ( vreg_wr_hazard_clr_lsu     ),
-        .instr_spec_i             ( ~instr_notspec_q           ),
-        .instr_killed_i           ( instr_killed_q             ),
-        .instr_done_valid_o       ( instr_complete_valid[0]    ),
-        .instr_done_id_o          ( instr_complete_id   [0]    ),
-        .vreg_rd_addr_o           ( lsu_vreg_rd_addr           ),
-        .vreg_rd_data_i           ( lsu_vreg_rd_data           ),
-        .vreg_wr_o                ( lsu_wr_data                ),
-        .vreg_wr_addr_o           ( lsu_wr_addr                ),
-        .vreg_wr_mask_o           ( lsu_wr_mask                ),
-        .vreg_wr_en_o             ( lsu_wr_en                  ),
-        .pending_load_o           ( pending_load_lsu           ),
-        .pending_store_o          ( pending_store_lsu          ),
-        .xif_mem_if               ( xif_mem_if                 ),
-        .xif_memres_if            ( xif_memres_if              ),
-        .trans_complete_valid_o   ( lsu_trans_complete_valid   ),
-        .trans_complete_id_o      ( lsu_trans_complete_id      ),
-        .trans_complete_exc_o     ( lsu_trans_complete_exc     ),
-        .trans_complete_exccode_o ( lsu_trans_complete_exccode ),
-        .xreg_valid_o             (                            ),
-        .xreg_id_o                (                            ),
-        .xreg_addr_o              (                            ),
-        .xreg_data_o              (                            )
-    );
-
-
-    // ALU
-    logic [VREG_W-1:0] alu_wr_data;
-    logic [VMSK_W-1:0] alu_wr_mask;
-    logic [4:0]        alu_wr_addr;
-    logic              alu_wr_en;
-    vproc_xif          alu_dummy_xif();
-
-    logic [1:0][4       :0] alu_vreg_rd_addr;
-    logic [1:0][VREG_W-1:0] alu_vreg_rd_data;
-    assign vregfile_rd_addr[2] = alu_vreg_rd_addr[0];
-    assign alu_vreg_rd_data[0] = vregfile_rd_data[2];
-    assign alu_vreg_rd_data[1] = vreg_mask;
-    vproc_pipeline_wrapper #(
-        .VREG_W                   ( VREG_W                  ),
-        .CFG_VL_W                 ( CFG_VL_W                ),
-        .XIF_ID_W                 ( XIF_ID_W                ),
-        .XIF_ID_CNT               ( XIF_ID_CNT              ),
-        .UNIT                     ( UNIT_ALU                ),
-        .MAX_VPORT_W              ( VREG_W                  ),
-        .MAX_VADDR_W              ( 5                       ),
-        .VPORT_CNT                ( 2                       ),
-        .VPORT_W                  ( VPORT_W                 ),
-        .VADDR_W                  ( VADDR_W                 ),
-        .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO         ),
-        .VPORT_BUFFER             ( VPORT_BUFFER            ),
-        .MAX_OP_W                 ( ALU_OP_W                ),
-        .MAX_WR_ATTEMPTS          ( 2                       ),
-        .DECODER_DATA_T           ( decoder_data            ),
-        .DONT_CARE_ZERO           ( DONT_CARE_ZERO          )
-    ) alu (
-        .clk_i                    ( clk_i                   ),
-        .async_rst_ni             ( async_rst_n             ),
-        .sync_rst_ni              ( sync_rst_n              ),
-        .pipe_in_valid_i          ( op_rdy_alu              ),
-        .pipe_in_ready_o          ( op_ack_alu              ),
-        .pipe_in_data_i           ( queue_data_q            ),
-        .vreg_pend_wr_i           ( vreg_wr_hazard_map_q    ),
-        .vreg_pend_rd_o           ( vreg_pend_rd_by_alu_d   ),
-        .vreg_pend_rd_i           ( vreg_pend_rd_to_alu_q   ),
-        .clear_wr_hazards_o       ( vreg_wr_hazard_clr_alu  ),
-        .instr_spec_i             ( ~instr_notspec_q        ),
-        .instr_killed_i           ( instr_killed_q          ),
-        .instr_done_valid_o       ( instr_complete_valid[1] ),
-        .instr_done_id_o          ( instr_complete_id   [1] ),
-        .vreg_rd_addr_o           ( alu_vreg_rd_addr        ),
-        .vreg_rd_data_i           ( alu_vreg_rd_data        ),
-        .vreg_wr_o                ( alu_wr_data             ),
-        .vreg_wr_addr_o           ( alu_wr_addr             ),
-        .vreg_wr_mask_o           ( alu_wr_mask             ),
-        .vreg_wr_en_o             ( alu_wr_en               ),
-        .pending_load_o           (                         ),
-        .pending_store_o          (                         ),
-        .xif_mem_if               ( alu_dummy_xif           ),
-        .xif_memres_if            ( alu_dummy_xif           ),
-        .trans_complete_valid_o   (                         ),
-        .trans_complete_id_o      (                         ),
-        .trans_complete_exc_o     (                         ),
-        .trans_complete_exccode_o (                         ),
-        .xreg_valid_o             (                         ),
-        .xreg_id_o                (                         ),
-        .xreg_addr_o              (                         ),
-        .xreg_data_o              (                         )
-    );
-
-
-    // MUL
-    logic [VREG_W-1:0] mul_wr_data;
-    logic [VMSK_W-1:0] mul_wr_mask;
-    logic [4:0]        mul_wr_addr;
-    logic              mul_wr_en;
-    vproc_xif          mul_dummy_xif();
-
-    logic [2:0][4       :0] mul_vreg_rd_addr;
-    logic [2:0][VREG_W-1:0] mul_vreg_rd_data;
-    assign vregfile_rd_addr[3] = mul_vreg_rd_addr[0];
-    assign vregfile_rd_addr[4] = mul_vreg_rd_addr[1];
-    assign mul_vreg_rd_data[0] = vregfile_rd_data[3];
-    assign mul_vreg_rd_data[1] = vregfile_rd_data[4];
-    assign mul_vreg_rd_data[2] = vreg_mask;
-    vproc_pipeline_wrapper #(
-        .VREG_W                   ( VREG_W                  ),
-        .CFG_VL_W                 ( CFG_VL_W                ),
-        .XIF_ID_W                 ( XIF_ID_W                ),
-        .XIF_ID_CNT               ( XIF_ID_CNT              ),
-        .UNIT                     ( UNIT_MUL                ),
-        .MAX_VPORT_W              ( VREG_W                  ),
-        .MAX_VADDR_W              ( 5                       ),
-        .VPORT_CNT                ( 3                       ),
-        .VPORT_W                  ( MUL_VPORT_W             ),
-        .VADDR_W                  ( MUL_VADDR_W             ),
-        .VPORT_ADDR_ZERO          ( MUL_VPORT_ADDR_ZERO     ),
-        .VPORT_BUFFER             ( MUL_VPORT_BUFFER        ),
-        .MAX_OP_W                 ( MUL_OP_W                ),
-        .MUL_TYPE                 ( MUL_TYPE                ),
-        .MAX_WR_ATTEMPTS          ( 1                       ),
-        .DECODER_DATA_T           ( decoder_data            ),
-        .DONT_CARE_ZERO           ( DONT_CARE_ZERO          )
-    ) mul (
-        .clk_i                    ( clk_i                   ),
-        .async_rst_ni             ( async_rst_n             ),
-        .sync_rst_ni              ( sync_rst_n              ),
-        .pipe_in_valid_i          ( op_rdy_mul              ),
-        .pipe_in_ready_o          ( op_ack_mul              ),
-        .pipe_in_data_i           ( queue_data_q            ),
-        .vreg_pend_wr_i           ( vreg_wr_hazard_map_q    ),
-        .vreg_pend_rd_o           ( vreg_pend_rd_by_mul_d   ),
-        .vreg_pend_rd_i           ( vreg_pend_rd_to_mul_q   ),
-        .clear_wr_hazards_o       ( vreg_wr_hazard_clr_mul  ),
-        .instr_spec_i             ( ~instr_notspec_q        ),
-        .instr_killed_i           ( instr_killed_q          ),
-        .instr_done_valid_o       ( instr_complete_valid[2] ),
-        .instr_done_id_o          ( instr_complete_id   [2] ),
-        .vreg_rd_addr_o           ( mul_vreg_rd_addr        ),
-        .vreg_rd_data_i           ( mul_vreg_rd_data        ),
-        .vreg_wr_o                ( mul_wr_data             ),
-        .vreg_wr_addr_o           ( mul_wr_addr             ),
-        .vreg_wr_mask_o           ( mul_wr_mask             ),
-        .vreg_wr_en_o             ( mul_wr_en               ),
-        .pending_load_o           (                         ),
-        .pending_store_o          (                         ),
-        .xif_mem_if               ( mul_dummy_xif           ),
-        .xif_memres_if            ( mul_dummy_xif           ),
-        .trans_complete_valid_o   (                         ),
-        .trans_complete_id_o      (                         ),
-        .trans_complete_exc_o     (                         ),
-        .trans_complete_exccode_o (                         ),
-        .xreg_valid_o             (                         ),
-        .xreg_id_o                (                         ),
-        .xreg_addr_o              (                         ),
-        .xreg_data_o              (                         )
-    );
-
-
-    // SLD unit
-    logic [VREG_W-1:0] sld_wr_data;
-    logic [VMSK_W-1:0] sld_wr_mask;
-    logic [4:0]        sld_wr_addr;
-    logic              sld_wr_en;
-    vproc_xif          sld_dummy_xif();
-
-    logic [1:0][4       :0] sld_vreg_rd_addr;
-    logic [1:0][VREG_W-1:0] sld_vreg_rd_data;
-    assign vregfile_rd_addr[5] = sld_vreg_rd_addr[0];
-    assign sld_vreg_rd_data[0] = vregfile_rd_data[5];
-    assign sld_vreg_rd_data[1] = vreg_mask;
-    vproc_pipeline_wrapper #(
-        .VREG_W                   ( VREG_W                  ),
-        .CFG_VL_W                 ( CFG_VL_W                ),
-        .XIF_ID_W                 ( XIF_ID_W                ),
-        .XIF_ID_CNT               ( XIF_ID_CNT              ),
-        .UNIT                     ( UNIT_SLD                ),
-        .MAX_VPORT_W              ( VREG_W                  ),
-        .MAX_VADDR_W              ( 5                       ),
-        .VPORT_CNT                ( 2                       ),
-        .VPORT_W                  ( VPORT_W                 ),
-        .VADDR_W                  ( VADDR_W                 ),
-        .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO         ),
-        .VPORT_BUFFER             ( VPORT_BUFFER            ),
-        .MAX_OP_W                 ( SLD_OP_W                ),
-        .MAX_WR_ATTEMPTS          ( 2                       ),
-        .DECODER_DATA_T           ( decoder_data            ),
-        .DONT_CARE_ZERO           ( DONT_CARE_ZERO          )
-    ) sld (
-        .clk_i                    ( clk_i                   ),
-        .async_rst_ni             ( async_rst_n             ),
-        .sync_rst_ni              ( sync_rst_n              ),
-        .pipe_in_valid_i          ( op_rdy_sld              ),
-        .pipe_in_ready_o          ( op_ack_sld              ),
-        .pipe_in_data_i           ( queue_data_q            ),
-        .vreg_pend_wr_i           ( vreg_wr_hazard_map_q    ),
-        .vreg_pend_rd_o           ( vreg_pend_rd_by_sld_d   ),
-        .vreg_pend_rd_i           ( vreg_pend_rd_to_sld_q   ),
-        .clear_wr_hazards_o       ( vreg_wr_hazard_clr_sld  ),
-        .instr_spec_i             ( ~instr_notspec_q        ),
-        .instr_killed_i           ( instr_killed_q          ),
-        .instr_done_valid_o       ( instr_complete_valid[3] ),
-        .instr_done_id_o          ( instr_complete_id   [3] ),
-        .vreg_rd_addr_o           ( sld_vreg_rd_addr        ),
-        .vreg_rd_data_i           ( sld_vreg_rd_data        ),
-        .vreg_wr_o                ( sld_wr_data             ),
-        .vreg_wr_addr_o           ( sld_wr_addr             ),
-        .vreg_wr_mask_o           ( sld_wr_mask             ),
-        .vreg_wr_en_o             ( sld_wr_en               ),
-        .pending_load_o           (                         ),
-        .pending_store_o          (                         ),
-        .xif_mem_if               ( sld_dummy_xif           ),
-        .xif_memres_if            ( sld_dummy_xif           ),
-        .trans_complete_valid_o   (                         ),
-        .trans_complete_id_o      (                         ),
-        .trans_complete_exc_o     (                         ),
-        .trans_complete_exccode_o (                         ),
-        .xreg_valid_o             (                         ),
-        .xreg_id_o                (                         ),
-        .xreg_addr_o              (                         ),
-        .xreg_data_o              (                         )
-    );
-
-
-    // ELEM unit
-    logic [VREG_W-1:0]   elem_wr_data;
-    logic [VMSK_W-1:0]   elem_wr_mask;
-    logic [4:0]          elem_wr_addr;
-    logic                elem_wr_en;
-    vproc_xif            elem_dummy_xif();
     logic                elem_xreg_valid;
     logic [XIF_ID_W-1:0] elem_xreg_id;
     logic [4:0]          elem_xreg_addr;
     logic [31:0]         elem_xreg_data;
 
-    logic [1:0][4       :0] elem_vreg_rd_addr;
-    logic [1:0][VREG_W-1:0] elem_vreg_rd_data;
-    assign vregfile_rd_addr [6] = elem_vreg_rd_addr[0];
-    assign elem_vreg_rd_data[0] = vregfile_rd_data [6];
-    assign elem_vreg_rd_data[1] = vreg_mask;
-    vproc_pipeline_wrapper #(
-        .VREG_W                   ( VREG_W                  ),
-        .CFG_VL_W                 ( CFG_VL_W                ),
-        .XIF_ID_W                 ( XIF_ID_W                ),
-        .XIF_ID_CNT               ( XIF_ID_CNT              ),
-        .UNIT                     ( UNIT_ELEM               ),
-        .MAX_VPORT_W              ( VREG_W                  ),
-        .MAX_VADDR_W              ( 5                       ),
-        .VPORT_CNT                ( 2                       ),
-        .VPORT_W                  ( VPORT_W                 ),
-        .VADDR_W                  ( VADDR_W                 ),
-        .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO         ),
-        .VPORT_BUFFER             ( VPORT_BUFFER            ),
-        .MAX_OP_W                 ( GATHER_OP_W             ),
-        .MAX_WR_ATTEMPTS          ( 3                       ),
-        .DECODER_DATA_T           ( decoder_data            ),
-        .DONT_CARE_ZERO           ( DONT_CARE_ZERO          )
-    ) elem (
-        .clk_i                    ( clk_i                   ),
-        .async_rst_ni             ( async_rst_n             ),
-        .sync_rst_ni              ( sync_rst_n              ),
-        .pipe_in_valid_i          ( op_rdy_elem             ),
-        .pipe_in_ready_o          ( op_ack_elem             ),
-        .pipe_in_data_i           ( queue_data_q            ),
-        .vreg_pend_wr_i           ( vreg_wr_hazard_map_q    ),
-        .vreg_pend_rd_o           ( vreg_pend_rd_by_elem_d  ),
-        .vreg_pend_rd_i           ( vreg_pend_rd_to_elem_q  ),
-        .clear_wr_hazards_o       ( vreg_wr_hazard_clr_elem ),
-        .instr_spec_i             ( ~instr_notspec_q        ),
-        .instr_killed_i           ( instr_killed_q          ),
-        .instr_done_valid_o       ( instr_complete_valid[4] ),
-        .instr_done_id_o          ( instr_complete_id   [4] ),
-        .vreg_rd_addr_o           ( elem_vreg_rd_addr       ),
-        .vreg_rd_data_i           ( elem_vreg_rd_data       ),
-        .vreg_wr_o                ( elem_wr_data            ),
-        .vreg_wr_addr_o           ( elem_wr_addr            ),
-        .vreg_wr_mask_o           ( elem_wr_mask            ),
-        .vreg_wr_en_o             ( elem_wr_en              ),
-        .pending_load_o           (                         ),
-        .pending_store_o          (                         ),
-        .xif_mem_if               ( elem_dummy_xif          ),
-        .xif_memres_if            ( elem_dummy_xif          ),
-        .trans_complete_valid_o   (                         ),
-        .trans_complete_id_o      (                         ),
-        .trans_complete_exc_o     (                         ),
-        .trans_complete_exccode_o (                         ),
-        .xreg_valid_o             ( elem_xreg_valid         ),
-        .xreg_id_o                ( elem_xreg_id            ),
-        .xreg_addr_o              ( elem_xreg_addr          ),
-        .xreg_data_o              ( elem_xreg_data          )
-    );
+    localparam int unsigned PIPE_CNT                  = 5;
+    localparam op_unit      UNIT           [PIPE_CNT] = '{UNIT_LSU, UNIT_ALU, UNIT_MUL, UNIT_SLD, UNIT_ELEM  };
+    localparam int unsigned VPORT_CNT      [PIPE_CNT] = '{1       , 1       , 2       , 1       , 1          };
+    localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
+    localparam int unsigned MAX_WR_ATTEMPTS[PIPE_CNT] = '{1       , 2       , 1       , 2       , 3          };
 
+    logic [PIPE_CNT-1:0]             pipe_instr_valid;
+    logic [PIPE_CNT-1:0]             pipe_instr_ready;
+
+    assign pipe_instr_valid[0] = op_rdy_lsu;
+    assign pipe_instr_valid[1] = op_rdy_alu;
+    assign pipe_instr_valid[2] = op_rdy_mul;
+    assign pipe_instr_valid[3] = op_rdy_sld;
+    assign pipe_instr_valid[4] = op_rdy_elem;
+    assign op_ack_lsu          = pipe_instr_ready[0];
+    assign op_ack_alu          = pipe_instr_ready[1];
+    assign op_ack_mul          = pipe_instr_ready[2];
+    assign op_ack_sld          = pipe_instr_ready[3];
+    assign op_ack_elem         = pipe_instr_ready[4];
+
+    logic [PIPE_CNT-1:0][31:0]       pipe_vreg_pend_rd_in, pipe_vreg_pend_rd_out;
+    logic [PIPE_CNT-1:0][31:0]       pipe_clear_pend_vreg_wr;
+
+    assign pipe_vreg_pend_rd_in[0] = vreg_pend_rd_to_lsu_q;
+    assign pipe_vreg_pend_rd_in[1] = vreg_pend_rd_to_alu_q;
+    assign pipe_vreg_pend_rd_in[2] = vreg_pend_rd_to_mul_q;
+    assign pipe_vreg_pend_rd_in[3] = vreg_pend_rd_to_sld_q;
+    assign pipe_vreg_pend_rd_in[4] = vreg_pend_rd_to_elem_q;
+    assign vreg_pend_rd_by_lsu_d   = pipe_vreg_pend_rd_out[0];
+    assign vreg_pend_rd_by_alu_d   = pipe_vreg_pend_rd_out[1];
+    assign vreg_pend_rd_by_mul_d   = pipe_vreg_pend_rd_out[2];
+    assign vreg_pend_rd_by_sld_d   = pipe_vreg_pend_rd_out[3];
+    assign vreg_pend_rd_by_elem_d  = pipe_vreg_pend_rd_out[4];
+
+    assign vreg_wr_hazard_clr_lsu  = pipe_clear_pend_vreg_wr[0];
+    assign vreg_wr_hazard_clr_alu  = pipe_clear_pend_vreg_wr[1];
+    assign vreg_wr_hazard_clr_mul  = pipe_clear_pend_vreg_wr[2];
+    assign vreg_wr_hazard_clr_sld  = pipe_clear_pend_vreg_wr[3];
+    assign vreg_wr_hazard_clr_elem = pipe_clear_pend_vreg_wr[4];
+
+    logic [PIPE_CNT-1:0]             pipe_vreg_wr_en;
+    logic [PIPE_CNT-1:0][4:0]        pipe_vreg_wr_addr;
+    logic [PIPE_CNT-1:0][VREG_W-1:0] pipe_vreg_wr_data;
+    logic [PIPE_CNT-1:0][VMSK_W-1:0] pipe_vreg_wr_mask;
+
+    assign lsu_wr_data  = pipe_vreg_wr_data[0];
+    assign lsu_wr_mask  = pipe_vreg_wr_mask[0];
+    assign lsu_wr_addr  = pipe_vreg_wr_addr[0];
+    assign lsu_wr_en    = pipe_vreg_wr_en  [0];
+    assign alu_wr_data  = pipe_vreg_wr_data[1];
+    assign alu_wr_mask  = pipe_vreg_wr_mask[1];
+    assign alu_wr_addr  = pipe_vreg_wr_addr[1];
+    assign alu_wr_en    = pipe_vreg_wr_en  [1];
+    assign mul_wr_data  = pipe_vreg_wr_data[2];
+    assign mul_wr_mask  = pipe_vreg_wr_mask[2];
+    assign mul_wr_addr  = pipe_vreg_wr_addr[2];
+    assign mul_wr_en    = pipe_vreg_wr_en  [2];
+    assign sld_wr_data  = pipe_vreg_wr_data[3];
+    assign sld_wr_mask  = pipe_vreg_wr_mask[3];
+    assign sld_wr_addr  = pipe_vreg_wr_addr[3];
+    assign sld_wr_en    = pipe_vreg_wr_en  [3];
+    assign elem_wr_data = pipe_vreg_wr_data[4];
+    assign elem_wr_mask = pipe_vreg_wr_mask[4];
+    assign elem_wr_addr = pipe_vreg_wr_addr[4];
+    assign elem_wr_en   = pipe_vreg_wr_en  [4];
+
+    generate
+        for (genvar i = 0; i < PIPE_CNT; i++) begin
+            localparam int unsigned VPORT_W[VPORT_CNT[i] + 1] = '{default: VREG_W};
+            localparam int unsigned VADDR_W[VPORT_CNT[i] + 1] = '{default: 5};
+            localparam bit [VPORT_CNT[i]:0] VPORT_ADDR_ZERO   = {1'b1, {VPORT_CNT[i]{1'b0}}};
+            localparam bit [VPORT_CNT[i]:0] VPORT_BUFFER      = {{VPORT_CNT[i]{1'b0}}, 1'b1};
+
+            localparam int unsigned VPORT_OFFSET = ((UNIT[i] == UNIT_SLD) | (UNIT[i] == UNIT_ELEM)) ? i + 1 : i;
+
+            logic [VPORT_CNT[i]:0][4       :0] vreg_rd_addr;
+            logic [VPORT_CNT[i]:0][VREG_W-1:0] vreg_rd_data;
+            always_comb begin
+                for (int j = 0; j < VPORT_CNT[i]; j++) begin
+                    vregfile_rd_addr[VPORT_OFFSET + j] = vreg_rd_addr    [               j];
+                    vreg_rd_data    [               j] = vregfile_rd_data[VPORT_OFFSET + j];
+                end
+                vreg_rd_data[VPORT_CNT[i]] = vreg_mask;
+            end
+
+            // LSU-related signals
+            vproc_xif #(
+                .X_ID_WIDTH  ( XIF_ID_W ),
+                .X_MEM_WIDTH ( VMEM_W   )
+            ) pipe_xif ();
+            logic                pending_load, pending_store;
+            logic                trans_complete_valid;
+            logic [XIF_ID_W-1:0] trans_complete_id;
+            logic                trans_complete_exc;
+            logic [5:0]          trans_complete_exccode;
+
+            // ELEM-related signals (for XREG writeback)
+            logic                xreg_valid;
+            logic [XIF_ID_W-1:0] xreg_id;
+            logic [4:0]          xreg_addr;
+            logic [31:0]         xreg_data;
+
+            vproc_pipeline_wrapper #(
+                .VREG_W                   ( VREG_W                     ),
+                .CFG_VL_W                 ( CFG_VL_W                   ),
+                .XIF_ID_W                 ( XIF_ID_W                   ),
+                .XIF_ID_CNT               ( XIF_ID_CNT                 ),
+                .UNIT                     ( UNIT[i]                    ),
+                .MAX_VPORT_W              ( VREG_W                     ),
+                .MAX_VADDR_W              ( 5                          ),
+                .VPORT_CNT                ( VPORT_CNT[i] + 1           ),
+                .VPORT_W                  ( VPORT_W                    ),
+                .VADDR_W                  ( VADDR_W                    ),
+                .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO            ),
+                .VPORT_BUFFER             ( VPORT_BUFFER               ),
+                .MAX_OP_W                 ( MAX_OP_W[i]                ),
+                .MAX_WR_ATTEMPTS          ( MAX_WR_ATTEMPTS[i]         ),
+                .DECODER_DATA_T           ( decoder_data               ),
+                .DONT_CARE_ZERO           ( DONT_CARE_ZERO             )
+            ) pipe (
+                .clk_i                    ( clk_i                      ),
+                .async_rst_ni             ( async_rst_n                ),
+                .sync_rst_ni              ( sync_rst_n                 ),
+                .pipe_in_valid_i          ( pipe_instr_valid[i]        ),
+                .pipe_in_ready_o          ( pipe_instr_ready[i]        ),
+                .pipe_in_data_i           ( queue_data_q               ),
+                .vreg_pend_wr_i           ( vreg_wr_hazard_map_q       ),
+                .vreg_pend_rd_o           ( pipe_vreg_pend_rd_out[i]   ),
+                .vreg_pend_rd_i           ( pipe_vreg_pend_rd_in [i]   ),
+                .clear_wr_hazards_o       ( pipe_clear_pend_vreg_wr[i] ),
+                .instr_spec_i             ( ~instr_notspec_q           ),
+                .instr_killed_i           ( instr_killed_q             ),
+                .instr_done_valid_o       ( instr_complete_valid[i]    ),
+                .instr_done_id_o          ( instr_complete_id   [i]    ),
+                .vreg_rd_addr_o           ( vreg_rd_addr               ),
+                .vreg_rd_data_i           ( vreg_rd_data               ),
+                .vreg_wr_o                ( pipe_vreg_wr_data[i]       ),
+                .vreg_wr_addr_o           ( pipe_vreg_wr_addr[i]       ),
+                .vreg_wr_mask_o           ( pipe_vreg_wr_mask[i]       ),
+                .vreg_wr_en_o             ( pipe_vreg_wr_en  [i]       ),
+                .pending_load_o           ( pending_load               ),
+                .pending_store_o          ( pending_store              ),
+                .xif_mem_if               ( pipe_xif                   ),
+                .xif_memres_if            ( pipe_xif                   ),
+                .trans_complete_valid_o   ( trans_complete_valid       ),
+                .trans_complete_id_o      ( trans_complete_id          ),
+                .trans_complete_exc_o     ( trans_complete_exc         ),
+                .trans_complete_exccode_o ( trans_complete_exccode     ),
+                .xreg_valid_o             ( xreg_valid                 ),
+                .xreg_id_o                ( xreg_id                    ),
+                .xreg_addr_o              ( xreg_addr                  ),
+                .xreg_data_o              ( xreg_data                  )
+            );
+            if (UNIT[i] == UNIT_LSU) begin
+                assign pending_load_lsu           = pending_load;
+                assign pending_store_lsu          = pending_store;
+                assign xif_mem_if.mem_valid       = pipe_xif.mem_valid;
+                assign pipe_xif.mem_ready         = xif_mem_if.mem_ready;
+                assign xif_mem_if.mem_req.addr    = pipe_xif.mem_req.addr;
+                assign xif_mem_if.mem_req.we      = pipe_xif.mem_req.we;
+                assign xif_mem_if.mem_req.be      = pipe_xif.mem_req.be;
+                assign xif_mem_if.mem_req.wdata   = pipe_xif.mem_req.wdata;
+                assign pipe_xif.mem_resp.exc      = xif_mem_if.mem_resp.exc;
+                assign pipe_xif.mem_resp.exccode  = xif_mem_if.mem_resp.exccode;
+                assign pipe_xif.mem_resp.dbg      = xif_mem_if.mem_resp.dbg;
+                assign pipe_xif.mem_result_valid  = xif_memres_if.mem_result_valid;
+                assign pipe_xif.mem_result.id     = xif_memres_if.mem_result.id;
+                assign pipe_xif.mem_result.rdata  = xif_memres_if.mem_result.rdata;
+                assign pipe_xif.mem_result.err    = xif_memres_if.mem_result.err;
+                assign pipe_xif.mem_result.dbg    = xif_memres_if.mem_result.dbg;
+                assign lsu_trans_complete_valid   = trans_complete_valid;
+                assign lsu_trans_complete_id      = trans_complete_id;
+                assign lsu_trans_complete_exc     = trans_complete_exc;
+                assign lsu_trans_complete_exccode = trans_complete_exccode;
+            end
+            if (UNIT[i] == UNIT_ELEM) begin
+                assign elem_xreg_valid = xreg_valid;
+                assign elem_xreg_id    = xreg_id;
+                assign elem_xreg_addr  = xreg_addr;
+                assign elem_xreg_data  = xreg_data;
+            end
+
+        end
+    endgenerate
 
     // LSU/ALU/ELEM write multiplexer:
     always_comb begin
@@ -1121,7 +976,6 @@ module vproc_core #(
         vregfile_wr_data_d[0] = lsu_wr_en ? lsu_wr_data : (alu_wr_en ? alu_wr_data : elem_wr_data);
         vregfile_wr_mask_d[0] = lsu_wr_en ? lsu_wr_mask : (alu_wr_en ? alu_wr_mask : elem_wr_mask);
     end
-
 
     // MUL/SLD write multiplexer:
     always_comb begin
