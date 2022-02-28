@@ -82,6 +82,7 @@ module vproc_decoder #(
                 unit_o             = UNIT_LSU;
                 mode_o.lsu.store   = instr_i[6:0] == 7'h27;
                 mode_o.lsu.masked  = instr_masked;
+                mode_o.lsu.nfields = instr_i[31:29];
 
                 rs1_o.vreg   = 1'b0; // rs1 is an x register
                 rs1_o.r.xval = x_rs1_i;
@@ -107,6 +108,20 @@ module vproc_decoder #(
                         // lumop/sumop field
                         unique case (instr_i[24:20])
                             5'b00000: begin // regular unit-stride load/store
+                                if (instr_i[31:29] != '0) begin
+                                    // Unit-strided segment stores result in strided stores
+                                    mode_o.lsu.stride = LSU_STRIDED;
+
+                                    // set the byte stride (which is usually held in rs2) depending
+                                    // on the element width and the number of fields as follows:
+                                    //     stride = (EEW/8) * nf = (EEW/8) * (instr_i[31:29] + 1)
+                                    unique case (instr_i[14:12]) // width field
+                                        3'b000: rs2_o.r.xval = {28'b0, {1'b0, instr_i[31:29]} + 4'h1       }; // EEW 8
+                                        3'b101: rs2_o.r.xval = {27'b0, {1'b0, instr_i[31:29]} + 4'h1, 1'b0 }; // EEW 16
+                                        3'b110: rs2_o.r.xval = {26'b0, {1'b0, instr_i[31:29]} + 4'h1, 2'b00}; // EEW 32
+                                        default: ;
+                                    endcase
+                                end
                             end
                             5'b10000: begin // fault-only-first load
                                 instr_illegal = instr_i[6:0] == 7'h27; // illegal for stores
@@ -121,6 +136,7 @@ module vproc_decoder #(
                                     3'b111: emul = EMUL_8;
                                     default: instr_illegal = 1'b1;
                                 endcase
+                                mode_o.lsu.nfields = '0;
                             end
                             5'b01011: begin // mask load/store
                                 evl_pol = EVL_MASK;
@@ -201,7 +217,8 @@ module vproc_decoder #(
                     mode_o.cfg.agnostic = rs2_o.r.xval[7:6];
                     mode_o.cfg.vlmax    = 1'b0;
                     mode_o.cfg.keep_vl  = 1'b0;
-                    if (instr_vs1 == '0) begin
+                    // handle special AVL encodings when rs1 is x0
+                    if ((instr_vs1 == '0) & (instr_i[31:30] != 2'b11)) begin
                         mode_o.cfg.vlmax   = instr_vd != '0; // set vl to VLMAX if rs1 is x0
                         mode_o.cfg.keep_vl = instr_vd == '0; // keep vl if rs1 and rd are x0
                     end
