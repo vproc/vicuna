@@ -103,6 +103,7 @@ module vproc_top #(
     };
 
 `ifdef MAIN_CORE_IBEX
+    localparam bit USE_XIF_MEM = '0;
 
     logic        cpi_instr_valid;
     logic [31:0] cpi_instr;
@@ -225,6 +226,7 @@ module vproc_top #(
 
 `else
 `ifdef MAIN_CORE_CV32E40X
+    localparam bit USE_XIF_MEM = VMEM_W == 32;
 
     // eXtension Interface
     if_xif #(
@@ -312,10 +314,32 @@ module vproc_top #(
     assign host_xif.result.exc     = vcore_xif.result.exc;
     assign host_xif.result.exccode = vcore_xif.result.exccode;
 
+    if (USE_XIF_MEM) begin
+        assign host_xif.mem_valid         = vcore_xif.mem_valid;
+        assign vcore_xif.mem_ready        = host_xif.mem_ready;
+        assign host_xif.mem_req.id        = vcore_xif.mem_req.id;
+        assign host_xif.mem_req.addr      = vcore_xif.mem_req.addr;
+        assign host_xif.mem_req.mode      = vcore_xif.mem_req.mode;
+        assign host_xif.mem_req.we        = vcore_xif.mem_req.we;
+        assign host_xif.mem_req.be        = vcore_xif.mem_req.be;
+        assign host_xif.mem_req.wdata     = vcore_xif.mem_req.wdata;
+        assign host_xif.mem_req.last      = vcore_xif.mem_req.last;
+        assign host_xif.mem_req.spec      = vcore_xif.mem_req.spec;
+        assign vcore_xif.mem_resp.exc     = host_xif.mem_resp.exc;
+        assign vcore_xif.mem_resp.exccode = host_xif.mem_resp.exccode;
+        assign vcore_xif.mem_resp.dbg     = host_xif.mem_resp.dbg;
+        assign vcore_xif.mem_result_valid = host_xif.mem_result_valid;
+        assign vcore_xif.mem_result.id    = host_xif.mem_result.id;
+        assign vcore_xif.mem_result.rdata = host_xif.mem_result.rdata;
+        assign vcore_xif.mem_result.err   = host_xif.mem_result.err;
+        assign vcore_xif.mem_result.dbg   = host_xif.mem_result.dbg;
+    end
+
     assign vect_csr_we    = '{default:'0};
     assign vect_csr_wdata = '{default:'0};
 
 `else
+    localparam bit USE_XIF_MEM = '0;
     $fatal(1, "One of the MAIN_CORE_* macros must be defined to select a main core.");
 `endif
 `endif
@@ -401,20 +425,28 @@ module vproc_top #(
     );
 
     // Extract vector unit memory signals from extension interface
-    assign vdata_req                  = vcore_xif.mem_valid;
-    assign vcore_xif.mem_ready        = vdata_gnt;
-    assign vdata_addr                 = vcore_xif.mem_req.addr;
-    assign vdata_we                   = vcore_xif.mem_req.we;
-    assign vdata_be                   = vcore_xif.mem_req.be;
-    assign vdata_wdata                = vcore_xif.mem_req.wdata;
-    assign vcore_xif.mem_resp.exc     = '0;
-    assign vcore_xif.mem_resp.exccode = '0;
-    assign vcore_xif.mem_resp.dbg     = '0;
-    assign vcore_xif.mem_result_valid = vdata_rvalid;
-    assign vcore_xif.mem_result.id    = '0; // TODO supply instruction ID
-    assign vcore_xif.mem_result.rdata = vdata_rdata;
-    assign vcore_xif.mem_result.err   = vdata_err;
-    assign vcore_xif.mem_result.dbg   = '0;
+    if (USE_XIF_MEM) begin
+        assign vdata_req                  = '0;
+        assign vdata_addr                 = '0;
+        assign vdata_we                   = '0;
+        assign vdata_be                   = '0;
+        assign vdata_wdata                = '0;
+    end else begin
+        assign vdata_req                  = vcore_xif.mem_valid;
+        assign vcore_xif.mem_ready        = vdata_gnt;
+        assign vdata_addr                 = vcore_xif.mem_req.addr;
+        assign vdata_we                   = vcore_xif.mem_req.we;
+        assign vdata_be                   = vcore_xif.mem_req.be;
+        assign vdata_wdata                = vcore_xif.mem_req.wdata;
+        assign vcore_xif.mem_resp.exc     = '0;
+        assign vcore_xif.mem_resp.exccode = '0;
+        assign vcore_xif.mem_resp.dbg     = '0;
+        assign vcore_xif.mem_result_valid = vdata_rvalid;
+        assign vcore_xif.mem_result.id    = '0; // TODO supply instruction ID
+        assign vcore_xif.mem_result.rdata = vdata_rdata;
+        assign vcore_xif.mem_result.err   = vdata_err;
+        assign vcore_xif.mem_result.dbg   = '0;
+    end
 
     // Data arbiter for main core and vector unit
     logic                sdata_hold;
@@ -429,7 +461,7 @@ module vproc_top #(
     logic [VMEM_W  -1:0] data_rdata;
     logic                sdata_waiting, vdata_waiting;
     logic [31:0]         sdata_wait_addr;
-    assign sdata_hold = vdata_req | vect_pending_store | (vect_pending_load & sdata_we);
+    assign sdata_hold = ~USE_XIF_MEM & (vdata_req | vect_pending_store | (vect_pending_load & sdata_we));
     always_comb begin
         data_req   = vdata_req | (sdata_req & ~sdata_hold);
         data_addr  = sdata_addr;
@@ -546,7 +578,7 @@ module vproc_top #(
             // in case of pending vector loads / stores
             logic hold_mem;
             always_ff @(posedge clk_i) begin
-                hold_mem <= ~vdata_req & vect_pending_store & vect_pending_load;
+                hold_mem <= ~USE_XIF_MEM & ~vdata_req & vect_pending_store & vect_pending_load;
             end
             vproc_cache #(
                 .ADDR_BIT_W   ( 32                ),
