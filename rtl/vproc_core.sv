@@ -75,6 +75,13 @@ module vproc_core #(
     assign sync_rst_n  = ASYNC_RESET ? 1'b1   : rst_ni;
 
 
+    localparam int unsigned PIPE_CNT                  = 5;
+    localparam op_unit      UNIT           [PIPE_CNT] = '{UNIT_LSU, UNIT_ALU, UNIT_MUL, UNIT_SLD, UNIT_ELEM  };
+    localparam int unsigned VPORT_CNT      [PIPE_CNT] = '{1       , 1       , 2       , 1       , 1          };
+    localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
+    localparam int unsigned MAX_WR_ATTEMPTS[PIPE_CNT] = '{1       , 2       , 1       , 2       , 3          };
+
+
     ///////////////////////////////////////////////////////////////////////////
     // CONFIGURATION STATE AND CSR READ AND WRITES
 
@@ -621,26 +628,19 @@ module vproc_core #(
     logic pending_hazards;
     assign pending_hazards = (queue_pending_wr_q & vreg_wr_hazard_map_q) != 32'b0;
 
-    // instruction ready and acknowledge signals for each unit:
-    logic op_rdy_lsu,  op_ack_lsu;
-    logic op_rdy_alu,  op_ack_alu;
-    logic op_rdy_mul,  op_ack_mul;
-    logic op_rdy_sld,  op_ack_sld;
-    logic op_rdy_elem, op_ack_elem;
+    // instruction valid and ready signals
+    logic [PIPE_CNT-1:0] pipe_instr_valid;
+    logic [PIPE_CNT-1:0] pipe_instr_ready;
     always_comb begin
-        op_rdy_lsu  = 1'b0;
-        op_rdy_alu  = 1'b0;
-        op_rdy_mul  = 1'b0;
-        op_rdy_sld  = 1'b0;
-        op_rdy_elem = 1'b0;
-        // hold back ready signal until hazards are cleared:
+        pipe_instr_valid = '0;
+        // hold back valid signal until hazards are cleared
         if (queue_valid_q && ~pending_hazards) begin
             unique case (queue_data_q.unit)
-                UNIT_LSU:  op_rdy_lsu  = 1'b1;
-                UNIT_ALU:  op_rdy_alu  = 1'b1;
-                UNIT_MUL:  op_rdy_mul  = 1'b1;
-                UNIT_SLD:  op_rdy_sld  = 1'b1;
-                UNIT_ELEM: op_rdy_elem = 1'b1;
+                UNIT_LSU:  pipe_instr_valid[0] = 1'b1;
+                UNIT_ALU:  pipe_instr_valid[1] = 1'b1;
+                UNIT_MUL:  pipe_instr_valid[2] = 1'b1;
+                UNIT_SLD:  pipe_instr_valid[3] = 1'b1;
+                UNIT_ELEM: pipe_instr_valid[4] = 1'b1;
                 default: ;
             endcase
         end
@@ -648,27 +648,20 @@ module vproc_core #(
     always_comb begin
         op_ack                 = 1'b0;
         vreg_wr_hazard_map_set = '0;
-        if ((op_rdy_lsu  & op_ack_lsu ) |
-            (op_rdy_alu  & op_ack_alu ) |
-            (op_rdy_mul  & op_ack_mul ) |
-            (op_rdy_sld  & op_ack_sld ) |
-            (op_rdy_elem & op_ack_elem)) begin
-            op_ack              = 1'b1;
+        if ((pipe_instr_valid & pipe_instr_ready) != '0) begin
+            op_ack                 = 1'b1;
             vreg_wr_hazard_map_set = queue_pending_wr_q;
         end
     end
 
-    // vreg hazard clearing:
-    logic [31:0] vreg_wr_hazard_clr_lsu;
-    logic [31:0] vreg_wr_hazard_clr_alu;
-    logic [31:0] vreg_wr_hazard_clr_mul;
-    logic [31:0] vreg_wr_hazard_clr_sld;
-    logic [31:0] vreg_wr_hazard_clr_elem;
-    assign vreg_wr_hazard_map_clr = vreg_wr_hazard_clr_lsu  |
-                                    vreg_wr_hazard_clr_alu  |
-                                    vreg_wr_hazard_clr_mul  |
-                                    vreg_wr_hazard_clr_sld  |
-                                    vreg_wr_hazard_clr_elem;
+    // clearing pending vreg writes
+    logic [PIPE_CNT-1:0][31:0] pipe_clear_pend_vreg_wr;
+    always_comb begin
+        vreg_wr_hazard_map_clr = '0;
+        for (int i = 0; i < PIPE_CNT; i++) begin
+            vreg_wr_hazard_map_clr |= pipe_clear_pend_vreg_wr[i];
+        end
+    end
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -727,10 +720,8 @@ module vproc_core #(
 
 
     // Pending reads
-    logic [31:0] vreg_pend_rd_by_lsu_q, vreg_pend_rd_by_alu_q, vreg_pend_rd_by_mul_q, vreg_pend_rd_by_sld_q, vreg_pend_rd_by_elem_q;
-    logic [31:0] vreg_pend_rd_by_lsu_d, vreg_pend_rd_by_alu_d, vreg_pend_rd_by_mul_d, vreg_pend_rd_by_sld_d, vreg_pend_rd_by_elem_d;
-    logic [31:0] vreg_pend_rd_to_lsu_q, vreg_pend_rd_to_alu_q, vreg_pend_rd_to_mul_q, vreg_pend_rd_to_sld_q, vreg_pend_rd_to_elem_q;
-    logic [31:0] vreg_pend_rd_to_lsu_d, vreg_pend_rd_to_alu_d, vreg_pend_rd_to_mul_d, vreg_pend_rd_to_sld_d, vreg_pend_rd_to_elem_d;
+    logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_by_q, pipe_vreg_pend_rd_by_d;
+    logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_to_q, pipe_vreg_pend_rd_to_d;
     generate
         if (BUF_VREG_PEND) begin
             // Note: A vreg write cannot happen within the first two cycles of
@@ -739,40 +730,31 @@ module vproc_core #(
             // extra stall cycles in case a write is blocked by a pending read
             // but that should happen rarely anyways.
             always_ff @(posedge clk_i) begin
-                vreg_pend_rd_by_lsu_q  <= vreg_pend_rd_by_lsu_d;
-                vreg_pend_rd_by_alu_q  <= vreg_pend_rd_by_alu_d;
-                vreg_pend_rd_by_mul_q  <= vreg_pend_rd_by_mul_d;
-                vreg_pend_rd_by_sld_q  <= vreg_pend_rd_by_sld_d;
-                vreg_pend_rd_by_elem_q <= vreg_pend_rd_by_elem_d;
-                vreg_pend_rd_to_lsu_q  <= vreg_pend_rd_to_lsu_d;
-                vreg_pend_rd_to_alu_q  <= vreg_pend_rd_to_alu_d;
-                vreg_pend_rd_to_mul_q  <= vreg_pend_rd_to_mul_d;
-                vreg_pend_rd_to_sld_q  <= vreg_pend_rd_to_sld_d;
-                vreg_pend_rd_to_elem_q <= vreg_pend_rd_to_elem_d;
+                pipe_vreg_pend_rd_by_q <= pipe_vreg_pend_rd_by_d;
+                pipe_vreg_pend_rd_to_q <= pipe_vreg_pend_rd_to_d;
             end
         end else begin
-            assign vreg_pend_rd_by_lsu_q  = vreg_pend_rd_by_lsu_d;
-            assign vreg_pend_rd_by_alu_q  = vreg_pend_rd_by_alu_d;
-            assign vreg_pend_rd_by_mul_q  = vreg_pend_rd_by_mul_d;
-            assign vreg_pend_rd_by_sld_q  = vreg_pend_rd_by_sld_d;
-            assign vreg_pend_rd_by_elem_q = vreg_pend_rd_by_elem_d;
-            assign vreg_pend_rd_to_lsu_q  = vreg_pend_rd_to_lsu_d;
-            assign vreg_pend_rd_to_alu_q  = vreg_pend_rd_to_alu_d;
-            assign vreg_pend_rd_to_mul_q  = vreg_pend_rd_to_mul_d;
-            assign vreg_pend_rd_to_sld_q  = vreg_pend_rd_to_sld_d;
-            assign vreg_pend_rd_to_elem_q = vreg_pend_rd_to_elem_d;
+            assign pipe_vreg_pend_rd_by_q = pipe_vreg_pend_rd_by_d;
+            assign pipe_vreg_pend_rd_to_q = pipe_vreg_pend_rd_to_d;
         end
     endgenerate
-    assign vreg_pend_rd_to_lsu_d  = vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_sld_q | vreg_pend_rd_by_elem_q;
-    assign vreg_pend_rd_to_alu_d  = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_sld_q | vreg_pend_rd_by_elem_q;
-    assign vreg_pend_rd_to_mul_d  = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_sld_q | vreg_pend_rd_by_elem_q;
-    assign vreg_pend_rd_to_sld_d  = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_elem_q;
-    assign vreg_pend_rd_to_elem_d = vreg_pend_rd_by_lsu_q | vreg_pend_rd_by_alu_q | vreg_pend_rd_by_mul_q | vreg_pend_rd_by_sld_q;
+    logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_in, pipe_vreg_pend_rd_out;
+    always_comb begin
+        pipe_vreg_pend_rd_by_d = pipe_vreg_pend_rd_out;
+        pipe_vreg_pend_rd_to_d = '0;
+        for (int i = 0; i < PIPE_CNT; i++) begin
+            for (int j = 0; j < PIPE_CNT; j++) begin
+                if (i != j) begin
+                    pipe_vreg_pend_rd_to_d[i] |= pipe_vreg_pend_rd_by_q[j];
+                end
+            end
+        end
+    end
 
-    logic [VREG_W-1:0]   lsu_wr_data, alu_wr_data, mul_wr_data, sld_wr_data, elem_wr_data;
-    logic [VMSK_W-1:0]   lsu_wr_mask, alu_wr_mask, mul_wr_mask, sld_wr_mask, elem_wr_mask;
-    logic [4:0]          lsu_wr_addr, alu_wr_addr, mul_wr_addr, sld_wr_addr, elem_wr_addr;
-    logic                lsu_wr_en  , alu_wr_en  , mul_wr_en  , sld_wr_en  , elem_wr_en  ;
+    logic [PIPE_CNT-1:0]             pipe_vreg_wr_en;
+    logic [PIPE_CNT-1:0][4:0]        pipe_vreg_wr_addr;
+    logic [PIPE_CNT-1:0][VREG_W-1:0] pipe_vreg_wr_data;
+    logic [PIPE_CNT-1:0][VMSK_W-1:0] pipe_vreg_wr_mask;
 
     logic                lsu_trans_complete_valid;
     logic [XIF_ID_W-1:0] lsu_trans_complete_id;
@@ -783,72 +765,6 @@ module vproc_core #(
     logic [XIF_ID_W-1:0] elem_xreg_id;
     logic [4:0]          elem_xreg_addr;
     logic [31:0]         elem_xreg_data;
-
-    localparam int unsigned PIPE_CNT                  = 5;
-    localparam op_unit      UNIT           [PIPE_CNT] = '{UNIT_LSU, UNIT_ALU, UNIT_MUL, UNIT_SLD, UNIT_ELEM  };
-    localparam int unsigned VPORT_CNT      [PIPE_CNT] = '{1       , 1       , 2       , 1       , 1          };
-    localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
-    localparam int unsigned MAX_WR_ATTEMPTS[PIPE_CNT] = '{1       , 2       , 1       , 2       , 3          };
-
-    logic [PIPE_CNT-1:0]             pipe_instr_valid;
-    logic [PIPE_CNT-1:0]             pipe_instr_ready;
-
-    assign pipe_instr_valid[0] = op_rdy_lsu;
-    assign pipe_instr_valid[1] = op_rdy_alu;
-    assign pipe_instr_valid[2] = op_rdy_mul;
-    assign pipe_instr_valid[3] = op_rdy_sld;
-    assign pipe_instr_valid[4] = op_rdy_elem;
-    assign op_ack_lsu          = pipe_instr_ready[0];
-    assign op_ack_alu          = pipe_instr_ready[1];
-    assign op_ack_mul          = pipe_instr_ready[2];
-    assign op_ack_sld          = pipe_instr_ready[3];
-    assign op_ack_elem         = pipe_instr_ready[4];
-
-    logic [PIPE_CNT-1:0][31:0]       pipe_vreg_pend_rd_in, pipe_vreg_pend_rd_out;
-    logic [PIPE_CNT-1:0][31:0]       pipe_clear_pend_vreg_wr;
-
-    assign pipe_vreg_pend_rd_in[0] = vreg_pend_rd_to_lsu_q;
-    assign pipe_vreg_pend_rd_in[1] = vreg_pend_rd_to_alu_q;
-    assign pipe_vreg_pend_rd_in[2] = vreg_pend_rd_to_mul_q;
-    assign pipe_vreg_pend_rd_in[3] = vreg_pend_rd_to_sld_q;
-    assign pipe_vreg_pend_rd_in[4] = vreg_pend_rd_to_elem_q;
-    assign vreg_pend_rd_by_lsu_d   = pipe_vreg_pend_rd_out[0];
-    assign vreg_pend_rd_by_alu_d   = pipe_vreg_pend_rd_out[1];
-    assign vreg_pend_rd_by_mul_d   = pipe_vreg_pend_rd_out[2];
-    assign vreg_pend_rd_by_sld_d   = pipe_vreg_pend_rd_out[3];
-    assign vreg_pend_rd_by_elem_d  = pipe_vreg_pend_rd_out[4];
-
-    assign vreg_wr_hazard_clr_lsu  = pipe_clear_pend_vreg_wr[0];
-    assign vreg_wr_hazard_clr_alu  = pipe_clear_pend_vreg_wr[1];
-    assign vreg_wr_hazard_clr_mul  = pipe_clear_pend_vreg_wr[2];
-    assign vreg_wr_hazard_clr_sld  = pipe_clear_pend_vreg_wr[3];
-    assign vreg_wr_hazard_clr_elem = pipe_clear_pend_vreg_wr[4];
-
-    logic [PIPE_CNT-1:0]             pipe_vreg_wr_en;
-    logic [PIPE_CNT-1:0][4:0]        pipe_vreg_wr_addr;
-    logic [PIPE_CNT-1:0][VREG_W-1:0] pipe_vreg_wr_data;
-    logic [PIPE_CNT-1:0][VMSK_W-1:0] pipe_vreg_wr_mask;
-
-    assign lsu_wr_data  = pipe_vreg_wr_data[0];
-    assign lsu_wr_mask  = pipe_vreg_wr_mask[0];
-    assign lsu_wr_addr  = pipe_vreg_wr_addr[0];
-    assign lsu_wr_en    = pipe_vreg_wr_en  [0];
-    assign alu_wr_data  = pipe_vreg_wr_data[1];
-    assign alu_wr_mask  = pipe_vreg_wr_mask[1];
-    assign alu_wr_addr  = pipe_vreg_wr_addr[1];
-    assign alu_wr_en    = pipe_vreg_wr_en  [1];
-    assign mul_wr_data  = pipe_vreg_wr_data[2];
-    assign mul_wr_mask  = pipe_vreg_wr_mask[2];
-    assign mul_wr_addr  = pipe_vreg_wr_addr[2];
-    assign mul_wr_en    = pipe_vreg_wr_en  [2];
-    assign sld_wr_data  = pipe_vreg_wr_data[3];
-    assign sld_wr_mask  = pipe_vreg_wr_mask[3];
-    assign sld_wr_addr  = pipe_vreg_wr_addr[3];
-    assign sld_wr_en    = pipe_vreg_wr_en  [3];
-    assign elem_wr_data = pipe_vreg_wr_data[4];
-    assign elem_wr_mask = pipe_vreg_wr_mask[4];
-    assign elem_wr_addr = pipe_vreg_wr_addr[4];
-    assign elem_wr_en   = pipe_vreg_wr_en  [4];
 
     generate
         for (genvar i = 0; i < PIPE_CNT; i++) begin
@@ -971,18 +887,18 @@ module vproc_core #(
 
     // LSU/ALU/ELEM write multiplexer:
     always_comb begin
-        vregfile_wr_en_d  [0] = lsu_wr_en | alu_wr_en | elem_wr_en;
-        vregfile_wr_addr_d[0] = lsu_wr_en ? lsu_wr_addr : (alu_wr_en ? alu_wr_addr : elem_wr_addr);
-        vregfile_wr_data_d[0] = lsu_wr_en ? lsu_wr_data : (alu_wr_en ? alu_wr_data : elem_wr_data);
-        vregfile_wr_mask_d[0] = lsu_wr_en ? lsu_wr_mask : (alu_wr_en ? alu_wr_mask : elem_wr_mask);
+        vregfile_wr_en_d  [0] = pipe_vreg_wr_en[0] | pipe_vreg_wr_en[1] | pipe_vreg_wr_en[4];
+        vregfile_wr_addr_d[0] = pipe_vreg_wr_en[0] ? pipe_vreg_wr_addr[0] : (pipe_vreg_wr_en[1] ? pipe_vreg_wr_addr[1] : pipe_vreg_wr_addr[4]);
+        vregfile_wr_data_d[0] = pipe_vreg_wr_en[0] ? pipe_vreg_wr_data[0] : (pipe_vreg_wr_en[1] ? pipe_vreg_wr_data[1] : pipe_vreg_wr_data[4]);
+        vregfile_wr_mask_d[0] = pipe_vreg_wr_en[0] ? pipe_vreg_wr_mask[0] : (pipe_vreg_wr_en[1] ? pipe_vreg_wr_mask[1] : pipe_vreg_wr_mask[4]);
     end
 
     // MUL/SLD write multiplexer:
     always_comb begin
-        vregfile_wr_en_d  [1] = mul_wr_en | sld_wr_en;
-        vregfile_wr_addr_d[1] = mul_wr_en ? mul_wr_addr : sld_wr_addr;
-        vregfile_wr_data_d[1] = mul_wr_en ? mul_wr_data : sld_wr_data;
-        vregfile_wr_mask_d[1] = mul_wr_en ? mul_wr_mask : sld_wr_mask;
+        vregfile_wr_en_d  [1] = pipe_vreg_wr_en[2] | pipe_vreg_wr_en[3];
+        vregfile_wr_addr_d[1] = pipe_vreg_wr_en[2] ? pipe_vreg_wr_addr[2] : pipe_vreg_wr_addr[3];
+        vregfile_wr_data_d[1] = pipe_vreg_wr_en[2] ? pipe_vreg_wr_data[2] : pipe_vreg_wr_data[3];
+        vregfile_wr_mask_d[1] = pipe_vreg_wr_en[2] ? pipe_vreg_wr_mask[2] : pipe_vreg_wr_mask[3];
     end
 
 
