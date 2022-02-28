@@ -193,9 +193,18 @@ module vproc_pipeline_wrapper #(
                 endcase
             end else begin
                 unique case (pipe_in_data_i.vsew)
-                    VSEW_8:  state_init.alt_count_init = ({4'b1111, {(ALT_COUNT_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} + {1'b0, pipe_in_data_i.rs1.r.xval[$clog2(VREG_W/8)+2:0]      }) >> $clog2(MAX_OP_W/8);
-                    VSEW_16: state_init.alt_count_init = ({4'b1111, {(ALT_COUNT_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} + {1'b0, pipe_in_data_i.rs1.r.xval[$clog2(VREG_W/8)+1:0], 1'b0}) >> $clog2(MAX_OP_W/8);
-                    VSEW_32: state_init.alt_count_init = ({4'b1111, {(ALT_COUNT_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} + {1'b0, pipe_in_data_i.rs1.r.xval[$clog2(VREG_W/8)+0:0], 2'b0}) >> $clog2(MAX_OP_W/8);
+                    VSEW_8:  state_init.alt_count_init = ALT_COUNT_W'((
+                        {4'b1111, {(ALT_COUNT_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} +
+                        {1'b0, pipe_in_data_i.rs1.r.xval[$clog2(VREG_W/8)+2:0]      }
+                    ) >> $clog2(MAX_OP_W/8));
+                    VSEW_16: state_init.alt_count_init = ALT_COUNT_W'((
+                        {4'b1111, {(ALT_COUNT_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} +
+                        {1'b0, pipe_in_data_i.rs1.r.xval[$clog2(VREG_W/8)+1:0], 1'b0}
+                    ) >> $clog2(MAX_OP_W/8));
+                    VSEW_32: state_init.alt_count_init = ALT_COUNT_W'((
+                        {4'b1111, {(ALT_COUNT_W-4){1'b0}}, {$clog2(MAX_OP_W/8){1'b1}}} +
+                        {1'b0, pipe_in_data_i.rs1.r.xval[$clog2(VREG_W/8)+0:0], 2'b0}
+                    ) >> $clog2(MAX_OP_W/8));
                     default: ;
                 endcase
             end

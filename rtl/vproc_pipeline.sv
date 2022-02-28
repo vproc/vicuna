@@ -225,7 +225,7 @@ module vproc_pipeline #(
                 state_next.count.part.sign = '1;
                 state_next.count.part.mul  = '1;
             end
-            state_next.alt_count               = pipe_in_state_i.alt_count_init;
+            state_next.alt_count.val           = COUNTER_W'(pipe_in_state_i.alt_count_init);
             state_next.count_inc               = pipe_in_state_i.count_inc;
             state_next.aux_count = '1;
             for (int i = 0; i < OP_CNT; i++) begin
@@ -657,13 +657,13 @@ module vproc_pipeline #(
         // TODO consider only the relevant counter bits for vl_part (i.e., for element-wise access,
         // the lower counter bits should be ignored for EEW > 8; also, the stride bits should be
         // ignored for LSU operation)
-        unpack_ctrl.vl_part      = (state_q.count.val == state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
-        unpack_ctrl.vl_part_0    = (state_q.count.val >  state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) |  state_q.vl_0;
-        unpack_ctrl.last_vl_part = (state_q.count.val == state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) & ~state_q.vl_0;
+        unpack_ctrl.vl_part      = (state_q.count.val[COUNTER_W-2:0] == state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
+        unpack_ctrl.vl_part_0    = (state_q.count.val[COUNTER_W-2:0] >  state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) |  state_q.vl_0;
+        unpack_ctrl.last_vl_part = (state_q.count.val[COUNTER_W-2:0] == state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) & ~state_q.vl_0;
         if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
-            unpack_ctrl.vl_part      = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
-            unpack_ctrl.vl_part_0    = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] >  state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) |  state_q.vl_0;
-            unpack_ctrl.last_vl_part = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) & ~state_q.vl_0;
+            unpack_ctrl.vl_part      = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
+            unpack_ctrl.vl_part_0    = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] >  state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) |  state_q.vl_0;
+            unpack_ctrl.last_vl_part = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) & ~state_q.vl_0;
         end
         unpack_ctrl.vl_0 = state_q.vl_0;
 
