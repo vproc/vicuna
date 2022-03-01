@@ -13,6 +13,7 @@ module vproc_unit_wrapper #(
         parameter int unsigned                       RES_CNT         = 2,
         parameter int unsigned                       MAX_RES_W       = 32,
         parameter vproc_pkg::mul_type                MUL_TYPE        = vproc_pkg::MUL_GENERIC,
+        parameter bit                                ADDR_ALIGNED    = 1'b1,
         parameter type                               CTRL_T          = logic,
         parameter type                               COUNTER_T       = logic,
         parameter int unsigned                       COUNTER_W       = 0,
@@ -78,6 +79,7 @@ module vproc_unit_wrapper #(
                 .CTRL_T                   ( CTRL_T                               ),
                 .XIF_ID_W                 ( XIF_ID_W                             ),
                 .XIF_ID_CNT               ( XIF_ID_CNT                           ),
+                .ADDR_ALIGNED             ( ADDR_ALIGNED                         ),
                 .DONT_CARE_ZERO           ( DONT_CARE_ZERO                       )
             ) lsu (
                 .clk_i                    ( clk_i                                ),

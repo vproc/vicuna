@@ -42,6 +42,7 @@ module vproc_pipeline #(
         parameter bit [RES_CNT-1:0]     RES_ALWAYS_VREG     = '0,   // result is 1 elem
         parameter bit                   MAY_FLUSH           = '0,
         parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
+        parameter bit                   ADDR_ALIGNED        = 1'b1, // base address is aligned to VMEM_W
         parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
         parameter type                  INIT_STATE_T        = logic,
         parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
@@ -795,6 +796,7 @@ module vproc_pipeline #(
         .RES_CNT                   ( RES_CNT                  ),
         .MAX_RES_W                 ( MAX_RES_W                ),
         .MUL_TYPE                  ( MUL_TYPE                 ),
+        .ADDR_ALIGNED              ( ADDR_ALIGNED             ),
         .CTRL_T                    ( ctrl_t                   ),
         .COUNTER_T                 ( counter_t                ),
         .COUNTER_W                 ( COUNTER_W                ),

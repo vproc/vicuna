@@ -817,6 +817,8 @@ module vproc_core #(
                 .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO            ),
                 .VPORT_BUFFER             ( VPORT_BUFFER               ),
                 .MAX_OP_W                 ( MAX_OP_W[i]                ),
+                .MUL_TYPE                 ( MUL_TYPE                   ),
+                .ADDR_ALIGNED             ( ADDR_ALIGNED               ),
                 .MAX_WR_ATTEMPTS          ( MAX_WR_ATTEMPTS[i]         ),
                 .DECODER_DATA_T           ( decoder_data               ),
                 .DONT_CARE_ZERO           ( DONT_CARE_ZERO             )

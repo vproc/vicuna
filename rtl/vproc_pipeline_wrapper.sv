@@ -18,6 +18,7 @@ module vproc_pipeline_wrapper #(
         parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER        = '0,   // buffer port
         parameter int unsigned          MAX_OP_W            = 64,   // operand width in bits
         parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
+        parameter bit                   ADDR_ALIGNED        = 1'b1, // base address is aligned to VMEM_W
         parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
         parameter type                  DECODER_DATA_T      = logic,
         parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
@@ -376,6 +377,7 @@ module vproc_pipeline_wrapper #(
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -446,6 +448,7 @@ module vproc_pipeline_wrapper #(
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -516,6 +519,7 @@ module vproc_pipeline_wrapper #(
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -586,6 +590,7 @@ module vproc_pipeline_wrapper #(
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
