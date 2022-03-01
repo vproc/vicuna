@@ -24,13 +24,13 @@
     // Assert that a vreg is still in the pending writes while being written
     assert property (
         @(posedge clk_i)
-        vreg_wr_en_o |-> vreg_pend_wr_i[vreg_wr_addr_o]
+        vreg_wr_valid_o |-> vreg_pend_wr_i[vreg_wr_addr_o]
     ) else begin
         $error("writing to a vreg which is not in the global pending writes");
     end
     assert property (
         @(posedge clk_i)
-        vreg_wr_en_o |-> (~vreg_pend_rd_i[vreg_wr_addr_o])
+        vreg_wr_valid_o |-> (~vreg_pend_rd_i[vreg_wr_addr_o])
     ) else begin
         $error("writing to a vreg for which there are pending reads");
     end

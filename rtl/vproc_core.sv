@@ -82,6 +82,9 @@ module vproc_core #(
     localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
     localparam int unsigned MAX_WR_ATTEMPTS[PIPE_CNT] = '{1       , 2       , 1       , 2       , 3          };
 
+    // map pipelines to vector register write ports
+    localparam bit [1:0][PIPE_CNT-1:0] VPORT_WR_MAP = '{5'b10011, 5'b01100}; // LSU/ALU/ELEM & MUL/SLD
+
 
     ///////////////////////////////////////////////////////////////////////////
     // CONFIGURATION STATE AND CSR READ AND WRITES
@@ -752,10 +755,11 @@ module vproc_core #(
         end
     end
 
-    logic [PIPE_CNT-1:0]             pipe_vreg_wr_en;
-    logic [PIPE_CNT-1:0][4:0]        pipe_vreg_wr_addr;
-    logic [PIPE_CNT-1:0][VREG_W-1:0] pipe_vreg_wr_data;
-    logic [PIPE_CNT-1:0][VMSK_W-1:0] pipe_vreg_wr_mask;
+    logic [PIPE_CNT-1:0]               pipe_vreg_wr_valid;
+    logic [PIPE_CNT-1:0]               pipe_vreg_wr_ready;
+    logic [PIPE_CNT-1:0][4:0]          pipe_vreg_wr_addr;
+    logic [PIPE_CNT-1:0][VREG_W  -1:0] pipe_vreg_wr_data;
+    logic [PIPE_CNT-1:0][VREG_W/8-1:0] pipe_vreg_wr_be;
 
     logic                lsu_trans_complete_valid;
     logic [XIF_ID_W-1:0] lsu_trans_complete_id;
@@ -839,10 +843,11 @@ module vproc_core #(
                 .instr_done_id_o          ( instr_complete_id   [i]    ),
                 .vreg_rd_addr_o           ( vreg_rd_addr               ),
                 .vreg_rd_data_i           ( vreg_rd_data               ),
-                .vreg_wr_o                ( pipe_vreg_wr_data[i]       ),
-                .vreg_wr_addr_o           ( pipe_vreg_wr_addr[i]       ),
-                .vreg_wr_mask_o           ( pipe_vreg_wr_mask[i]       ),
-                .vreg_wr_en_o             ( pipe_vreg_wr_en  [i]       ),
+                .vreg_wr_valid_o          ( pipe_vreg_wr_valid[i]      ),
+                .vreg_wr_ready_i          ( pipe_vreg_wr_ready[i]      ),
+                .vreg_wr_addr_o           ( pipe_vreg_wr_addr [i]      ),
+                .vreg_wr_be_o             ( pipe_vreg_wr_be   [i]      ),
+                .vreg_wr_data_o           ( pipe_vreg_wr_data [i]      ),
                 .pending_load_o           ( pending_load               ),
                 .pending_store_o          ( pending_store              ),
                 .xif_mem_if               ( pipe_xif                   ),
@@ -888,21 +893,24 @@ module vproc_core #(
         end
     endgenerate
 
-    // LSU/ALU/ELEM write multiplexer:
-    always_comb begin
-        vregfile_wr_en_d  [0] = pipe_vreg_wr_en[0] | pipe_vreg_wr_en[1] | pipe_vreg_wr_en[4];
-        vregfile_wr_addr_d[0] = pipe_vreg_wr_en[0] ? pipe_vreg_wr_addr[0] : (pipe_vreg_wr_en[1] ? pipe_vreg_wr_addr[1] : pipe_vreg_wr_addr[4]);
-        vregfile_wr_data_d[0] = pipe_vreg_wr_en[0] ? pipe_vreg_wr_data[0] : (pipe_vreg_wr_en[1] ? pipe_vreg_wr_data[1] : pipe_vreg_wr_data[4]);
-        vregfile_wr_mask_d[0] = pipe_vreg_wr_en[0] ? pipe_vreg_wr_mask[0] : (pipe_vreg_wr_en[1] ? pipe_vreg_wr_mask[1] : pipe_vreg_wr_mask[4]);
-    end
-
-    // MUL/SLD write multiplexer:
-    always_comb begin
-        vregfile_wr_en_d  [1] = pipe_vreg_wr_en[2] | pipe_vreg_wr_en[3];
-        vregfile_wr_addr_d[1] = pipe_vreg_wr_en[2] ? pipe_vreg_wr_addr[2] : pipe_vreg_wr_addr[3];
-        vregfile_wr_data_d[1] = pipe_vreg_wr_en[2] ? pipe_vreg_wr_data[2] : pipe_vreg_wr_data[3];
-        vregfile_wr_mask_d[1] = pipe_vreg_wr_en[2] ? pipe_vreg_wr_mask[2] : pipe_vreg_wr_mask[3];
-    end
+    vproc_vreg_wr_mux #(
+        .VREG_W             ( VREG_W             ),
+        .VPORT_WR_CNT       ( 2                  ),
+        .PIPE_CNT           ( PIPE_CNT           ),
+        .VPORT_WR_MAP       ( VPORT_WR_MAP       ),
+        .STALL_PIPELINES    ( 1'b0               ),
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO     )
+    ) vreg_wr_mux (
+        .vreg_wr_valid_i    ( pipe_vreg_wr_valid ),
+        .vreg_wr_ready_o    ( pipe_vreg_wr_ready ),
+        .vreg_wr_addr_i     ( pipe_vreg_wr_addr  ),
+        .vreg_wr_be_i       ( pipe_vreg_wr_be    ),
+        .vreg_wr_data_i     ( pipe_vreg_wr_data  ),
+        .vregfile_wr_en_o   ( vregfile_wr_en_d   ),
+        .vregfile_wr_addr_o ( vregfile_wr_addr_d ),
+        .vregfile_wr_be_o   ( vregfile_wr_mask_d ),
+        .vregfile_wr_data_o ( vregfile_wr_data_d )
+    );
 
 
     ///////////////////////////////////////////////////////////////////////////

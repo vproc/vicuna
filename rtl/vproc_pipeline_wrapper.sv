@@ -45,10 +45,11 @@ module vproc_pipeline_wrapper #(
         output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
         input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
 
-        output logic [VREG_W-1:0]       vreg_wr_o,
+        output logic                    vreg_wr_valid_o,
+        input  logic                    vreg_wr_ready_i,
         output logic [4:0]              vreg_wr_addr_o,
-        output logic [VREG_W/8-1:0]     vreg_wr_mask_o,
-        output logic                    vreg_wr_en_o,
+        output logic [VREG_W/8-1:0]     vreg_wr_be_o,
+        output logic [VREG_W  -1:0]     vreg_wr_data_o,
 
         output logic                    pending_load_o,
         output logic                    pending_store_o,

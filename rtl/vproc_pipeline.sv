@@ -70,10 +70,11 @@ module vproc_pipeline #(
         output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
         input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
 
-        output logic [VREG_W-1:0]       vreg_wr_o,
+        output logic                    vreg_wr_valid_o,
+        input  logic                    vreg_wr_ready_i,
         output logic [4:0]              vreg_wr_addr_o,
-        output logic [VREG_W/8-1:0]     vreg_wr_mask_o,
-        output logic                    vreg_wr_en_o,
+        output logic [VREG_W/8-1:0]     vreg_wr_be_o,
+        output logic [VREG_W  -1:0]     vreg_wr_data_o,
 
         output logic                    pending_load_o,
         output logic                    pending_store_o,
@@ -887,11 +888,11 @@ module vproc_pipeline #(
         .pipe_in_pend_clr_i          ( unit_out_pend_clear     ),
         .pipe_in_pend_clr_cnt_i      ( unit_out_pend_clear_cnt ),
         .pipe_in_instr_done_i        ( unit_out_instr_done     ),
-        .vreg_wr_valid_o             ( vreg_wr_en_o            ),
-        .vreg_wr_ready_i             ( 1'b1                    ),
+        .vreg_wr_valid_o             ( vreg_wr_valid_o         ),
+        .vreg_wr_ready_i             ( vreg_wr_ready_i         ),
         .vreg_wr_addr_o              ( vreg_wr_addr_o          ),
-        .vreg_wr_be_o                ( vreg_wr_mask_o          ),
-        .vreg_wr_data_o              ( vreg_wr_o               ),
+        .vreg_wr_be_o                ( vreg_wr_be_o            ),
+        .vreg_wr_data_o              ( vreg_wr_data_o          ),
         .pending_vreg_reads_i        ( pack_pending_vreg_reads ),
         .clear_pending_vreg_writes_o ( clear_wr_hazards_o      ),
         .instr_spec_i                ( pack_instr_spec         ),
