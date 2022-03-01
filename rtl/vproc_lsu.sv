@@ -14,6 +14,7 @@ module vproc_lsu #(
         parameter bit                 BUF_VREG        = 1'b1, // insert pipeline stage after vreg read
         parameter bit                 BUF_REQUEST     = 1'b1, // insert pipeline stage before issuing request
         parameter bit                 BUF_RDATA       = 1'b1, // insert pipeline stage after memory read
+        parameter bit                 ADDR_ALIGNED    = 1'b1, // base address is aligned to VMEM_W
         parameter bit                 DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )
     (
@@ -607,13 +608,21 @@ module vproc_lsu #(
                 end
                 default: ;
             endcase
+            if (~ADDR_ALIGNED) begin
+                wdata_buf_d = vs3_data[VMEM_W-1:0];
+                unique case (state_req_d.mode.eew)
+                    VSEW_8:  wmask_buf_d = {{VMEM_W/8-1{1'b0}},    wdata_stri_mask  };
+                    VSEW_16: wmask_buf_d = {{VMEM_W/8-2{1'b0}}, {2{wdata_stri_mask}}};
+                    VSEW_32: wmask_buf_d = {{VMEM_W/8-4{1'b0}}, {4{wdata_stri_mask}}};
+                endcase
+            end
         end
     end
 
     // memory request (keep requesting next access while addressing is not complete)
     assign xif_mem_if.mem_valid     = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
     assign xif_mem_if.mem_req.id    = state_req_q.id;
-    assign xif_mem_if.mem_req.addr  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
+    assign xif_mem_if.mem_req.addr  = ADDR_ALIGNED ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
     assign xif_mem_if.mem_req.mode  = '0;
     assign xif_mem_if.mem_req.we    = state_req_q.mode.store;
     assign xif_mem_if.mem_req.be    = wmask_buf_q;
@@ -736,6 +745,9 @@ module vproc_lsu #(
                 VSEW_32: pack_res_data[0][31:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32];
                 default: ;
             endcase
+            if (~ADDR_ALIGNED) begin
+                pack_res_data[0] = rdata_buf_q;
+            end
         end
         pack_res_mask                  = '0;
         pack_res_mask[0][VMEM_W/8-1:0] = (state_rdata_q.mode.stride == LSU_UNITSTRIDE) ? rdata_unit_vdmsk : {(VMEM_W/8){rdata_stri_vdmsk}};

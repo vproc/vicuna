@@ -407,6 +407,7 @@ module vproc_top #(
         .XIF_ID_W         ( X_ID_WIDTH         ),
         .RAM_TYPE         ( RAM_TYPE           ),
         .MUL_TYPE         ( MUL_TYPE           ),
+        .ADDR_ALIGNED     ( ~USE_XIF_MEM       ),
         .DONT_CARE_ZERO   ( 1'b0               ),
         .ASYNC_RESET      ( 1'b0               )
     ) v_core (

@@ -18,6 +18,7 @@ module vproc_core #(
         parameter bit                 BUF_DEQUEUE    = 1'b1, // buffer instruction queue outputs
         parameter bit                 BUF_VREG_WR    = 1'b0,
         parameter bit                 BUF_VREG_PEND  = 1'b1, // buffer pending vreg reads
+        parameter bit                 ADDR_ALIGNED   = 1'b1, // base address is aligned to VMEM_W
         parameter bit                 DONT_CARE_ZERO = 1'b0, // initialize don't care values to zero
         parameter bit                 ASYNC_RESET    = 1'b0  // set if rst_ni is an asynchronous reset
     )(
@@ -788,6 +789,7 @@ module vproc_core #(
         .XIF_ID_W                 ( XIF_ID_W                      ),
         .XIF_ID_CNT               ( XIF_ID_CNT                    ),
         .MAX_WR_ATTEMPTS          ( 1                             ),
+        .ADDR_ALIGNED             ( ADDR_ALIGNED                  ),
         .DONT_CARE_ZERO           ( DONT_CARE_ZERO                )
     ) lsu (
         .clk_i                    ( clk_i                         ),
