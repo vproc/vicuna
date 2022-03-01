@@ -10,6 +10,7 @@ module vproc_lsu #(
         parameter type                CTRL_T          = logic,
         parameter int unsigned        XIF_ID_W        = 3,    // width in bits of instruction IDs
         parameter int unsigned        XIF_ID_CNT      = 8,    // total count of instruction IDs
+        parameter bit                 ADDR_ALIGNED    = 1'b1, // base address is aligned to VMEM_W
         parameter bit                 DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )
     (
@@ -269,13 +270,21 @@ module vproc_lsu #(
                 end
                 default: ;
             endcase
+            if (~ADDR_ALIGNED) begin
+                wdata_buf_d = vs3_data[VMEM_W-1:0];
+                unique case (pipe_in_ctrl_i.mode.lsu.eew)
+                    VSEW_8:  wmask_buf_d = {{VMEM_W/8-1{1'b0}},    wdata_stri_mask  };
+                    VSEW_16: wmask_buf_d = {{VMEM_W/8-2{1'b0}}, {2{wdata_stri_mask}}};
+                    VSEW_32: wmask_buf_d = {{VMEM_W/8-4{1'b0}}, {4{wdata_stri_mask}}};
+                endcase
+            end
         end
     end
 
     // memory request (keep requesting next access while addressing is not complete)
     assign xif_mem_if.mem_valid     = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
     assign xif_mem_if.mem_req.id    = state_req_q.id;
-    assign xif_mem_if.mem_req.addr  = {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}};
+    assign xif_mem_if.mem_req.addr  = ADDR_ALIGNED ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
     assign xif_mem_if.mem_req.mode  = '0;
     assign xif_mem_if.mem_req.we    = state_req_q.mode.lsu.store;
     assign xif_mem_if.mem_req.be    = wmask_buf_q;
@@ -391,6 +400,9 @@ module vproc_lsu #(
                 VSEW_32: pipe_out_res_o[31:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32];
                 default: ;
             endcase
+            if (~ADDR_ALIGNED) begin
+                pipe_out_res_o = rdata_buf_q;
+            end
         end
         pipe_out_mask_o = (state_rdata_q.mode.stride == LSU_UNITSTRIDE) ? rdata_unit_vdmsk : {(VMEM_W/8){rdata_stri_vdmsk}};
     end
