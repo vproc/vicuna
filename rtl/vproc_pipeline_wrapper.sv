@@ -9,6 +9,7 @@ module vproc_pipeline_wrapper #(
         parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
         parameter vproc_pkg::op_unit    UNIT                = vproc_pkg::UNIT_ALU,
+        parameter bit [vproc_pkg::UNIT_CNT-1:0] UNITS       = '0,
         parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
         parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
         parameter int unsigned          VPORT_CNT           = 1,
@@ -345,6 +346,7 @@ module vproc_pipeline_wrapper #(
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
                 .UNIT                ( UNIT                ),
+                .UNITS               ( UNITS               ),
                 .MAX_VPORT_W         ( MAX_VPORT_W         ),
                 .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
@@ -416,6 +418,7 @@ module vproc_pipeline_wrapper #(
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
                 .UNIT                ( UNIT                ),
+                .UNITS               ( UNITS               ),
                 .MAX_VPORT_W         ( MAX_VPORT_W         ),
                 .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
@@ -487,6 +490,7 @@ module vproc_pipeline_wrapper #(
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
                 .UNIT                ( UNIT                ),
+                .UNITS               ( UNITS               ),
                 .MAX_VPORT_W         ( MAX_VPORT_W         ),
                 .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
@@ -558,6 +562,7 @@ module vproc_pipeline_wrapper #(
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
                 .UNIT                ( UNIT                ),
+                .UNITS               ( UNITS               ),
                 .MAX_VPORT_W         ( MAX_VPORT_W         ),
                 .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),

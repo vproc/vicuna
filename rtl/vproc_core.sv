@@ -84,6 +84,8 @@ module vproc_core #(
     localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
     localparam int unsigned MAX_WR_ATTEMPTS[PIPE_CNT] = '{1       , 2       , 1       , 2       , 3          };
 
+    localparam bit [PIPE_CNT-1:0][UNIT_CNT-1:0] PIPE_UNITS = '{5'b10000, 5'b01000, 5'b00100, 5'b00010, 5'b00001};
+
     // map pipelines to vector register write ports
     localparam bit [1:0][PIPE_CNT-1:0] VPORT_WR_MAP = '{5'b10011, 5'b01100}; // LSU/ALU/ELEM & MUL/SLD
 
@@ -622,6 +624,7 @@ module vproc_core #(
     vproc_dispatcher #(
         .PIPE_CNT             ( PIPE_CNT                ),
         .UNIT                 ( UNIT                    ),
+        .PIPE_UNITS           ( PIPE_UNITS              ),
         .MAX_VADDR_W          ( 5                       ),
         .DECODER_DATA_T       ( decoder_data            ),
         .DONT_CARE_ZERO       ( DONT_CARE_ZERO          )
@@ -787,6 +790,7 @@ module vproc_core #(
                 .XIF_ID_W                 ( XIF_ID_W                   ),
                 .XIF_ID_CNT               ( XIF_ID_CNT                 ),
                 .UNIT                     ( UNIT[i]                    ),
+                .UNITS                    ( PIPE_UNITS[i]              ),
                 .MAX_VPORT_W              ( VREG_W                     ),
                 .MAX_VADDR_W              ( 5                          ),
                 .VPORT_CNT                ( VPORT_CNT[i] + 1           ),

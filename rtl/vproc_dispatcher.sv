@@ -6,6 +6,7 @@
 module vproc_dispatcher #(
         parameter int unsigned                            PIPE_CNT       = 1,
         parameter vproc_pkg::op_unit                      UNIT[PIPE_CNT] = '{0},
+        parameter bit [PIPE_CNT-1:0][vproc_pkg::UNIT_CNT-1:0] PIPE_UNITS = '0,
         parameter int unsigned                            MAX_VADDR_W    = 5,    // max addr width
         parameter type                                    DECODER_DATA_T = logic,
         parameter bit                                     DONT_CARE_ZERO = 1'b0  // initialize don't care values to zero

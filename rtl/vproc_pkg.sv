@@ -76,6 +76,9 @@ typedef enum logic [2:0] {
     UNIT_CFG
 } op_unit;
 
+// The number of different types of execution units (excludes pseudo-units)
+parameter UNIT_CNT = 5;
+
 typedef enum logic [1:0] {
     COUNT_INC_1,
     COUNT_INC_2,
