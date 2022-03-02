@@ -623,7 +623,6 @@ module vproc_core #(
     logic               [31:0] pend_vreg_wr_map;
     vproc_dispatcher #(
         .PIPE_CNT             ( PIPE_CNT                ),
-        .UNIT                 ( UNIT                    ),
         .PIPE_UNITS           ( PIPE_UNITS              ),
         .MAX_VADDR_W          ( 5                       ),
         .DECODER_DATA_T       ( decoder_data            ),

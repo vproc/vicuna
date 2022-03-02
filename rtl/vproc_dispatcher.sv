@@ -5,7 +5,6 @@
 
 module vproc_dispatcher #(
         parameter int unsigned                            PIPE_CNT       = 1,
-        parameter vproc_pkg::op_unit                      UNIT[PIPE_CNT] = '{0},
         parameter bit [PIPE_CNT-1:0][vproc_pkg::UNIT_CNT-1:0] PIPE_UNITS = '0,
         parameter int unsigned                            MAX_VADDR_W    = 5,    // max addr width
         parameter type                                    DECODER_DATA_T = logic,
@@ -57,7 +56,7 @@ module vproc_dispatcher #(
         dispatch_valid_o = '0;
         if (instr_valid_i & ((instr_vreg_wr_i & pend_vreg_wr_map_q) == '0)) begin
             for (int i = 0; i < PIPE_CNT; i++) begin
-                if (instr_data_i.unit == UNIT[i]) begin
+                if (PIPE_UNITS[i][instr_data_i.unit]) begin
                     dispatch_valid_o[i] = 1'b1;
                 end
             end
