@@ -788,8 +788,7 @@ module vproc_pipeline #(
     logic                                   unit_out_pend_clear;
     logic      [1:0]                        unit_out_pend_clear_cnt;
     logic                                   unit_out_instr_done;
-    vproc_unit_wrapper #(
-        .UNIT                      ( UNIT                     ),
+    vproc_unit_mux #(
         .UNITS                     ( UNITS                    ),
         .XIF_ID_W                  ( XIF_ID_W                 ),
         .XIF_ID_CNT                ( XIF_ID_CNT               ),
@@ -804,7 +803,7 @@ module vproc_pipeline #(
         .COUNTER_T                 ( counter_t                ),
         .COUNTER_W                 ( COUNTER_W                ),
         .DONT_CARE_ZERO            ( DONT_CARE_ZERO           )
-    ) unit (
+    ) unit_mux (
         .clk_i                     ( clk_i                    ),
         .async_rst_ni              ( async_rst_ni             ),
         .sync_rst_ni               ( sync_rst_ni              ),

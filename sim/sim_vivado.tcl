@@ -58,8 +58,8 @@ foreach file {
     vproc_top.sv vproc_pkg.sv vproc_xif.sv vproc_core.sv vproc_decoder.sv vproc_lsu.sv vproc_alu.sv
     vproc_mul.sv vproc_mul_block.sv vproc_sld.sv vproc_elem.sv vproc_pending_wr.sv vproc_vregfile.sv
     vproc_vregpack.sv vproc_vregunpack.sv vproc_queue.sv vproc_cache.sv vproc_result.sv
-    vproc_pipeline.sv vproc_pipeline_wrapper.sv vproc_unit_wrapper.sv vproc_vreg_wr_mux.sv
-    vproc_dispatcher.sv
+    vproc_pipeline.sv vproc_pipeline_wrapper.sv vproc_unit_wrapper.sv vproc_unit_mux.sv
+    vproc_vreg_wr_mux.sv vproc_dispatcher.sv
 } {
     lappend src_list "$vproc_dir/rtl/$file"
 }
