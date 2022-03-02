@@ -96,12 +96,12 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        cat sim.log;                                                      \
 	        exit 1;                                                           \
 	    fi;                                                                   \
-	    wr_hazard_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |             \
-	                   grep -n vreg_wr_hazard_map_q |                         \
-	                   awk -F ':' '{print $$1}'`;                             \
-	    if [[ "$$wr_hazard_col" =~ ^[0-9]+$$ ]]; then                         \
+	    pend_vreg_wr_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |          \
+	                      grep -n pend_vreg_wr_map_o |                        \
+	                      awk -F ':' '{print $$1}'`;                          \
+	    if [[ "$$pend_vreg_wr_col" =~ ^[0-9]+$$ ]]; then                      \
 	        hazards=`tail -n 1 sim_trace.csv |                                \
-	                 awk -F ';' -v idx="$$wr_hazard_col" '{print $$idx}'`;    \
+	                 awk -F ';' -v idx="$$pend_vreg_wr_col" '{print $$idx}'`; \
 	        if [ "$$hazards" != "00000000" ]; then                            \
 	            echo "[WARNING] $@ uncleared write hazard(s) (0x$${hazards})";\
 	        fi;                                                               \

@@ -27,7 +27,9 @@ module vproc_top #(
         output logic [MEM_W  -1:0] mem_wdata_o,
         input  logic               mem_rvalid_i,
         input  logic               mem_err_i,
-        input  logic [MEM_W  -1:0] mem_rdata_i
+        input  logic [MEM_W  -1:0] mem_rdata_i,
+
+        output logic [31:0]        pend_vreg_wr_map_o
     );
 
     if ((MEM_W & (MEM_W - 1)) != 0 || MEM_W < 32) begin
@@ -434,7 +436,9 @@ module vproc_top #(
         .csr_vxrm_set_i   ( csr_vxrm_wren      ),
         .csr_vxsat_o      ( csr_vxsat_rd       ),
         .csr_vxsat_i      ( csr_vxsat_wr       ),
-        .csr_vxsat_set_i  ( csr_vxsat_wren     )
+        .csr_vxsat_set_i  ( csr_vxsat_wren     ),
+
+        .pend_vreg_wr_map_o ( pend_vreg_wr_map_o )
     );
 
     // Extract vector unit memory signals from extension interface

@@ -47,7 +47,9 @@ module vproc_core #(
         input  logic                  csr_vxrm_set_i,
         output logic                  csr_vxsat_o,
         input  logic                  csr_vxsat_i,
-        input  logic                  csr_vxsat_set_i
+        input  logic                  csr_vxsat_set_i,
+
+        output logic [31:0]           pend_vreg_wr_map_o
     );
 
     import vproc_pkg::*;
@@ -612,60 +614,32 @@ module vproc_core #(
     ///////////////////////////////////////////////////////////////////////////
     // DISPATCHER
 
-    // hazard state
-    logic [31:0] vreg_wr_hazard_map_q;     // active vregs
-    logic [31:0] vreg_wr_hazard_map_set;   // add active regs (via decode)
-    logic [31:0] vreg_wr_hazard_map_clr;   // remove active regs (via ex units)
-    always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_hazard_reg
-        if (~async_rst_n) begin
-            vreg_wr_hazard_map_q <= 32'b0;
-        end
-        else if (~sync_rst_n) begin
-            vreg_wr_hazard_map_q <= 32'b0;
-        end else begin
-            vreg_wr_hazard_map_q <= (vreg_wr_hazard_map_q & (~vreg_wr_hazard_map_clr)) |
-                                     vreg_wr_hazard_map_set;
-        end
-    end
-
-    // pending hazards of next instruction (in dequeue buffer)
-    logic pending_hazards;
-    assign pending_hazards = (queue_pending_wr_q & vreg_wr_hazard_map_q) != 32'b0;
-
-    // instruction valid and ready signals
-    logic [PIPE_CNT-1:0] pipe_instr_valid;
-    logic [PIPE_CNT-1:0] pipe_instr_ready;
-    always_comb begin
-        pipe_instr_valid = '0;
-        // hold back valid signal until hazards are cleared
-        if (queue_valid_q && ~pending_hazards) begin
-            unique case (queue_data_q.unit)
-                UNIT_LSU:  pipe_instr_valid[0] = 1'b1;
-                UNIT_ALU:  pipe_instr_valid[1] = 1'b1;
-                UNIT_MUL:  pipe_instr_valid[2] = 1'b1;
-                UNIT_SLD:  pipe_instr_valid[3] = 1'b1;
-                UNIT_ELEM: pipe_instr_valid[4] = 1'b1;
-                default: ;
-            endcase
-        end
-    end
-    always_comb begin
-        op_ack                 = 1'b0;
-        vreg_wr_hazard_map_set = '0;
-        if ((pipe_instr_valid & pipe_instr_ready) != '0) begin
-            op_ack                 = 1'b1;
-            vreg_wr_hazard_map_set = queue_pending_wr_q;
-        end
-    end
-
-    // clearing pending vreg writes
+    logic [PIPE_CNT-1:0]       pipe_instr_valid;
+    logic [PIPE_CNT-1:0]       pipe_instr_ready;
+    decoder_data               pipe_instr_data;
     logic [PIPE_CNT-1:0][31:0] pipe_clear_pend_vreg_wr;
-    always_comb begin
-        vreg_wr_hazard_map_clr = '0;
-        for (int i = 0; i < PIPE_CNT; i++) begin
-            vreg_wr_hazard_map_clr |= pipe_clear_pend_vreg_wr[i];
-        end
-    end
+    logic               [31:0] pend_vreg_wr_map;
+    vproc_dispatcher #(
+        .PIPE_CNT             ( PIPE_CNT                ),
+        .UNIT                 ( UNIT                    ),
+        .MAX_VADDR_W          ( 5                       ),
+        .DECODER_DATA_T       ( decoder_data            ),
+        .DONT_CARE_ZERO       ( DONT_CARE_ZERO          )
+    ) dispatcher (
+        .clk_i                ( clk_i                   ),
+        .async_rst_ni         ( async_rst_n             ),
+        .sync_rst_ni          ( sync_rst_n              ),
+        .instr_valid_i        ( queue_valid_q           ),
+        .instr_ready_o        ( op_ack                  ),
+        .instr_data_i         ( queue_data_q            ),
+        .instr_vreg_wr_i      ( queue_pending_wr_q      ),
+        .dispatch_valid_o     ( pipe_instr_valid        ),
+        .dispatch_ready_i     ( pipe_instr_ready        ),
+        .dispatch_data_o      ( pipe_instr_data         ),
+        .pend_vreg_wr_map_o   ( pend_vreg_wr_map        ),
+        .pend_vreg_wr_clear_i ( pipe_clear_pend_vreg_wr )
+    );
+    assign pend_vreg_wr_map_o = pend_vreg_wr_map;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -832,8 +806,8 @@ module vproc_core #(
                 .sync_rst_ni              ( sync_rst_n                 ),
                 .pipe_in_valid_i          ( pipe_instr_valid[i]        ),
                 .pipe_in_ready_o          ( pipe_instr_ready[i]        ),
-                .pipe_in_data_i           ( queue_data_q               ),
-                .vreg_pend_wr_i           ( vreg_wr_hazard_map_q       ),
+                .pipe_in_data_i           ( pipe_instr_data            ),
+                .vreg_pend_wr_i           ( pend_vreg_wr_map           ),
                 .vreg_pend_rd_o           ( pipe_vreg_pend_rd_out[i]   ),
                 .vreg_pend_rd_i           ( pipe_vreg_pend_rd_in [i]   ),
                 .clear_wr_hazards_o       ( pipe_clear_pend_vreg_wr[i] ),
