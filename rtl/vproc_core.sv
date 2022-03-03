@@ -292,8 +292,9 @@ module vproc_core #(
 
     assign issue_id_used = instr_notspec_q[xif_issue_if.issue_req.id];
 
-    logic                instr_complete_valid[5];
-    logic [XIF_ID_W-1:0] instr_complete_id   [5];
+    // Instruction complete signal for each pipeline
+    logic [PIPE_CNT-1:0]               instr_complete_valid;
+    logic [PIPE_CNT-1:0][XIF_ID_W-1:0] instr_complete_id;
 
     // return an empty result or VL as result
     logic                result_empty_valid, result_vl_valid;
@@ -359,7 +360,7 @@ module vproc_core #(
             result_vl_valid                = ~instr_killed_q[dec_data_q.id];
             instr_notspec_d[dec_data_q.id] = 1'b0;
         end
-        for (int i = 0; i < 5; i++) begin
+        for (int i = 0; i < PIPE_CNT; i++) begin
             if (instr_complete_valid[i]) begin
                 instr_notspec_d[instr_complete_id[i]] = 1'b0;
             end
