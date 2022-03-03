@@ -81,6 +81,7 @@ module vproc_core #(
     localparam int unsigned PIPE_CNT                  = 5;
     localparam op_unit      UNIT           [PIPE_CNT] = '{UNIT_LSU, UNIT_ALU, UNIT_MUL, UNIT_SLD, UNIT_ELEM  };
     localparam int unsigned VPORT_CNT      [PIPE_CNT] = '{1       , 1       , 2       , 1       , 1          };
+    localparam int unsigned VPORT_OFFSET   [PIPE_CNT] = '{1       , 2       , 3       , 5       , 6          };
     localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
     localparam int unsigned MAX_WR_ATTEMPTS[PIPE_CNT] = '{1       , 2       , 1       , 2       , 3          };
 
@@ -293,8 +294,9 @@ module vproc_core #(
 
     assign issue_id_used = instr_notspec_q[xif_issue_if.issue_req.id];
 
-    logic                instr_complete_valid[5];
-    logic [XIF_ID_W-1:0] instr_complete_id   [5];
+    // Instruction complete signal for each pipeline
+    logic [PIPE_CNT-1:0]               instr_complete_valid;
+    logic [PIPE_CNT-1:0][XIF_ID_W-1:0] instr_complete_id;
 
     // return an empty result or VL as result
     logic                result_empty_valid, result_vl_valid;
@@ -360,7 +362,7 @@ module vproc_core #(
             result_vl_valid                = ~instr_killed_q[dec_data_q.id];
             instr_notspec_d[dec_data_q.id] = 1'b0;
         end
-        for (int i = 0; i < 5; i++) begin
+        for (int i = 0; i < PIPE_CNT; i++) begin
             if (instr_complete_valid[i]) begin
                 instr_notspec_d[instr_complete_id[i]] = 1'b0;
             end
@@ -754,14 +756,12 @@ module vproc_core #(
             localparam bit [VPORT_CNT[i]:0] VPORT_ADDR_ZERO   = {1'b1, {VPORT_CNT[i]{1'b0}}};
             localparam bit [VPORT_CNT[i]:0] VPORT_BUFFER      = {{VPORT_CNT[i]{1'b0}}, 1'b1};
 
-            localparam int unsigned VPORT_OFFSET = ((UNIT[i] == UNIT_SLD) | (UNIT[i] == UNIT_ELEM)) ? i + 1 : i;
-
             logic [VPORT_CNT[i]:0][4       :0] vreg_rd_addr;
             logic [VPORT_CNT[i]:0][VREG_W-1:0] vreg_rd_data;
             always_comb begin
                 for (int j = 0; j < VPORT_CNT[i]; j++) begin
-                    vregfile_rd_addr[VPORT_OFFSET + j] = vreg_rd_addr    [               j];
-                    vreg_rd_data    [               j] = vregfile_rd_data[VPORT_OFFSET + j];
+                    vregfile_rd_addr[VPORT_OFFSET[i] + j] = vreg_rd_addr    [                  j];
+                    vreg_rd_data    [                  j] = vregfile_rd_data[VPORT_OFFSET[i] + j];
                 end
                 vreg_rd_data[VPORT_CNT[i]] = vreg_mask;
             end
