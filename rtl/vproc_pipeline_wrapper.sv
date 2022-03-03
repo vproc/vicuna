@@ -122,6 +122,7 @@ module vproc_pipeline_wrapper #(
         count_inc_e                      count_inc;         // counter increment policy
         logic                            requires_flush;    // whether the instr requires flushing
         logic        [XIF_ID_W     -1:0] id;
+        op_unit                          unit;
         op_mode                          mode;
         cfg_vsew                         eew;               // effective element width
         cfg_emul                         emul;              // effective MUL factor
@@ -230,6 +231,7 @@ module vproc_pipeline_wrapper #(
 
         state_init.requires_flush = (UNIT == UNIT_ELEM) & ((pipe_in_data_i.mode.elem.op == ELEM_VCOMPRESS) | op_reduction);
         state_init.id             = pipe_in_data_i.id;
+        state_init.unit           = pipe_in_data_i.unit;
         state_init.mode           = pipe_in_data_i.mode;
         state_init.emul           = pipe_in_data_i.emul;
         state_init.eew            = (UNIT == UNIT_LSU) ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew;

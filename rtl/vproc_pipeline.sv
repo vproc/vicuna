@@ -142,6 +142,7 @@ module vproc_pipeline #(
         logic                            last_cycle;
         logic                            requires_flush;
         logic        [XIF_ID_W     -1:0] id;
+        op_unit                          unit;
         op_mode                          mode;
         cfg_vsew                         eew;            // effective element width
         cfg_emul                         emul;           // effective MUL factor
@@ -239,6 +240,7 @@ module vproc_pipeline #(
             state_next.first_cycle             = 1'b1;
             state_next.requires_flush          = pipe_in_state_i.requires_flush;
             state_next.id                      = pipe_in_state_i.id;
+            state_next.unit                    = pipe_in_state_i.unit;
             state_next.mode                    = pipe_in_state_i.mode;
             state_next.eew                     = pipe_in_state_i.eew;
             state_next.emul                    = pipe_in_state_i.emul;
@@ -620,6 +622,7 @@ module vproc_pipeline #(
         logic                          alt_count_valid; // alternative counter value is valid
         logic [AUX_COUNTER_W-1:0]      aux_count;
         logic [XIF_ID_W-1:0]           id;
+        op_unit                        unit;
         op_mode                        mode;
         cfg_vsew                       eew;             // effective element width
         cfg_emul                       emul;            // effective MUL factor
@@ -652,6 +655,7 @@ module vproc_pipeline #(
         endcase
         unpack_ctrl.aux_count = state_q.aux_count;
         unpack_ctrl.id        = state_q.id;
+        unpack_ctrl.unit      = state_q.unit;
         unpack_ctrl.mode      = state_q.mode;
         unpack_ctrl.eew       = state_q.eew;
         unpack_ctrl.emul      = state_q.emul;

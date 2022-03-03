@@ -72,17 +72,11 @@ module vproc_unit_mux #(
     logic [UNIT_CNT-1:0] unit_in_valid;
     logic [UNIT_CNT-1:0] unit_in_ready;
     always_comb begin
-        unit_in_valid                      = '0;
-        //unit_in_valid[pipe_in_ctrl_i.unit] = pipe_in_valid_i;
-        //pipe_in_ready_o                    = unit_in_ready[pipe_in_ctrl_i.unit];
-
-        // TODO remove below code and replace with code above
-        unit_in_valid   = {UNIT_CNT{pipe_in_valid_i}};
-        pipe_in_ready_o = '0;
-        for (int i = 0; i < UNIT_CNT; i++) begin
-            if (UNITS[i]) begin
-                pipe_in_ready_o |= unit_in_ready[i];
-            end
+        unit_in_valid   = '0;
+        pipe_in_ready_o = 1'b1; // unit mux is ready when current input is invalid
+        if (pipe_in_valid_i) begin
+            unit_in_valid[pipe_in_ctrl_i.unit] = 1'b1;
+            pipe_in_ready_o                    = unit_in_ready[pipe_in_ctrl_i.unit];
         end
     end
 
@@ -211,7 +205,60 @@ module vproc_unit_mux #(
         end
     endgenerate
 
-    // TODO keep track of currently active unit and use that until the last cycle is signaled
+    logic   active_unit_valid_q, active_unit_valid_d;
+    op_unit active_unit_q,       active_unit_d;
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin
+        if (~async_rst_ni) begin
+            active_unit_valid_q <= 1'b0;
+        end
+        else if (~sync_rst_ni) begin
+            active_unit_valid_q <= 1'b0;
+        end
+        else begin
+            active_unit_valid_q <= active_unit_valid_d;
+        end
+    end
+    always_ff @(posedge clk_i) begin : vproc_queue_data
+        active_unit_q <= active_unit_d;
+    end
+    logic   out_unit_valid;
+    op_unit out_unit;
+    always_comb begin
+        active_unit_valid_d = active_unit_valid_q;
+        active_unit_d       = active_unit_q;
+        out_unit_valid      = '0;
+        out_unit            = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
+        if (active_unit_valid_q) begin
+            active_unit_valid_d = ~unit_out_instr_done[active_unit_q];
+            out_unit_valid      = 1'b1;
+            out_unit            = active_unit_q;
+        end else begin
+            // select first unit with valid data as next active unit
+            for (int i = 0; i < UNIT_CNT; i++) begin
+                if (UNITS[i] & unit_out_valid[i]) begin
+                    active_unit_valid_d = ~unit_out_instr_done[i];
+                    active_unit_d       = op_unit'(i);
+                    out_unit_valid      = 1'b1;
+                    out_unit            = op_unit'(i);
+                    break;
+                end
+            end
+        end
+    end
+
+    always_comb begin
+        unit_out_ready = {UNIT_CNT{pipe_out_ready_i}};
+        if (active_unit_valid_q) begin
+            // disable ready signal for all units that are not currently active
+            for (int i = 0; i < UNIT_CNT; i++) begin
+                if (UNITS[i] & (op_unit'(i) != active_unit_q)) begin
+                    unit_out_ready = '0;
+                end
+            end
+        end
+    end
+
+    // Output logic
     always_comb begin
         pipe_out_valid_o          = '0;
         pipe_out_instr_id_o       =          DONT_CARE_ZERO ?             '0  :             'x   ;
@@ -224,9 +271,10 @@ module vproc_unit_mux #(
         pipe_out_res_mask_o       =          DONT_CARE_ZERO ?             '0  :             'x   ;
         pipe_out_pend_clear_o     =          DONT_CARE_ZERO ?             '0  :             'x   ;
         pipe_out_pend_clear_cnt_o =          DONT_CARE_ZERO ?             '0  :             'x   ;
+        pipe_out_instr_done_o     =          DONT_CARE_ZERO ?             '0  :             'x   ;
         for (int i = 0; i < UNIT_CNT; i++) begin
-            if (UNITS[i] & unit_out_valid[i]) begin
-                pipe_out_valid_o          = 1'b1;
+            if (UNITS[i] & out_unit_valid & (op_unit'(i) == out_unit)) begin
+                pipe_out_valid_o          = unit_out_valid         [i];
                 pipe_out_instr_id_o       = unit_out_instr_id      [i];
                 pipe_out_eew_o            = unit_out_eew           [i];
                 pipe_out_vaddr_o          = unit_out_vaddr         [i];
@@ -237,10 +285,9 @@ module vproc_unit_mux #(
                 pipe_out_res_mask_o       = unit_out_res_mask      [i];
                 pipe_out_pend_clear_o     = unit_out_pend_clear    [i];
                 pipe_out_pend_clear_cnt_o = unit_out_pend_clear_cnt[i];
+                pipe_out_instr_done_o     = unit_out_instr_done    [i];
             end
         end
-        // TODO remove below code
-        unit_out_ready = {UNIT_CNT{pipe_out_ready_i}};
     end
 
 endmodule
