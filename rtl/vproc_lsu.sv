@@ -39,8 +39,6 @@ module vproc_lsu #(
 
         input  logic [XIF_ID_CNT-1:0] instr_spec_i,
         input  logic [XIF_ID_CNT-1:0] instr_killed_i,
-        output logic                  instr_done_valid_o,
-        output logic [XIF_ID_W-1:0]   instr_done_id_o,
 
         output logic                  trans_complete_valid_o,
         output logic [XIF_ID_W-1:0]   trans_complete_id_o,
@@ -191,9 +189,6 @@ module vproc_lsu #(
     // complete and while the instruction is speculative; for the LSU stalling
     // has to happen at the request stage, since later stalling is not possible
     assign state_req_stall = (~state_req_q.mode.lsu.store & state_req_q.res_store & vreg_pend_rd_i[state_req_q.res_vaddr]) | instr_spec_i[state_req_q.id] | ~lsu_queue_ready;
-
-    assign instr_done_valid_o = state_req_valid_q & state_req_q.last_cycle & xif_mem_if.mem_valid & xif_mem_if.mem_ready;
-    assign instr_done_id_o    = state_req_q.id;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -408,5 +403,9 @@ module vproc_lsu #(
         pipe_out_mask_o = (state_rdata_q.mode.stride == LSU_UNITSTRIDE) ? rdata_unit_vdmsk : {(VMEM_W/8){rdata_stri_vdmsk}};
     end
 
+
+`ifdef VPROC_SVA
+`include "vproc_lsu_sva.svh"
+`endif
 
 endmodule

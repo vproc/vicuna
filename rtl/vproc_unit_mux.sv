@@ -50,8 +50,6 @@ module vproc_unit_mux #(
 
         input  logic    [XIF_ID_CNT            -1:0] instr_spec_i,
         input  logic    [XIF_ID_CNT            -1:0] instr_killed_i,
-        output logic                                 instr_done_valid_o,
-        output logic    [XIF_ID_W              -1:0] instr_done_id_o,
 
         vproc_xif.coproc_mem                         xif_mem_if,
         vproc_xif.coproc_mem_result                  xif_memres_if,
@@ -103,8 +101,6 @@ module vproc_unit_mux #(
                 ) unit_xif ();
                 logic                pending_load;
                 logic                pending_store;
-                logic                instr_done_valid;
-                logic [XIF_ID_W-1:0] instr_done_id;
                 logic                trans_complete_valid;
                 logic [XIF_ID_W-1:0] trans_complete_id;
                 logic                trans_complete_exc;
@@ -157,8 +153,6 @@ module vproc_unit_mux #(
                     .vreg_pend_rd_i            ( vreg_pend_rd_i             ),
                     .instr_spec_i              ( instr_spec_i               ),
                     .instr_killed_i            ( instr_killed_i             ),
-                    .instr_done_valid_o        ( instr_done_valid           ),
-                    .instr_done_id_o           ( instr_done_id              ),
                     .xif_mem_if                ( unit_xif                   ),
                     .xif_memres_if             ( unit_xif                   ),
                     .trans_complete_valid_o    ( trans_complete_valid       ),
@@ -174,8 +168,6 @@ module vproc_unit_mux #(
                 if (op_unit'(i) == UNIT_LSU) begin
                     assign pending_load_o            = pending_load;
                     assign pending_store_o           = pending_store;
-                    assign instr_done_valid_o        = instr_done_valid;
-                    assign instr_done_id_o           = instr_done_id;
                     assign xif_mem_if.mem_valid      = unit_xif.mem_valid;
                     assign unit_xif.mem_ready        = xif_mem_if.mem_ready;
                     assign xif_mem_if.mem_req.addr   = unit_xif.mem_req.addr;

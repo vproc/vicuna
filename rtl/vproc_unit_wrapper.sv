@@ -51,8 +51,6 @@ module vproc_unit_wrapper #(
 
         input  logic    [XIF_ID_CNT            -1:0] instr_spec_i,
         input  logic    [XIF_ID_CNT            -1:0] instr_killed_i,
-        output logic                                 instr_done_valid_o,
-        output logic    [XIF_ID_W              -1:0] instr_done_id_o,
 
         vproc_xif.coproc_mem                         xif_mem_if,
         vproc_xif.coproc_mem_result                  xif_memres_if,
@@ -93,7 +91,7 @@ module vproc_unit_wrapper #(
                 .pipe_in_op2_i            ( pipe_in_op_data_i[1]                 ),
                 .pipe_in_mask_i           ( pipe_in_op_data_i[2][MAX_OP_W/8-1:0] ),
                 .pipe_out_valid_o         ( pipe_out_valid_o                     ),
-                .pipe_out_ready_i         ( 1'b1                                 ),
+                .pipe_out_ready_i         ( pipe_out_ready_i                     ),
                 .pipe_out_ctrl_o          ( unit_out_ctrl                        ),
                 .pipe_out_pend_clr_o      ( pipe_out_pend_clear_o                ),
                 .pipe_out_res_o           ( unit_out_res                         ),
@@ -103,8 +101,6 @@ module vproc_unit_wrapper #(
                 .vreg_pend_rd_i           ( vreg_pend_rd_i                       ),
                 .instr_spec_i             ( instr_spec_i                         ),
                 .instr_killed_i           ( instr_killed_i                       ),
-                .instr_done_valid_o       ( instr_done_valid_o                   ),
-                .instr_done_id_o          ( instr_done_id_o                      ),
                 .trans_complete_valid_o   ( trans_complete_valid_o               ),
                 .trans_complete_id_o      ( trans_complete_id_o                  ),
                 .trans_complete_exc_o     ( trans_complete_exc_o                 ),
@@ -127,7 +123,7 @@ module vproc_unit_wrapper #(
                 pipe_out_res_mask_o [0][MAX_OP_W/8-1:0] = unit_out_mask;
             end
             assign pipe_out_pend_clear_cnt_o = '0;
-            assign pipe_out_instr_done_o = unit_out_ctrl.last_cycle;
+            assign pipe_out_instr_done_o     = unit_out_ctrl.last_cycle;
         end
         else if (UNIT == UNIT_ALU) begin
             CTRL_T                 unit_out_ctrl;
@@ -181,7 +177,7 @@ module vproc_unit_wrapper #(
             end
             assign pipe_out_pend_clear_o     = unit_out_ctrl.mode.alu.cmp ? unit_out_ctrl.last_cycle : unit_out_ctrl.res_store;
             assign pipe_out_pend_clear_cnt_o = '0;
-            assign pipe_out_instr_done_o = unit_out_ctrl.last_cycle;
+            assign pipe_out_instr_done_o     = unit_out_ctrl.last_cycle;
         end
         else if (UNIT == UNIT_MUL) begin
             CTRL_T                 unit_out_ctrl;
@@ -223,7 +219,7 @@ module vproc_unit_wrapper #(
             end
             assign pipe_out_pend_clear_o     = unit_out_ctrl.res_store;
             assign pipe_out_pend_clear_cnt_o = '0;
-            assign pipe_out_instr_done_o = unit_out_ctrl.last_cycle;
+            assign pipe_out_instr_done_o     = unit_out_ctrl.last_cycle;
         end
         else if (UNIT == UNIT_SLD) begin
             CTRL_T                 unit_out_ctrl;
@@ -262,7 +258,7 @@ module vproc_unit_wrapper #(
             end
             assign pipe_out_pend_clear_o     = unit_out_ctrl.res_store;
             assign pipe_out_pend_clear_cnt_o = '0;
-            assign pipe_out_instr_done_o = unit_out_ctrl.last_cycle;
+            assign pipe_out_instr_done_o     = unit_out_ctrl.last_cycle;
         end
         else if (UNIT == UNIT_ELEM) begin
             logic        elem_out_valid;
@@ -378,7 +374,7 @@ module vproc_unit_wrapper #(
             end
             assign pipe_out_pend_clear_o     = unit_out_ctrl.last_cycle & ~unit_out_ctrl.requires_flush & ~unit_out_ctrl.mode.elem.xreg;
             assign pipe_out_pend_clear_cnt_o = unit_out_ctrl.emul; // TODO reductions always have destination EMUL == 1
-            assign pipe_out_instr_done_o = unit_out_ctrl.last_cycle & ~unit_out_ctrl.requires_flush;
+            assign pipe_out_instr_done_o     = unit_out_ctrl.last_cycle & ~unit_out_ctrl.requires_flush;
         end
     endgenerate
 

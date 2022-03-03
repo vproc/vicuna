@@ -8,7 +8,6 @@ module vproc_pipeline #(
         parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
-        parameter vproc_pkg::op_unit    UNIT                = vproc_pkg::UNIT_ALU,
         parameter bit [vproc_pkg::UNIT_CNT-1:0] UNITS       = '0,
         parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
         parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
@@ -637,6 +636,8 @@ module vproc_pipeline #(
         logic                          res_store;
         logic                          res_shift;
         logic [4:0]                    res_vaddr;
+        logic                          pend_load;
+        logic                          pend_store;
     } ctrl_t;
 
     ctrl_t unpack_ctrl;
@@ -667,7 +668,7 @@ module vproc_pipeline #(
         unpack_ctrl.vl_part      = (state_q.count.val[COUNTER_W-2:0] == state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
         unpack_ctrl.vl_part_0    = (state_q.count.val[COUNTER_W-2:0] >  state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) |  state_q.vl_0;
         unpack_ctrl.last_vl_part = (state_q.count.val[COUNTER_W-2:0] == state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) & ~state_q.vl_0;
-        if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
+        if (UNITS[UNIT_LSU] & (state_q.unit == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
             unpack_ctrl.vl_part      = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
             unpack_ctrl.vl_part_0    = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] >  state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) |  state_q.vl_0;
             unpack_ctrl.last_vl_part = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) & ~state_q.vl_0;
@@ -675,7 +676,7 @@ module vproc_pipeline #(
         unpack_ctrl.vl_0 = state_q.vl_0;
 
         unpack_ctrl.xval = state_q.xval;
-        if ((UNIT == UNIT_LSU) & ~state_q.first_cycle) begin
+        if (UNITS[UNIT_LSU] & (state_q.unit == UNIT_LSU) & ~state_q.first_cycle) begin
             unpack_ctrl.xval = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_q.mode.lsu.stride)
                 LSU_STRIDED: unpack_ctrl.xval = state_q.op_xval[0];
@@ -690,7 +691,7 @@ module vproc_pipeline #(
         unpack_ctrl.res_shift  = res_shift;
         unpack_ctrl.res_vaddr  = state_q.res_vaddr;
         for (int i = 0; i < RES_CNT; i++) begin
-            if ((UNIT != UNIT_ELEM) & ~RES_MASK[i] & (RES_ALWAYS_VREG[i] | state_q.res_vreg[i])) begin
+            if ((state_q.unit != UNIT_ELEM) & ~RES_MASK[i] & (RES_ALWAYS_VREG[i] | state_q.res_vreg[i])) begin
                 if (RES_NARROW[i] & state_q.res_narrow[i]) begin
                     unpack_ctrl.res_vaddr[1:0] = state_q.res_vaddr[1:0] | state_q.count.part.mul[2:1];
                 end else begin
@@ -698,6 +699,10 @@ module vproc_pipeline #(
                 end
             end
         end
+
+        // pending loads and stores flags for LSU
+        unpack_ctrl.pend_load  = UNITS[UNIT_LSU] & (state_q.unit == UNIT_LSU) & ~state_q.mode.lsu.store;
+        unpack_ctrl.pend_store = UNITS[UNIT_LSU] & (state_q.unit == UNIT_LSU) &  state_q.mode.lsu.store;
     end
 
 
@@ -706,13 +711,13 @@ module vproc_pipeline #(
 
     ctrl_t unpack_flags_all, unpack_flags_any;
     logic  lsu_pending_load, lsu_pending_store;
-    assign pending_load_o  = (UNIT == UNIT_LSU) & (
-                                 (state_valid_q & ~state_q.mode.lsu.store) |
-                                 ~unpack_flags_all.mode.lsu.store | lsu_pending_load
+    assign pending_load_o  = UNITS[UNIT_LSU] & (
+                                 (state_valid_q & (state_q.unit == UNIT_LSU) & ~state_q.mode.lsu.store) |
+                                 unpack_flags_all.pend_load  | lsu_pending_load
                              );
-    assign pending_store_o = (UNIT == UNIT_LSU) & (
-                                 (state_valid_q &  state_q.mode.lsu.store) |
-                                  unpack_flags_any.mode.lsu.store | lsu_pending_store
+    assign pending_store_o = UNITS[UNIT_LSU] & (
+                                 (state_valid_q & (state_q.unit == UNIT_LSU) &  state_q.mode.lsu.store) |
+                                 unpack_flags_any.pend_store | lsu_pending_store
                              );
 
 
@@ -833,8 +838,6 @@ module vproc_pipeline #(
         .vreg_pend_rd_i            ( vreg_pend_rd_i           ),
         .instr_spec_i              ( instr_spec_i             ),
         .instr_killed_i            ( instr_killed_i           ),
-        .instr_done_valid_o        ( lsu_instr_done_valid     ),
-        .instr_done_id_o           ( lsu_instr_done_id        ),
         .xif_mem_if                ( xif_mem_if               ),
         .xif_memres_if             ( xif_memres_if            ),
         .trans_complete_valid_o    ( trans_complete_valid_o   ),
@@ -848,22 +851,13 @@ module vproc_pipeline #(
     );
 
 
-    logic [31          :0] pack_pending_vreg_reads;
-    logic [XIF_ID_CNT-1:0] pack_instr_spec;
-    logic [XIF_ID_CNT-1:0] pack_instr_killed;
-    logic                  pack_instr_done_valid;
-    logic [XIF_ID_W  -1:0] pack_instr_done_id;
-    assign pack_pending_vreg_reads = (UNIT != UNIT_LSU) ? vreg_pend_rd_i : '0;
-    assign pack_instr_spec         = (UNIT != UNIT_LSU) ? instr_spec_i   : '0;
-    assign pack_instr_killed       = (UNIT != UNIT_LSU) ? instr_killed_i : '0;
-    assign instr_done_valid_o      = (UNIT != UNIT_LSU) ? pack_instr_done_valid : lsu_instr_done_valid;
-    assign instr_done_id_o         = (UNIT != UNIT_LSU) ? pack_instr_done_id    : lsu_instr_done_id;
-
+    // TODO assert that vreg_pend_rd_i, instr_spec_i, and instr_killed_i do not affect LSU
+    // instructions (which cannot be stalled beyond the request stage)
     vproc_vregpack #(
         .VPORT_W                     ( VREG_W                  ),
         .VADDR_W                     ( 5                       ),
         .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS         ),
-        .VPORT_PEND_CLR_BULK         ( UNIT == UNIT_ELEM       ),
+        .VPORT_PEND_CLR_BULK         ( UNITS[UNIT_ELEM]        ),
         .MAX_RES_W                   ( MAX_RES_W               ),
         .RES_CNT                     ( RES_CNT                 ),
         .RES_W                       ( RES_W                   ),
@@ -898,12 +892,12 @@ module vproc_pipeline #(
         .vreg_wr_addr_o              ( vreg_wr_addr_o          ),
         .vreg_wr_be_o                ( vreg_wr_be_o            ),
         .vreg_wr_data_o              ( vreg_wr_data_o          ),
-        .pending_vreg_reads_i        ( pack_pending_vreg_reads ),
+        .pending_vreg_reads_i        ( vreg_pend_rd_i          ),
         .clear_pending_vreg_writes_o ( clear_wr_hazards_o      ),
-        .instr_spec_i                ( pack_instr_spec         ),
-        .instr_killed_i              ( pack_instr_killed       ),
-        .instr_done_valid_o          ( pack_instr_done_valid   ),
-        .instr_done_id_o             ( pack_instr_done_id      )
+        .instr_spec_i                ( instr_spec_i            ),
+        .instr_killed_i              ( instr_killed_i          ),
+        .instr_done_valid_o          ( instr_done_valid_o      ),
+        .instr_done_id_o             ( instr_done_id_o         )
     );
 
 
