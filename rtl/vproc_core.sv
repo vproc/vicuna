@@ -81,6 +81,7 @@ module vproc_core #(
     localparam int unsigned PIPE_CNT                  = 5;
     localparam op_unit      UNIT           [PIPE_CNT] = '{UNIT_LSU, UNIT_ALU, UNIT_MUL, UNIT_SLD, UNIT_ELEM  };
     localparam int unsigned VPORT_CNT      [PIPE_CNT] = '{1       , 1       , 2       , 1       , 1          };
+    localparam int unsigned VPORT_OFFSET   [PIPE_CNT] = '{1       , 2       , 3       , 5       , 6          };
     localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
     localparam int unsigned MAX_WR_ATTEMPTS[PIPE_CNT] = '{1       , 2       , 1       , 2       , 3          };
 
@@ -752,14 +753,12 @@ module vproc_core #(
             localparam bit [VPORT_CNT[i]:0] VPORT_ADDR_ZERO   = {1'b1, {VPORT_CNT[i]{1'b0}}};
             localparam bit [VPORT_CNT[i]:0] VPORT_BUFFER      = {{VPORT_CNT[i]{1'b0}}, 1'b1};
 
-            localparam int unsigned VPORT_OFFSET = ((UNIT[i] == UNIT_SLD) | (UNIT[i] == UNIT_ELEM)) ? i + 1 : i;
-
             logic [VPORT_CNT[i]:0][4       :0] vreg_rd_addr;
             logic [VPORT_CNT[i]:0][VREG_W-1:0] vreg_rd_data;
             always_comb begin
                 for (int j = 0; j < VPORT_CNT[i]; j++) begin
-                    vregfile_rd_addr[VPORT_OFFSET + j] = vreg_rd_addr    [               j];
-                    vreg_rd_data    [               j] = vregfile_rd_data[VPORT_OFFSET + j];
+                    vregfile_rd_addr[VPORT_OFFSET[i] + j] = vreg_rd_addr    [                  j];
+                    vreg_rd_data    [                  j] = vregfile_rd_data[VPORT_OFFSET[i] + j];
                 end
                 vreg_rd_data[VPORT_CNT[i]] = vreg_mask;
             end
