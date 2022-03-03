@@ -439,7 +439,7 @@ module vproc_pipeline #(
 
 
     ///////////////////////////////////////////////////////////////////////////
-    // OPERAND ADDRESS, FLAGS, AND READ SIGNAL GENERATION AND STALLING LOGIC
+    // OPERAND ADDRESS, FLAGS, AND READ SIGNAL GENERATION
 
     unpack_flags [OP_CNT-1:0]       op_flags;
     logic        [OP_CNT-1:0]       op_load;
@@ -476,20 +476,6 @@ module vproc_pipeline #(
                     end
                     default: ;
                 endcase
-            end
-        end
-    end
-
-    // Stall vreg reads until pending writes are complete; note that vreg read stalling always
-    // happens in the first stage, since otherwise a substantial amount of state would have to be
-    // forwarded (such as vreg_pend_wr_q)
-    always_comb begin
-        state_stall = '0;
-        for (int i = 0; i < OP_CNT; i++) begin
-            if (OP_ADDR_OFFSET_OP0[i]) begin
-                state_stall |= op_load[i] & ((op_addr_offset_pend_reads & state_q.pend_vreg_wr) != '0);
-            end else begin
-                state_stall |= op_load[i] & state_q.pend_vreg_wr[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : op_vaddr[i]];
             end
         end
     end
@@ -606,6 +592,24 @@ module vproc_pipeline #(
 
     logic [31:0] unpack_pend_rd;
     assign vreg_pend_rd_o = state_valid_q ? ((op_pend_reads_all & ~state_q.pend_vreg_wr) | unpack_pend_rd) : '0;
+
+
+    ///////////////////////////////////////////////////////////////////////////
+    // STALLING LOGIC
+
+    // Stall vreg reads until pending writes are complete; note that vreg read stalling always
+    // happens in the first stage, since otherwise a substantial amount of state would have to be
+    // forwarded (such as vreg_pend_wr_q)
+    always_comb begin
+        state_stall = '0;
+        for (int i = 0; i < OP_CNT; i++) begin
+            if (OP_ADDR_OFFSET_OP0[i]) begin
+                state_stall |= op_load[i] & ((op_addr_offset_pend_reads & state_q.pend_vreg_wr) != '0);
+            end else begin
+                state_stall |= op_load[i] & state_q.pend_vreg_wr[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : op_vaddr[i]];
+            end
+        end
+    end
 
 
     ///////////////////////////////////////////////////////////////////////////
