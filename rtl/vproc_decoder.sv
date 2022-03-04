@@ -76,6 +76,73 @@ module vproc_decoder #(
 
         unique case (instr_i[6:0])
 
+            // OPCODE SYSTEM:
+            7'h73: begin
+                unit_o = UNIT_CFG;
+                // select CFG operation based on CSR address (instr_i[31:20]) and CSR instruction's
+                // funct3 field (instr_i[14:12])
+                unique case ({instr_i[31:20], instr_i[14:12]})
+                    // read-write CSR
+                    {12'h008, 3'b001},
+                    {12'h008, 3'b101}: mode_o.cfg.csr_op = CFG_VSTART_WRITE;
+                    {12'h008, 3'b010},
+                    {12'h008, 3'b110}: mode_o.cfg.csr_op = CFG_VSTART_SET;
+                    {12'h008, 3'b011},
+                    {12'h008, 3'b111}: mode_o.cfg.csr_op = CFG_VSTART_CLEAR;
+                    {12'h009, 3'b001},
+                    {12'h009, 3'b101}: mode_o.cfg.csr_op = CFG_VXSAT_WRITE;
+                    {12'h009, 3'b010},
+                    {12'h009, 3'b110}: mode_o.cfg.csr_op = CFG_VXSAT_SET;
+                    {12'h009, 3'b011},
+                    {12'h009, 3'b111}: mode_o.cfg.csr_op = CFG_VXSAT_CLEAR;
+                    {12'h00A, 3'b001},
+                    {12'h00A, 3'b101}: mode_o.cfg.csr_op = CFG_VXRM_WRITE;
+                    {12'h00A, 3'b010},
+                    {12'h00A, 3'b110}: mode_o.cfg.csr_op = CFG_VXRM_SET;
+                    {12'h00A, 3'b011},
+                    {12'h00A, 3'b111}: mode_o.cfg.csr_op = CFG_VXRM_CLEAR;
+                    {12'h00F, 3'b001},
+                    {12'h00F, 3'b101}: mode_o.cfg.csr_op = CFG_VCSR_WRITE;
+                    {12'h00F, 3'b010},
+                    {12'h00F, 3'b110}: mode_o.cfg.csr_op = CFG_VCSR_SET;
+                    {12'h00F, 3'b011},
+                    {12'h00F, 3'b111}: mode_o.cfg.csr_op = CFG_VCSR_CLEAR;
+                    // read-only CSR
+                    {12'hC20, 3'b010},
+                    {12'hC20, 3'b110},
+                    {12'hC20, 3'b011},
+                    {12'hC20, 3'b111}: begin
+                        mode_o.cfg.csr_op = CFG_VL_READ;
+                        instr_illegal     = instr_vs1 != '0; // attempt to write to a read-only CSR
+                    end
+                    {12'hC21, 3'b010},
+                    {12'hC21, 3'b110},
+                    {12'hC21, 3'b011},
+                    {12'hC21, 3'b111}: begin
+                        mode_o.cfg.csr_op = CFG_VTYPE_READ;
+                        instr_illegal     = instr_vs1 != '0; // attempt to write to a read-only CSR
+                    end
+                    {12'hC22, 3'b010},
+                    {12'hC22, 3'b110},
+                    {12'hC22, 3'b011},
+                    {12'hC22, 3'b111}: begin
+                        mode_o.cfg.csr_op = CFG_VLENB_READ;
+                        instr_illegal     = instr_vs1 != '0; // attempt to write to a read-only CSR
+                    end
+                    default: instr_illegal = 1'b1;
+                endcase
+                // select either rs1 or immediate value
+                unique case (instr_i[14:12])
+                    3'b001,
+                    3'b010,
+                    3'b011: rs1_o.r.xval  = x_rs1_i;
+                    3'b101,
+                    3'b110,
+                    3'b111: rs1_o.r.xval  = {27'b0, instr_vs1};
+                    default: ;
+                endcase
+            end
+
             // OPCODE LOAD-FP/STORE-FP:
             7'h07,
             7'h27: begin
@@ -203,7 +270,8 @@ module vproc_decoder #(
 
                 // configuration instructions:
                 if (instr_i[14:12] == 3'b111) begin
-                    unit_o = UNIT_CFG;
+                    unit_o            = UNIT_CFG;
+                    mode_o.cfg.csr_op = CFG_VSETVL;
                     unique case (rs2_o.r.xval[5:3])
                         3'b000:  mode_o.cfg.vsew = VSEW_8;
                         3'b001:  mode_o.cfg.vsew = VSEW_16;
