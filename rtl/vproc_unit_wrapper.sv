@@ -5,7 +5,6 @@
 
 module vproc_unit_wrapper #(
         parameter vproc_pkg::op_unit                 UNIT            = vproc_pkg::UNIT_ALU,
-        parameter bit [vproc_pkg::UNIT_CNT-1:0]      UNITS           = '0,
         parameter int unsigned                       XIF_ID_W        = 3,
         parameter int unsigned                       XIF_ID_CNT      = 8,
         parameter int unsigned                       VREG_W          = 128,
