@@ -720,6 +720,7 @@ module vproc_core #(
     endgenerate
     logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_in, pipe_vreg_pend_rd_out;
     always_comb begin
+        pipe_vreg_pend_rd_in   = pipe_vreg_pend_rd_to_q;
         pipe_vreg_pend_rd_by_d = pipe_vreg_pend_rd_out;
         pipe_vreg_pend_rd_to_d = '0;
         for (int i = 0; i < PIPE_CNT; i++) begin
