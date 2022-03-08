@@ -156,7 +156,7 @@ module vproc_lsu #(
                     state_rdata_valid_q <= 1'b0;
                 end
                 else begin
-                    state_rdata_valid_q <= xif_memres_if.mem_result_valid & ~state_rdata_d.mode.store;
+                    state_rdata_valid_q <= xif_memres_if.mem_result_valid;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_rdata
@@ -171,7 +171,7 @@ module vproc_lsu #(
             end
         end else begin
             always_comb begin
-                state_rdata_valid_q = xif_memres_if.mem_result_valid & ~state_rdata_d.mode.store;
+                state_rdata_valid_q = xif_memres_if.mem_result_valid;
                 state_rdata_q       = state_rdata_d;
                 rdata_buf_q         = rdata_buf_d;
                 rdata_off_q         = rdata_off_d;
@@ -356,8 +356,9 @@ module vproc_lsu #(
 
     // load data state
     always_comb begin
-        state_rdata_d     = deq_state;
-        state_rdata_d.exc = mem_err_d;
+        state_rdata_d            = deq_state;
+        state_rdata_d.exc        = mem_err_d;
+        state_rdata_d.res_store &= ~state_rdata_d.mode.store; // inhibit vreg store for vector store
     end
 
     // load data:
