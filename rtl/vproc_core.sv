@@ -100,6 +100,7 @@ module vproc_core #(
     logic                vl_0_q,     vl_0_d;     // set if VL == 0
     logic [CFG_VL_W-1:0] vl_q,       vl_d;       // VL * (VSEW / 8) - 1
     logic [CFG_VL_W  :0] vl_csr_q,   vl_csr_d;   // VL (intentionally CFG_VL_W+1 wide)
+    logic [CFG_VL_W-1:0] vstart_q,   vstart_d;   // vector start index
     cfg_vxrm             vxrm_q,     vxrm_d;     // fixed-point rounding mode
     logic                vxsat_q,    vxsat_d;    // fixed-point saturation flag
     always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_cfg_reg
@@ -110,6 +111,7 @@ module vproc_core #(
             vl_0_q     <= 1'b0;
             vl_q       <= '0;
             vl_csr_q   <= '0;
+            vstart_q   <= '0;
             vxrm_q     <= VXRM_RNU;
             vxsat_q    <= 1'b0;
         end
@@ -120,6 +122,7 @@ module vproc_core #(
             vl_0_q     <= 1'b0;
             vl_q       <= '0;
             vl_csr_q   <= '0;
+            vstart_q   <= '0;
             vxrm_q     <= VXRM_RNU;
             vxsat_q    <= 1'b0;
         end else begin
@@ -129,6 +132,7 @@ module vproc_core #(
             vl_0_q     <= vl_0_d;
             vl_q       <= vl_d;
             vl_csr_q   <= vl_csr_d;
+            vstart_q   <= vstart_d;
             vxrm_q     <= vxrm_d;
             vxsat_q    <= vxsat_d;
         end
@@ -143,21 +147,6 @@ module vproc_core #(
     assign csr_vstart_o = '0;
     assign csr_vxrm_o   = vxrm_q;
     assign csr_vxsat_o  = vxsat_q;
-
-    // CSR writes
-    always_comb begin
-        vxrm_d = vxrm_q;
-        if (csr_vxrm_set_i) begin
-            unique case (csr_vxrm_i)
-                2'b00: vxrm_d = VXRM_RNU;
-                2'b01: vxrm_d = VXRM_RNE;
-                2'b10: vxrm_d = VXRM_RDN;
-                2'b11: vxrm_d = VXRM_ROD;
-                default: ;
-            endcase
-        end
-    end
-    assign vxsat_d = csr_vxsat_set_i ? csr_vxsat_i : vxsat_q;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -299,10 +288,12 @@ module vproc_core #(
     logic [PIPE_CNT-1:0][XIF_ID_W-1:0] instr_complete_id;
 
     // return an empty result or VL as result
-    logic                result_empty_valid, result_vl_valid;
-    logic                                    result_vl_ready;
-    logic [XIF_ID_W-1:0] result_empty_id,    result_vl_id;
-    logic [4:0]                              result_vl_addr;
+    logic                result_empty_valid, result_csr_valid;
+    logic                                    result_csr_ready;
+    logic [XIF_ID_W-1:0] result_empty_id,    result_csr_id;
+    logic [4:0]                              result_csr_addr;
+    logic                                    result_csr_delayed;
+    logic [31:0]                             result_csr_data;
 
     logic queue_ready, queue_push; // instruction queue ready and push signals (enqueue handshake)
     assign queue_push = dec_buf_valid_q & (dec_data_q.unit != UNIT_CFG);
@@ -317,9 +308,9 @@ module vproc_core #(
         instr_notspec_d    = instr_notspec_q;
         instr_killed_d     = instr_killed_q;
         instr_empty_res_d  = instr_empty_res_q;
-        result_vl_valid    = 1'b0;
-        result_vl_id       = dec_data_q.id;
-        result_vl_addr     = dec_data_q.rd.addr;
+        result_csr_valid   = 1'b0;
+        result_csr_id      = dec_data_q.id;
+        result_csr_addr    = dec_data_q.rd.addr;
         result_empty_valid = 1'b0;
         result_empty_id    = xif_commit_if.commit.id;
         dec_clear          = 1'b0;
@@ -342,12 +333,12 @@ module vproc_core #(
                 end
             end
 
-            if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & (dec_data_q.id == xif_commit_if.commit.id) & result_vl_ready) begin
-                // vset[i]vl[i] instructions are not enqueued.  The instruction
+            if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & (dec_data_q.id == xif_commit_if.commit.id) & result_csr_ready) begin
+                // Configuration instructions are not enqueued.  The instruction
                 // is retired and the result returned as soon as it is
                 // committed.
-                dec_clear       = 1'b1;
-                result_vl_valid = ~xif_commit_if.commit.commit_kill;
+                dec_clear        = 1'b1;
+                result_csr_valid = ~xif_commit_if.commit.commit_kill;
             end else begin
                 instr_notspec_d[xif_commit_if.commit.id] = 1'b1;
             end
@@ -355,11 +346,11 @@ module vproc_core #(
             instr_killed_d[xif_commit_if.commit.id] = xif_commit_if.commit.commit_kill;
         end
         if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & instr_notspec_q[dec_data_q.id]) begin
-            // Execute a vset[i]vl[i] instruction that has already been
+            // Execute a configuration instruction that has already been
             // committed earlier (i.e., while decoding and accepting the
             // instruction).
-            dec_clear                      = result_vl_ready;
-            result_vl_valid                = ~instr_killed_q[dec_data_q.id];
+            dec_clear                      = result_csr_ready;
+            result_csr_valid               = ~instr_killed_q[dec_data_q.id];
             instr_notspec_d[dec_data_q.id] = 1'b0;
         end
         for (int i = 0; i < PIPE_CNT; i++) begin
@@ -385,7 +376,9 @@ module vproc_core #(
         endcase
     end
 
-    // update configuration state for vset[i]vl[i] instructions
+    // CSR read/write logic
+    logic [1:0] vxrm_next;
+    assign vxrm_d = cfg_vxrm'(vxrm_next);
     always_comb begin
         vsew_d     = vsew_q;
         lmul_d     = lmul_q;
@@ -393,10 +386,58 @@ module vproc_core #(
         vl_0_d     = vl_0_q;
         vl_d       = vl_q;
         vl_csr_d   = vl_csr_q;
-        if (result_vl_valid) begin
-            vsew_d     = dec_data_q.mode.cfg.vsew;
-            lmul_d     = dec_data_q.mode.cfg.lmul;
-            agnostic_d = dec_data_q.mode.cfg.agnostic;
+        vstart_d   = vstart_q;
+        vxrm_next  = vxrm_q;
+        vxsat_d    = vxsat_q;
+
+        result_csr_delayed = DONT_CARE_ZERO ? '0 : 'x;
+        result_csr_data    = DONT_CARE_ZERO ? '0 : 'x;
+
+        // regular CSR register read/write
+        if (result_csr_valid) begin
+            result_csr_delayed = 1'b0; // result is the current (old) value for regular CSR reads
+            unique case (dec_data_q.mode.cfg.csr_op)
+                CFG_VTYPE_READ:   result_csr_data = csr_vtype_o;
+                CFG_VL_READ:      result_csr_data = csr_vl_o;
+                CFG_VLENB_READ:   result_csr_data = csr_vlenb_o;
+                CFG_VSTART_WRITE,
+                CFG_VSTART_SET,
+                CFG_VSTART_CLEAR: result_csr_data = {{(32-CFG_VL_W){1'b0}}, vstart_q};
+                CFG_VXSAT_WRITE,
+                CFG_VXSAT_SET,
+                CFG_VXSAT_CLEAR:  result_csr_data = {31'b0, vxsat_q};
+                CFG_VXRM_WRITE,
+                CFG_VXRM_SET,
+                CFG_VXRM_CLEAR:   result_csr_data = {30'b0, vxrm_q};
+                CFG_VCSR_WRITE,
+                CFG_VCSR_SET,
+                CFG_VCSR_CLEAR:   result_csr_data = {29'b0, vxrm_q, vxsat_q};
+                default: ;
+            endcase
+            // update read/write CSR
+            unique case (dec_data_q.mode.cfg.csr_op)
+                CFG_VSTART_WRITE: vstart_d              =  dec_data_q.rs1.r.xval[CFG_VL_W-1:0];
+                CFG_VSTART_SET:   vstart_d             |=  dec_data_q.rs1.r.xval[CFG_VL_W-1:0];
+                CFG_VSTART_CLEAR: vstart_d             &= ~dec_data_q.rs1.r.xval[CFG_VL_W-1:0];
+                CFG_VXSAT_WRITE:  vxsat_d               =  dec_data_q.rs1.r.xval[0         :0];
+                CFG_VXSAT_SET:    vxsat_d              |=  dec_data_q.rs1.r.xval[0         :0];
+                CFG_VXSAT_CLEAR:  vxsat_d              &= ~dec_data_q.rs1.r.xval[0         :0];
+                CFG_VXRM_WRITE:   vxrm_next             =  dec_data_q.rs1.r.xval[1         :0];
+                CFG_VXRM_SET:     vxrm_next            |=  dec_data_q.rs1.r.xval[1         :0];
+                CFG_VXRM_CLEAR:   vxrm_next            &= ~dec_data_q.rs1.r.xval[1         :0];
+                CFG_VCSR_WRITE:   {vxrm_next, vxsat_d}  =  dec_data_q.rs1.r.xval[2         :0];
+                CFG_VCSR_SET:     {vxrm_next, vxsat_d} |=  dec_data_q.rs1.r.xval[2         :0];
+                CFG_VCSR_CLEAR:   {vxrm_next, vxsat_d} &= ~dec_data_q.rs1.r.xval[2         :0];
+                default: ;
+            endcase
+        end
+
+        // update configuration state for vset[i]vl[i] instructions
+        if (result_csr_valid & (dec_data_q.mode.cfg.csr_op == CFG_VSETVL)) begin
+            vsew_d             = dec_data_q.mode.cfg.vsew;
+            lmul_d             = dec_data_q.mode.cfg.lmul;
+            agnostic_d         = dec_data_q.mode.cfg.agnostic;
+            result_csr_delayed = 1'b1; // result is the updated value, hence delayed by one cycle
             if (dec_data_q.mode.cfg.keep_vl) begin
                 // Change VSEW and LMUL while keeping the current VL. Note that the spec states:
                 // > This form can only be used when VLMAX and hence vl is not actually changed by
@@ -722,6 +763,7 @@ module vproc_core #(
     endgenerate
     logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_in, pipe_vreg_pend_rd_out;
     always_comb begin
+        pipe_vreg_pend_rd_in   = pipe_vreg_pend_rd_to_q;
         pipe_vreg_pend_rd_by_d = pipe_vreg_pend_rd_out;
         pipe_vreg_pend_rd_to_d = '0;
         for (int i = 0; i < PIPE_CNT; i++) begin
@@ -894,29 +936,31 @@ module vproc_core #(
     // RESULT INTERFACE
 
     vproc_result #(
-        .XIF_ID_W             ( XIF_ID_W                   ),
-        .DONT_CARE_ZERO       ( DONT_CARE_ZERO             )
+        .XIF_ID_W                  ( XIF_ID_W                   ),
+        .DONT_CARE_ZERO            ( DONT_CARE_ZERO             )
     ) result_if (
-        .clk_i                ( clk_i                      ),
-        .async_rst_ni         ( async_rst_n                ),
-        .sync_rst_ni          ( sync_rst_n                 ),
-        .result_lsu_valid_i   ( lsu_trans_complete_valid   ),
-        .result_lsu_id_i      ( lsu_trans_complete_id      ),
-        .result_lsu_exc_i     ( lsu_trans_complete_exc     ),
-        .result_lsu_exccode_i ( lsu_trans_complete_exccode ),
-        .result_xreg_valid_i  ( elem_xreg_valid            ),
-        .result_xreg_id_i     ( elem_xreg_id               ),
-        .result_xreg_addr_i   ( elem_xreg_addr             ),
-        .result_xreg_data_i   ( elem_xreg_data             ),
-        .result_empty_valid_i ( result_empty_valid         ),
-        .result_empty_ready_o (                            ),
-        .result_empty_id_i    ( result_empty_id            ),
-        .result_vl_valid_i    ( result_vl_valid            ),
-        .result_vl_ready_o    ( result_vl_ready            ),
-        .result_vl_id_i       ( result_vl_id               ),
-        .result_vl_addr_i     ( result_vl_addr             ),
-        .result_vl_data_i     ( csr_vl_o                   ),
-        .xif_result_if        ( xif_result_if              )
+        .clk_i                     ( clk_i                      ),
+        .async_rst_ni              ( async_rst_n                ),
+        .sync_rst_ni               ( sync_rst_n                 ),
+        .result_lsu_valid_i        ( lsu_trans_complete_valid   ),
+        .result_lsu_id_i           ( lsu_trans_complete_id      ),
+        .result_lsu_exc_i          ( lsu_trans_complete_exc     ),
+        .result_lsu_exccode_i      ( lsu_trans_complete_exccode ),
+        .result_xreg_valid_i       ( elem_xreg_valid            ),
+        .result_xreg_id_i          ( elem_xreg_id               ),
+        .result_xreg_addr_i        ( elem_xreg_addr             ),
+        .result_xreg_data_i        ( elem_xreg_data             ),
+        .result_empty_valid_i      ( result_empty_valid         ),
+        .result_empty_ready_o      (                            ),
+        .result_empty_id_i         ( result_empty_id            ),
+        .result_csr_valid_i        ( result_csr_valid           ),
+        .result_csr_ready_o        ( result_csr_ready           ),
+        .result_csr_id_i           ( result_csr_id              ),
+        .result_csr_addr_i         ( result_csr_addr            ),
+        .result_csr_delayed_i      ( result_csr_delayed         ),
+        .result_csr_data_i         ( result_csr_data            ),
+        .result_csr_data_delayed_i ( csr_vl_o                   ),
+        .xif_result_if             ( xif_result_if              )
     );
 
 endmodule

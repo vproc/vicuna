@@ -25,11 +25,13 @@ module vproc_result #(
         output logic                result_empty_ready_o,
         input  logic [XIF_ID_W-1:0] result_empty_id_i,
 
-        input  logic                result_vl_valid_i,
-        output logic                result_vl_ready_o,
-        input  logic [XIF_ID_W-1:0] result_vl_id_i,
-        input  logic [4:0]          result_vl_addr_i,
-        input  logic [31:0]         result_vl_data_i,
+        input  logic                result_csr_valid_i,
+        output logic                result_csr_ready_o,
+        input  logic [XIF_ID_W-1:0] result_csr_id_i,
+        input  logic [4:0]          result_csr_addr_i,
+        input  logic                result_csr_delayed_i,
+        input  logic [31:0]         result_csr_data_i,
+        input  logic [31:0]         result_csr_data_delayed_i,
 
         vproc_xif.coproc_result     xif_result_if
     );
@@ -51,28 +53,30 @@ module vproc_result #(
     logic [XIF_ID_W-1:0] result_empty_id_q,    result_empty_id_d;
 
     // CFG result buffer
-    logic                result_vl_valid_q, result_vl_valid_d;
-    logic [XIF_ID_W-1:0] result_vl_id_q,    result_vl_id_d;
-    logic [4:0]          result_vl_addr_q,  result_vl_addr_d;
+    logic                result_csr_valid_q,   result_csr_valid_d;
+    logic [XIF_ID_W-1:0] result_csr_id_q,      result_csr_id_d;
+    logic [4:0]          result_csr_addr_q,    result_csr_addr_d;
+    logic                result_csr_delayed_q, result_csr_delayed_d;
+    logic [31:0]         result_csr_data_q,    result_csr_data_d;
 
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_result_valid
         if (~async_rst_ni) begin
             result_lsu_valid_q   <= 1'b0;
             result_xreg_valid_q  <= 1'b0;
             result_empty_valid_q <= 1'b0;
-            result_vl_valid_q    <= 1'b0;
+            result_csr_valid_q    <= 1'b0;
         end
         else if (~sync_rst_ni) begin
             result_lsu_valid_q   <= 1'b0;
             result_xreg_valid_q  <= 1'b0;
             result_empty_valid_q <= 1'b0;
-            result_vl_valid_q    <= 1'b0;
+            result_csr_valid_q    <= 1'b0;
         end
         else begin
             result_lsu_valid_q   <= result_lsu_valid_d;
             result_xreg_valid_q  <= result_xreg_valid_d;
             result_empty_valid_q <= result_empty_valid_d;
-            result_vl_valid_q    <= result_vl_valid_d;
+            result_csr_valid_q   <= result_csr_valid_d;
         end
     end
     always_ff @(posedge clk_i) begin : vproc_result
@@ -83,8 +87,10 @@ module vproc_result #(
         result_xreg_addr_q   <= result_xreg_addr_d;
         result_xreg_data_q   <= result_xreg_data_d;
         result_empty_id_q    <= result_empty_id_d;
-        result_vl_id_q       <= result_vl_id_d;
-        result_vl_addr_q     <= result_vl_addr_d;
+        result_csr_id_q      <= result_csr_id_d;
+        result_csr_addr_q    <= result_csr_addr_d;
+        result_csr_delayed_q <= result_csr_delayed_d;
+        result_csr_data_q    <= result_csr_data_d;
     end
 
     typedef enum logic [2:0] {
@@ -121,7 +127,7 @@ module vproc_result #(
         // CFG goes last (since it is the most recent instruction and the only
         // result that can be stalled; the CFG result always comes from the
         // buffer, since the config registers need an extra cycle to update)
-        else if (result_vl_valid_q) begin
+        else if (result_csr_valid_q) begin
             result_source = RESULT_SOURCE_VL_BUF;
         end
     end
@@ -137,9 +143,11 @@ module vproc_result #(
         result_xreg_id_d     = result_xreg_id_q;
         result_empty_valid_d = result_empty_valid_q;
         result_empty_id_d    = result_empty_id_q;
-        result_vl_valid_d    = result_vl_valid_q;
-        result_vl_id_d       = result_vl_id_q;
-        result_vl_addr_d     = result_vl_addr_q;
+        result_csr_valid_d   = result_csr_valid_q;
+        result_csr_id_d      = result_csr_id_q;
+        result_csr_addr_d    = result_csr_addr_q;
+        result_csr_delayed_d = result_csr_delayed_q;
+        result_csr_data_d    = result_csr_data_q;
 
         if (result_source == RESULT_SOURCE_LSU_BUF) begin
             result_lsu_valid_d = ~xif_result_if.result_ready;
@@ -151,7 +159,7 @@ module vproc_result #(
             result_empty_valid_d = ~xif_result_if.result_ready;
         end
         if (result_source == RESULT_SOURCE_VL_BUF) begin
-            result_vl_valid_d = ~xif_result_if.result_ready;
+            result_csr_valid_d = ~xif_result_if.result_ready;
         end
 
         if (result_lsu_valid_i) begin
@@ -170,15 +178,17 @@ module vproc_result #(
             result_empty_valid_d = 1'b1;    // empty result is always buffered
             result_empty_id_d    = result_empty_id_i;
         end
-        if (result_vl_valid_i) begin
-            result_vl_valid_d = 1'b1;       // CFG result is always buffered
-            result_vl_id_d    = result_vl_id_i;
-            result_vl_addr_d  = result_vl_addr_i;
+        if (result_csr_valid_i) begin
+            result_csr_valid_d   = 1'b1;       // CFG result is always buffered
+            result_csr_id_d      = result_csr_id_i;
+            result_csr_addr_d    = result_csr_addr_i;
+            result_csr_delayed_d = result_csr_delayed_i;
+            result_csr_data_d    = result_csr_data_i;
         end
     end
 
     assign result_empty_ready_o = ((result_source == RESULT_SOURCE_EMPTY_BUF) & xif_result_if.result_ready) | ~result_empty_valid_q;
-    assign result_vl_ready_o    = ((result_source == RESULT_SOURCE_VL_BUF   ) & xif_result_if.result_ready) | ~result_vl_valid_q;
+    assign result_csr_ready_o   = ((result_source == RESULT_SOURCE_VL_BUF   ) & xif_result_if.result_ready) | ~result_csr_valid_q;
 
     always_comb begin
         xif_result_if.result_valid   = '0;
@@ -222,9 +232,9 @@ module vproc_result #(
             end
             RESULT_SOURCE_VL_BUF: begin
                 xif_result_if.result_valid = 1'b1;
-                xif_result_if.result.id    = result_vl_id_q;
-                xif_result_if.result.data  = result_vl_data_i; // data not buffered
-                xif_result_if.result.rd    = result_vl_addr_q;
+                xif_result_if.result.id    = result_csr_id_q;
+                xif_result_if.result.data  = result_csr_delayed_q ? result_csr_data_delayed_i : result_csr_data_q;
+                xif_result_if.result.rd    = result_csr_addr_q;
                 xif_result_if.result.we    = 1'b1;
             end
             default: ;

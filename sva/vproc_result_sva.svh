@@ -26,7 +26,7 @@
     end
     assert property (
         @(posedge clk_i)
-        (result_vl_valid_i & result_vl_valid_q) |->
+        (result_csr_valid_i & result_csr_valid_q) |->
         (xif_result_if.result_ready & ~result_lsu_valid_i & ~result_lsu_valid_q & ~result_xreg_valid_i & ~result_xreg_valid_q & ~result_empty_valid_q)
     ) else begin
         $error("VL result buffer overflows");
