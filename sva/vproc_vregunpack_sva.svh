@@ -5,11 +5,13 @@
     // Assert that the requested vreg read addresses correspond to the registers being fetched
     generate
         for (genvar i = 0; i < OP_CNT; i++) begin
-            assert property (
-                @(posedge clk_i)
-                op_addressing[i] |-> (vreg_rd_addr_o[OP_SRC[i]] == op_vreg_addr[i])
-            ) else begin
-                $error("incorrect vreg read address for operand %d", i);
+            if (~VPORT_ADDR_ZERO[OP_SRC[i]]) begin
+                assert property (
+                    @(posedge clk_i)
+                    op_addressing[i] |-> (vreg_rd_addr_o[OP_SRC[i]] == op_vreg_addr[i])
+                ) else begin
+                    $error("incorrect vreg read address for operand %d", i);
+                end
             end
         end
     endgenerate

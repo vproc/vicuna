@@ -103,7 +103,8 @@ module demo_top #(
         .mem_wdata_o  ( mem_wdata                   ),
         .mem_rvalid_i ( mem_rvalid                  ),
         .mem_err_i    ( mem_err                     ),
-        .mem_rdata_i  ( mem_rdata                   )
+        .mem_rdata_i  ( mem_rdata                   ),
+        .pend_vreg_wr_map_o (                       )
     );
 
     logic        sram_rvalid;
