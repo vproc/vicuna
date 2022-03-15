@@ -553,7 +553,7 @@ module vproc_core #(
                     default: vsew_d = VSEW_INVALID;
                 endcase
             end
-            if ((dec_data_q.rs1.r.xval == 32'b0) & ~dec_data_q.mode.cfg.vlmax) begin
+            if ((dec_data_q.rs1.r.xval == 32'b0) & ~dec_data_q.mode.cfg.vlmax & ~dec_data_q.mode.cfg.keep_vl) begin
                 vl_0_d   = 1'b1;
                 vl_d     = {CFG_VL_W{1'b0}};
                 vl_csr_d = '0;
