@@ -713,15 +713,15 @@ module vproc_pipeline #(
     ///////////////////////////////////////////////////////////////////////////
     // LSU PENDING LOADS AND STORES SIGNALS
 
-    ctrl_t unpack_flags_all, unpack_flags_any;
+    ctrl_t unpack_flags;
     logic  lsu_pending_load, lsu_pending_store;
     assign pending_load_o  = UNITS[UNIT_LSU] & (
                                  (state_valid_q & (state_q.unit == UNIT_LSU) & ~state_q.mode.lsu.store) |
-                                 unpack_flags_all.pend_load  | lsu_pending_load
+                                 unpack_flags.pend_load  | lsu_pending_load
                              );
     assign pending_store_o = UNITS[UNIT_LSU] & (
                                  (state_valid_q & (state_q.unit == UNIT_LSU) &  state_q.mode.lsu.store) |
-                                 unpack_flags_any.pend_store | lsu_pending_store
+                                 unpack_flags.pend_store | lsu_pending_store
                              );
 
 
@@ -778,8 +778,8 @@ module vproc_pipeline #(
         .pipe_out_op_data_o   ( unpack_out_ops               ),
         .pending_vreg_reads_o ( unpack_pend_rd               ),
         .stage_valid_any_o    (                              ),
-        .ctrl_flags_any_o     ( unpack_flags_any             ),
-        .ctrl_flags_all_o     ( unpack_flags_all             )
+        .ctrl_flags_any_o     ( unpack_flags                 ),
+        .ctrl_flags_all_o     (                              )
     );
 
     assign op_addr_offset_pend_reads_clear = unpack_out_valid & unpack_out_ctrl.last_cycle;
