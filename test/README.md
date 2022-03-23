@@ -14,10 +14,11 @@ environment variable `CORE`.
 
 The default simulator used for the tests is
 [Verilator](https://www.veripool.org/verilator/).  This can be changed by
-setting the environment variable `SIMULATOR`.  Currently only Verilator and
+setting the environment variable `SIMULATOR`.  Currently only Verilator, 
 xsim (part of the
 [Xilinx Vivado](https://www.xilinx.com/products/design-tools/vivado.html)
-suite, set `SIMULATOR` to `vivado` to use it) are supported.
+suite, set `SIMULATOR` to `vivado` to use it) and Questasim (set `SIMULATOR`
+to `questa` to use it) are supported.
 
 By default tracing is disabled in Verilator.  Use the environment variable
 `TRACE_VCD` to specify a `*.vcd` file path if you wish to generate a VCD trace

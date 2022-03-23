@@ -80,17 +80,32 @@ module vproc_tb #(
             end
         end
         for (int i = 1; i < MEM_LATENCY; i++) begin
-            mem_rvalid_queue[i] <= mem_rvalid_queue[i-1];
-            mem_rdata_queue [i] <= mem_rdata_queue [i-1];
-            mem_err_queue   [i] <= mem_err_queue   [i-1];
+            if (i == 1) begin
+                mem_rvalid_queue[i] <= mem_req;
+                mem_rdata_queue [i] <= mem[mem_idx];
+                mem_err_queue   [i] <= mem_addr[31:$clog2(MEM_SZ)] != '0;
+            end else begin
+                mem_rvalid_queue[i] <= mem_rvalid_queue[i-1];
+                mem_rdata_queue [i] <= mem_rdata_queue [i-1];
+                mem_err_queue   [i] <= mem_err_queue   [i-1];
+            end
         end
-        mem_rvalid <= mem_rvalid_queue[MEM_LATENCY-1];
-        mem_rdata  <= mem_rdata_queue [MEM_LATENCY-1];
-        mem_err    <= mem_err_queue   [MEM_LATENCY-1];
+        if ((MEM_LATENCY) == 1)begin
+            mem_rvalid <= mem_req;
+            mem_rdata  <= mem[mem_idx];
+            mem_err    <= mem_addr[31:$clog2(MEM_SZ)] != '0;
+        end else begin
+            mem_rvalid <= mem_rvalid_queue[MEM_LATENCY-1];
+            mem_rdata  <= mem_rdata_queue [MEM_LATENCY-1];
+            mem_err    <= mem_err_queue   [MEM_LATENCY-1];
+        end
+        for (int i = 0; i < MEM_SZ; i++) begin
+            // set the don't care values in the memory to 0 during the first rising edge
+            if ($isunknown(mem[i]) & ($time < 10)) begin
+                mem[i] <= '0;
+            end
+        end
     end
-    assign mem_rvalid_queue[0] = mem_req;
-    assign mem_rdata_queue [0] = mem[mem_idx];
-    assign mem_err_queue   [0] = mem_addr[31:$clog2(MEM_SZ)] != '0;
 
     logic prog_end, done;
     assign prog_end = mem_req & (mem_addr == '0);
@@ -110,9 +125,6 @@ module vproc_tb #(
                 continue;
             end
 
-            for (int j = 0; j < MEM_SZ / (MEM_W/8); j++) begin
-                mem[j] = '0;
-            end
             $readmemh(prog_path, mem);
 
             fd2 = $fopen(ref_path, "w");

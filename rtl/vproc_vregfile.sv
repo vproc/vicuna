@@ -63,6 +63,7 @@ module vproc_vregfile #(
     //
 
     localparam int unsigned PORTS_RD_TOTAL = PORTS_RD + PORTS_WR - 1;
+    logic [31:0][VREG_W-1:0] ram_asic;
 
     // read address assignment
     logic [PORTS_RD_TOTAL-1:0][PORTS_WR-1:0][4+$clog2(VREG_W/PORT_W):0] rd_addr;
@@ -88,8 +89,10 @@ module vproc_vregfile #(
             logic [PORT_W-1:0] wr_data;
             always_comb begin
                 wr_data = wr_data_i[gw];
-                for (int i = 0; i < PORTS_WR - 1; i++) begin
-                    wr_data = wr_data ^ rd_data[PORTS_RD + gw - ((i < gw) ? 1 : 0)][i + ((i < gw) ? 0 : 1)];
+                if (RAM_TYPE != vproc_pkg::RAM_ASIC) begin
+                    for (int i = 0; i < PORTS_WR - 1; i++) begin
+                        wr_data = wr_data ^ rd_data[PORTS_RD + gw - ((i < gw) ? 1 : 0)][i + ((i < gw) ? 0 : 1)];
+                    end
                 end
             end
 
@@ -150,6 +153,19 @@ module vproc_vregfile #(
                     end
                 end
 
+                vproc_pkg::RAM_ASIC: begin
+                    for (genvar gr = 0; gr < PORTS_RD_TOTAL; gr++) begin
+                        always_ff @(posedge clk_i) begin
+                            for (int i = 0; i < PORT_W / 8; i++) begin
+                                if (wr_we_i[gw] & wr_be_i[gw][i]) begin
+                                    ram_asic[wr_addr_i[gw]][i*8 +: 8] <= wr_data[i*8 +: 8];
+                                end
+                            end
+                        end
+                        assign rd_data[gr][gw] = ram_asic[rd_addr[gr][gw]];
+                    end
+                end
+
                 default: ;
 
             endcase
@@ -161,7 +177,11 @@ module vproc_vregfile #(
         for (int i = 0; i < PORTS_RD; i++) begin
             rd_data_o[i] = rd_data[i][0];
             for (int j = 1; j < PORTS_WR; j++) begin
-                rd_data_o[i] = rd_data_o[i] ^ rd_data[i][j];
+                if (RAM_TYPE != vproc_pkg::RAM_ASIC) begin
+                    rd_data_o[i] = rd_data_o[i] ^ rd_data[i][j];
+                end else begin
+                    rd_data_o[i] = ram_asic[rd_addr_i[i]];
+                end
             end
         end
     end
