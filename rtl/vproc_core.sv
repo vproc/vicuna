@@ -799,8 +799,8 @@ module vproc_core #(
             logic [VPORT_CNT[i]:0][4       :0] vreg_rd_addr;
             logic [VPORT_CNT[i]:0][VREG_W-1:0] vreg_rd_data;
             always_comb begin
+                vregfile_rd_addr[VPORT_OFFSET[i]+VPORT_CNT[i]-1:VPORT_OFFSET[i]] = vreg_rd_addr    [VPORT_CNT[i]:0];
                 for (int j = 0; j < VPORT_CNT[i]; j++) begin
-                    vregfile_rd_addr[VPORT_OFFSET[i] + j] = vreg_rd_addr    [                  j];
                     vreg_rd_data    [                  j] = vregfile_rd_data[VPORT_OFFSET[i] + j];
                 end
                 vreg_rd_data[VPORT_CNT[i]] = vreg_mask;
