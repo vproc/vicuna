@@ -19,7 +19,7 @@ CORE_DIR := $(TEST_DIR)/../$(CORE)/
 SIMULATOR ?= verilator
 
 # test directories
-TEST_DIRS := lsu alu mul sld elem csr kernel
+TEST_DIRS := lsu alu mul sld elem csr kernel misc
 
 # test targets
 TESTS_ALL := $(TEST_DIRS) $(addsuffix /, $(TEST_DIRS))

@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        unit: [lsu, alu, mul, sld, elem, csr]
+        unit: [lsu, alu, mul, sld, elem, csr, misc]
         main_core: [ibex, cv32e40x]
         exclude:
           - unit: csr
