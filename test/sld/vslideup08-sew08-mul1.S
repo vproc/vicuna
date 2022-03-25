@@ -9,7 +9,7 @@ main:
     la              a0, vdata_start
 
     li              t0, 16
-    vsetvli         t0, t0, e8,m1
+    vsetvli         t0, t0, e8,m1,tu,mu
 
     vle8.v          v0, (a0)
     vslideup.vi     v0, v0, 8

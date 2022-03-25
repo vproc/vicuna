@@ -10,7 +10,7 @@ main:
     la              a0, vdata_start
 
     li              t0, 91
-    vsetvli         t0, t0, e8,m8
+    vsetvli         t0, t0, e8,m8,tu,mu
 
     vl8r.v          v0, (a0)
 
@@ -18,7 +18,7 @@ main:
     vmv.v.x         v0, t0
 
     li              t0, 3
-    vsetvli         t0, t0, e8
+    vsetvli         t0, t0, e8,m1,tu,mu
 
     vs8r.v          v0, (a0)
 

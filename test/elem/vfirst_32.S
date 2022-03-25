@@ -9,7 +9,7 @@ main:
     la              a0, vdata_start
 
     li              t0, 16
-    vsetvli         t0, t0, e32,m4
+    vsetvli         t0, t0, e32,m4,tu,mu
 
     vle32.v         v0, (a0)
     vfirst.m        t0, v0

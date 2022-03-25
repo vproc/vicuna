@@ -10,20 +10,20 @@ main:
     la              a0, vdata_start
 
     li              t0, 8
-    vsetvli         t0, t0, e32,m2
+    vsetvli         t0, t0, e32,m2,tu,mu
 
     li              t0, 0x5a5a5a5a
     vmv.v.x         v0, t0
     vle16.v         v0, (a0)
 
     li              t0, 7
-    vsetvli         t0, t0, e32,m2
+    vsetvli         t0, t0, e32,m2,tu,mu
 
     addi            a1, a0, 64
     vle16.v         v0, (a1), v0.t
 
     li              t0, 8
-    vsetvli         t0, t0, e32,m2
+    vsetvli         t0, t0, e32,m2,tu,mu
 
     vse32.v         v0, (a0)
 

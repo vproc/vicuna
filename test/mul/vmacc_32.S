@@ -9,7 +9,7 @@ main:
     la              a0, vdata_start
 
     li              t0, 4
-    vsetvli         t0, t0, e32
+    vsetvli         t0, t0, e32,m1,tu,mu
 
     li              t0, 3
     vmv.v.i         v0, 7

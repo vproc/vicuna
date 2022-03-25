@@ -9,9 +9,9 @@ main:
     la              a0, vdata_start
 
     li              t0, 11
-    vsetvli         t0, t0, e16,m2
+    vsetvli         t0, t0, e16,m2,tu,mu
 
-    vsetvli         x0, x0, e8,m1
+    vsetvli         x0, x0, e8,m1,tu,mu
 
     li              t0, 0x5a
     vmv.v.x         v0, t0

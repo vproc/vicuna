@@ -9,12 +9,12 @@ main:
     la              a0, vdata_start
 
     li              t0, 32
-    vsetvli         t0, t0, e8,m2
+    vsetvli         t0, t0, e8,m2,tu,mu
 
     vle8.v          v0, (a0)
 
     li              t0, 13
-    vsetvli         t0, t0, e8,m2
+    vsetvli         t0, t0, e8,m2,tu,mu
 
     vslidedown.vi   v0, v0, 19
     vse8.v          v0, (a0)

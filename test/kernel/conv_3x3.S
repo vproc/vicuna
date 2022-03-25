@@ -8,7 +8,7 @@
     .global main
 main:
     li              t2, 65536
-    vsetvli         t2, t2, e8
+    vsetvli         t2, t2, e8,m1,tu,mu
     mv              a3, t2          # width is VLMAX
     li              a4, 65536       # total size is 65536 pixel
     la              a0, vdata_start

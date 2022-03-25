@@ -25,7 +25,7 @@ main:
 #     a2      y
 #     a3      a
 
-    vsetvli         t0, a0, e8,m4
+    vsetvli         t0, a0, e8,m4,tu,mu
 
     mv              t2, a2
 
