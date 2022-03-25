@@ -14,6 +14,7 @@ main:
 
     li              t0, 3
     vlse8.v         v0, (a0), t0
+    vmv.v.v         v2, v0
 
     li              t0, 15
     vsetvli         t0, t0, e8,m1,tu,mu
@@ -21,12 +22,12 @@ main:
     addi            a1, a0, 64
 
     li              t0, 3
-    vlse8.v         v0, (a1), t0, v0.t
+    vlse8.v         v2, (a1), t0, v0.t
 
     li              t0, 16
     vsetvli         t0, t0, e8,m1,tu,mu
 
-    vse8.v          v0, (a0)
+    vse8.v          v2, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end

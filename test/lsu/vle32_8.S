@@ -13,17 +13,18 @@ main:
     vsetvli         t0, t0, e8,m1,tu,mu
 
     vle32.v         v0, (a0)
+    vmv.v.v         v8, v0
 
     li              t0, 15
     vsetvli         t0, t0, e8,m1,tu,mu
 
     addi            a1, a0, 64
-    vle32.v         v0, (a1), v0.t
+    vle32.v         v8, (a1), v0.t
 
     li              t0, 16
     vsetvli         t0, t0, e8,m1,tu,mu
 
-    vse8.v          v0, (a0)
+    vse8.v          v8, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
