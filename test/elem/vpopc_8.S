@@ -9,7 +9,7 @@ main:
     la              a0, vdata_start
 
     li              t0, 64
-    vsetvli         t0, t0, e8,m4
+    vsetvli         t0, t0, e8,m4,tu,mu
 
     vle8.v          v0, (a0)
     vpopc.m         t0, v0

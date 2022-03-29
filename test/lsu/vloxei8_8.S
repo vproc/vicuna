@@ -10,7 +10,7 @@ main:
     la              a0, vdata_start
 
     li              t0, 16
-    vsetvli         t0, t0, e8
+    vsetvli         t0, t0, e8,m1,tu,mu
 
     li              t0, 0xb5
     vmv.v.x         v0, t0
@@ -19,14 +19,14 @@ main:
     vloxei8.v       v16, (a0), v8
 
     li              t0, 15
-    vsetvli         t0, t0, e8
+    vsetvli         t0, t0, e8,m1,tu,mu
 
     addi            a1, a0, 64
 
     vloxei8.v       v16, (a1), v8, v0.t
 
     li              t0, 16
-    vsetvli         t0, t0, e8
+    vsetvli         t0, t0, e8,m1,tu,mu
 
     vse8.v          v16, (a0)
 
