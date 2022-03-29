@@ -8,14 +8,26 @@
 
 SW_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-RISCV_CC   := riscv32-unknown-elf-gcc
-RISCV_DUMP := riscv32-unknown-elf-objdump
-RISCV_OBCP := riscv32-unknown-elf-objcopy
+COMPILER ?= gcc
+ifeq ($(COMPILER),gcc)
+    RISCV_CC            := riscv32-unknown-elf-gcc
+    RISCV_DUMP          := riscv32-unknown-elf-objdump
+    RISCV_OBCP          := riscv32-unknown-elf-objcopy
+    ARCH                := rv32imv
+    LD_SCRIPT           := $(SW_DIR)/link.ld
+else ifeq ($(COMPILER),llvm)
+    RISCV_CC            := clang
+    RISCV_DUMP          := llvm-objdump
+    RISCV_OBCP          := llvm-objcopy
+    ARCH                := rv32imzve32x
+    CC_SPECIFIC_OPTIONS := -fuse-ld=lld
+    LD_SCRIPT           := $(SW_DIR)/lld_link.ld
+endif
 
-LD_SCRIPT := $(SW_DIR)/link.ld
 
-RISCV_FLAGS := -march=rv32imv -mabi=ilp32 -static -mcmodel=medany             \
-               -fvisibility=hidden -nostdlib -nostartfiles -Wall
+RISCV_FLAGS := -march=$(ARCH) -mabi=ilp32 -static -mcmodel=medany             \
+               -fvisibility=hidden -nostdlib -nostartfiles -Wall              \
+               $(CC_SPECIFIC_OPTIONS)
 
 CFLAGS := $(CFLAGS) -I$(SW_DIR)/lib/
 
@@ -53,3 +65,5 @@ $(PROG).elf: $(RISCV_OBJ) $(LD_SCRIPT)
 
 clean:
 	rm -f *.o *.elf *.bin *.vmem
+
+include $(SW_DIR)/toolchain.mk

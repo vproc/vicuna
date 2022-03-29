@@ -20,6 +20,10 @@ xsim (part of the
 suite, set `SIMULATOR` to `vivado` to use it) and Questasim (set `SIMULATOR`
 to `questa` to use it) are supported.
 
+The default compiler used for the tests is GCC. This can be changed by
+setting the environment variable `COMPILER`. GCC and LLVM + Clang (set `COMPILER`
+to `llvm` to use it) are supported.
+
 By default tracing is disabled in Verilator.  Use the environment variable
 `TRACE_VCD` to specify a `*.vcd` file path if you wish to generate a VCD trace
 file of a set of tests.  The specified path is relative to the subdirectory of

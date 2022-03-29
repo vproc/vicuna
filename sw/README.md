@@ -32,6 +32,17 @@ mkdir build && cd build
 make
 ```
 
+Execute the following command to compile LLVM + Clang with
+V extension support enabled.  Note that `/desired/installation/path` should be
+replaced with the path where the toolchain should be cloned to and installed in.
+Please refer to the documentation on the
+[LLVM Website](https://llvm.org/docs/GettingStarted.html)
+for the required prerequisites for compiling the toolchain.
+
+```
+make llvm LLVM_DIR=/desired/installation/path
+```
+
 
 ## Usage
 
