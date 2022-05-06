@@ -882,10 +882,14 @@ module vproc_core #(
                 assign pending_store_lsu          = pending_store;
                 assign xif_mem_if.mem_valid       = pipe_xif.mem_valid;
                 assign pipe_xif.mem_ready         = xif_mem_if.mem_ready;
+                assign xif_mem_if.mem_req.id      = pipe_xif.mem_req.id;
                 assign xif_mem_if.mem_req.addr    = pipe_xif.mem_req.addr;
+                assign xif_mem_if.mem_req.mode    = pipe_xif.mem_req.mode;
                 assign xif_mem_if.mem_req.we      = pipe_xif.mem_req.we;
                 assign xif_mem_if.mem_req.be      = pipe_xif.mem_req.be;
                 assign xif_mem_if.mem_req.wdata   = pipe_xif.mem_req.wdata;
+                assign xif_mem_if.mem_req.last    = pipe_xif.mem_req.last;
+                assign xif_mem_if.mem_req.spec    = pipe_xif.mem_req.spec;
                 assign pipe_xif.mem_resp.exc      = xif_mem_if.mem_resp.exc;
                 assign pipe_xif.mem_resp.exccode  = xif_mem_if.mem_resp.exccode;
                 assign pipe_xif.mem_resp.dbg      = xif_mem_if.mem_resp.dbg;
