@@ -68,6 +68,8 @@ module vproc_lsu #(
         logic [5:0]                  exccode;
     } lsu_state_red;
 
+    logic mem_result_valid; // XIF mem_result_valid guarded by LSU queue deq_valid_o
+
 
     ///////////////////////////////////////////////////////////////////////////
     // LSU BUFFERS
@@ -158,11 +160,11 @@ module vproc_lsu #(
                     state_rdata_valid_q <= 1'b0;
                 end
                 else begin
-                    state_rdata_valid_q <= xif_memres_if.mem_result_valid & ~state_rdata_d.mode.store;
+                    state_rdata_valid_q <= mem_result_valid & ~state_rdata_d.mode.store;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_rdata
-                if (xif_memres_if.mem_result_valid) begin
+                if (mem_result_valid) begin
                     state_rdata_q <= state_rdata_d;
                     rdata_buf_q   <= rdata_buf_d;
                     rdata_off_q   <= rdata_off_d;
@@ -173,7 +175,7 @@ module vproc_lsu #(
             end
         end else begin
             always_comb begin
-                state_rdata_valid_q = xif_memres_if.mem_result_valid & ~state_rdata_d.mode.store;
+                state_rdata_valid_q = mem_result_valid & ~state_rdata_d.mode.store;
                 state_rdata_q       = state_rdata_d;
                 rdata_buf_q         = rdata_buf_d;
                 rdata_off_q         = rdata_off_d;
@@ -331,12 +333,13 @@ module vproc_lsu #(
         .enq_ready_o  ( lsu_queue_ready                                               ),
         .enq_valid_i  ( state_req_valid_q & state_req_ready                           ),
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
-        .deq_ready_i  ( xif_memres_if.mem_result_valid | mem_err_d                    ),
+        .deq_ready_i  ( mem_result_valid | mem_err_d                                  ),
         .deq_valid_o  ( deq_valid                                                     ),
         .deq_data_o   ( {rdata_off_d, rmask_buf_d, deq_state}                         ),
         .flags_any_o  (                                                               ),
         .flags_all_o  (                                                               )
     );
+    assign mem_result_valid = xif_memres_if.mem_result_valid & deq_valid;
 
     // monitor the memory result for bus errors and the queue for exceptions
     always_comb begin
@@ -345,7 +348,7 @@ module vproc_lsu #(
         if ((deq_valid & deq_state.first_cycle) | ~mem_err_q) begin
             // reset the error flag in the first cycle, unless there is a bus
             // error or an exception occured during the request
-            mem_err_d     = deq_state.exc | (xif_memres_if.mem_result_valid & xif_memres_if.mem_result.err);
+            mem_err_d     = deq_state.exc | (mem_result_valid & xif_memres_if.mem_result.err);
             mem_exccode_d = deq_state.exc ? deq_state.exccode : (
                 // bus error translates to a load/store access fault exception
                 deq_state.mode.store ? 6'h07 : 6'h05
@@ -354,7 +357,7 @@ module vproc_lsu #(
     end
 
     // LSU result (indicates potential exceptions):
-    assign trans_complete_valid_o   = deq_valid & deq_state.last_cycle & (xif_memres_if.mem_result_valid | mem_err_d);
+    assign trans_complete_valid_o   = deq_valid & deq_state.last_cycle & (mem_result_valid | mem_err_d);
     assign trans_complete_id_o      = deq_state.id;
     assign trans_complete_exc_o     = mem_err_d;
     assign trans_complete_exccode_o = mem_exccode_d;
