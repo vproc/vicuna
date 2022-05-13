@@ -32,7 +32,7 @@ jobs:
         id: cache-riscv-gcc
         with:
           path: /opt/riscv-gcc
-          key: ubuntu-20_04-riscv-gcc-rvv0_10
+          key: ubuntu-20_04-riscv-gcc-rvv
 
       - name: Install GNU toolchain
         if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
