@@ -24,9 +24,8 @@ to the documentation in the
 for the required prerequisites for compiling the toolchain.
 
 ```
-git clone https://github.com/riscv/riscv-gnu-toolchain -b rvv-intrinsic
+git clone https://github.com/riscv/riscv-gnu-toolchain
 cd riscv-gnu-toolchain
-git submodule update --init --recursive
 mkdir build && cd build
 ../configure --prefix=/desired/installation/path
 make

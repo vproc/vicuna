@@ -39,7 +39,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev
-          git clone https://github.com/riscv/riscv-gnu-toolchain -b rvv-intrinsic
+          git clone https://github.com/riscv/riscv-gnu-toolchain
           cd riscv-gnu-toolchain
           git submodule update --init --recursive -- riscv-binutils riscv-dejagnu riscv-gcc riscv-glibc riscv-newlib
           mkdir build && cd build
