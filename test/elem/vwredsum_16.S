@@ -9,19 +9,19 @@ main:
     la              a0, vdata_start
 
     li              t0, 8
-    vsetvli         t0, t0, e16
+    vsetvli         t0, t0, e16,m1,tu,mu
 
     li              t0, 0x4178
     vmv.v.x         v3, t0
 
     li              t0, 15
-    vsetvli         t0, t0, e16,m2
+    vsetvli         t0, t0, e16,m2,tu,mu
 
     vle16.v         v4, (a0)
     vwredsum.vs     v3, v4, v3
 
     li              t0, 8
-    vsetvli         t0, t0, e16
+    vsetvli         t0, t0, e16,m1,tu,mu
 
     vse16.v         v3, (a0)
 

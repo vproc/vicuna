@@ -14,6 +14,10 @@ SIM_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # Vivado TCL script
 VIVADO_TCL := $(addprefix $(SIM_DIR),sim_vivado.tcl)
 
+# Questa TCL script and variable
+QUESTA_TCL := $(addprefix $(SIM_DIR),sim_questa.tcl)
+VSIM       ?= vsim
+
 # project directory
 PROJ_DIR_TMP := $(shell mktemp -d)
 PROJ_DIR     ?= $(PROJ_DIR_TMP)
@@ -39,7 +43,7 @@ VSLD_W ?= $(if $(filter-out 32,$(VMUL_W)),$(VMUL_W),64)
 ICACHE_SZ     ?= 0
 ICACHE_LINE_W ?= 128
 DCACHE_SZ     ?= 0
-DCACHE_LINE_W ?= $$(($(VMEM_W) * 2))
+DCACHE_LINE_W ?= $(shell echo $$(( $(VMEM_W) * 2 )))
 
 # select memory width (bits), size (bytes), and latency (cycles, 1 is minimum)
 MEM_W		?= 32
@@ -111,3 +115,10 @@ verilator:
 	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST)) $(MEM_W)     \
 	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(abspath $(TRACE_FILE)) \
 	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
+
+questa:
+	cd $(PROJ_DIR) && $(VSIM) -batch -do 'do $(QUESTA_TCL)                    \
+	    $(SIM_DIR).. $(CORE_DIR) "$(VREG_W) $(VMEM_W) $(VMUL_W) $(VALU_W)     \
+	    $(VSLD_W) $(ICACHE_SZ) $(ICACHE_LINE_W) $(DCACHE_SZ) $(DCACHE_LINE_W) \
+	    $(MEM_W) $(MEM_SZ) $(MEM_LATENCY)" $(abspath $(TRACE_FILE))           \
+	    $(abspath $(PROG_PATHS_LIST)) "$(TRACE_SIGS)"'

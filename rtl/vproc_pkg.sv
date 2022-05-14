@@ -9,13 +9,14 @@ package vproc_pkg;
 //`define VPROC_OP_REGS_UNION
 
 typedef enum {
-    RAM_GENERIC,
-    RAM_XLNX_RAM32M
+    RAM_GENERIC     = 0,
+    RAM_XLNX_RAM32M = 1,
+    RAM_ASIC        = 2
 } ram_type;
 
 typedef enum {
-    MUL_GENERIC,
-    MUL_XLNX_DSP48E1
+    MUL_GENERIC      = 0,
+    MUL_XLNX_DSP48E1 = 1
 } mul_type;
 
 typedef enum logic [1:0] {

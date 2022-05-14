@@ -18,8 +18,11 @@ CORE_DIR := $(TEST_DIR)/../$(CORE)/
 # select the simulator to use; either verilator (default) or vivado
 SIMULATOR ?= verilator
 
+# select the compiler to use; either gcc (default) or llvm
+COMPILER ?= gcc
+
 # test directories
-TEST_DIRS := lsu alu mul sld elem csr kernel
+TEST_DIRS := lsu alu mul sld elem csr kernel misc
 
 # test targets
 TESTS_ALL := $(TEST_DIRS) $(addsuffix /, $(TEST_DIRS))
@@ -151,7 +154,8 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	prog=$(abspath $(<:%.S=%));                                               \
 	obj="$(abspath $(^:%.S=%.o))";                                            \
 	log="$${prog}_build.log";                                                 \
-	make -f $(TEST_DIR)/../sw/Makefile PROG=$$prog OBJ="$$obj" >$$log 2>&1;   \
+	make -f $(TEST_DIR)/../sw/Makefile PROG=$$prog OBJ="$$obj"                \
+	COMPILER=$(COMPILER) >$$log 2>&1;                                         \
 	if [ "$$?" != "0" ]; then                                                 \
 	    echo "[ ERROR ] $@ build failed; content of $$log:";                  \
 	    cat $$log;                                                            \

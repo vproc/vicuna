@@ -9,19 +9,19 @@ main:
     la              a0, vdata_start
 
     li              t0, 128
-    vsetvli         t0, t0, e8,m8
+    vsetvli         t0, t0, e8,m8,tu,mu
 
     li              t0, 0x5a
     vmv.v.x         v0, t0
     vle8.v          v8, (a0)
 
     li              t0, 3
-    vsetvli         t0, t0, e8
+    vsetvli         t0, t0, e8,m1,tu,mu
 
     vmv4r.v         v8, v0
 
     li              t0, 64
-    vsetvli         t0, t0, e8,m4
+    vsetvli         t0, t0, e8,m4,tu,mu
 
     vse8.v          v8, (a0)
 

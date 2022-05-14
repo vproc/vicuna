@@ -9,7 +9,7 @@ main:
     la              a0, vdata_start
 
     li              t0, 14
-    vsetvli         t0, t0, e16,m2
+    vsetvli         t0, t0, e16,m2,tu,mu
 
     vle16.v         v0, (a0)
     viota.m         v4, v0

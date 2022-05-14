@@ -369,7 +369,7 @@ module vproc_pipeline #(
                         (~OP_NARROW[i] | ~state_next.op_flags[i].narrow | ~op_count[i].part.mul[0])
                     ) begin
                         op_load_next[i] = (OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg) &
-                                          (~MAY_FLUSH | ~state_q.last_cycle); // may need flushing
+                                          (~MAY_FLUSH | ~last_cycle_next); // may need flushing
 
                         // if the alternative counter is used for some operands the counter's
                         // sign and MUL part might be invalid for the current EMUL, in which

@@ -555,7 +555,7 @@ module vproc_core #(
                     default: vsew_d = VSEW_INVALID;
                 endcase
             end
-            if ((dec_data_q.rs1.r.xval == 32'b0) & ~dec_data_q.mode.cfg.vlmax) begin
+            if ((dec_data_q.rs1.r.xval == 32'b0) & ~dec_data_q.mode.cfg.vlmax & ~dec_data_q.mode.cfg.keep_vl) begin
                 vl_0_d   = 1'b1;
                 vl_d     = {CFG_VL_W{1'b0}};
                 vl_csr_d = '0;
@@ -801,9 +801,9 @@ module vproc_core #(
             logic [VPORT_CNT[i]:0][4       :0] vreg_rd_addr;
             logic [VPORT_CNT[i]:0][VREG_W-1:0] vreg_rd_data;
             always_comb begin
+                vregfile_rd_addr[VPORT_OFFSET[i]+VPORT_CNT[i]-1:VPORT_OFFSET[i]] = vreg_rd_addr[VPORT_CNT[i]-1:0];
                 for (int j = 0; j < VPORT_CNT[i]; j++) begin
-                    vregfile_rd_addr[VPORT_OFFSET[i] + j] = vreg_rd_addr    [                  j];
-                    vreg_rd_data    [                  j] = vregfile_rd_data[VPORT_OFFSET[i] + j];
+                    vreg_rd_data[j] = vregfile_rd_data[VPORT_OFFSET[i] + j];
                 end
                 vreg_rd_data[VPORT_CNT[i]] = vreg_mask;
             end
@@ -885,10 +885,14 @@ module vproc_core #(
                 assign pending_store_lsu          = pending_store;
                 assign xif_mem_if.mem_valid       = pipe_xif.mem_valid;
                 assign pipe_xif.mem_ready         = xif_mem_if.mem_ready;
+                assign xif_mem_if.mem_req.id      = pipe_xif.mem_req.id;
                 assign xif_mem_if.mem_req.addr    = pipe_xif.mem_req.addr;
+                assign xif_mem_if.mem_req.mode    = pipe_xif.mem_req.mode;
                 assign xif_mem_if.mem_req.we      = pipe_xif.mem_req.we;
                 assign xif_mem_if.mem_req.be      = pipe_xif.mem_req.be;
                 assign xif_mem_if.mem_req.wdata   = pipe_xif.mem_req.wdata;
+                assign xif_mem_if.mem_req.last    = pipe_xif.mem_req.last;
+                assign xif_mem_if.mem_req.spec    = pipe_xif.mem_req.spec;
                 assign pipe_xif.mem_resp.exc      = xif_mem_if.mem_resp.exc;
                 assign pipe_xif.mem_resp.exccode  = xif_mem_if.mem_resp.exccode;
                 assign pipe_xif.mem_resp.dbg      = xif_mem_if.mem_resp.dbg;

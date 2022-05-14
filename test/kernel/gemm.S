@@ -63,7 +63,7 @@ gemm_nn:
     slti            t6, m, 8
     bnez            t6, end_rows
 
-    vsetvli         nvl, n, e8,m4  # 8-bit vectors, LMUL=4
+    vsetvli         nvl, n, e8,m4,tu,mu
 
 c_row_loop: # Loop across rows of C blocks
 
