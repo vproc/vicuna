@@ -79,7 +79,6 @@ module vproc_core #(
 
 
     localparam int unsigned PIPE_CNT                  = 5;
-    localparam op_unit      UNIT           [PIPE_CNT] = '{UNIT_LSU, UNIT_ALU, UNIT_MUL, UNIT_SLD, UNIT_ELEM  };
     localparam int unsigned VPORT_CNT      [PIPE_CNT] = '{1       , 1       , 2       , 1       , 1          };
     localparam int unsigned VPORT_OFFSET   [PIPE_CNT] = '{1       , 2       , 3       , 5       , 6          };
     localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
@@ -830,7 +829,6 @@ module vproc_core #(
                 .CFG_VL_W                 ( CFG_VL_W                   ),
                 .XIF_ID_W                 ( XIF_ID_W                   ),
                 .XIF_ID_CNT               ( XIF_ID_CNT                 ),
-                .UNIT                     ( UNIT[i]                    ),
                 .UNITS                    ( PIPE_UNITS[i]              ),
                 .MAX_VPORT_W              ( VREG_W                     ),
                 .MAX_VADDR_W              ( 5                          ),
@@ -880,7 +878,7 @@ module vproc_core #(
                 .xreg_addr_o              ( xreg_addr                  ),
                 .xreg_data_o              ( xreg_data                  )
             );
-            if (UNIT[i] == UNIT_LSU) begin
+            if (PIPE_UNITS[i][UNIT_LSU]) begin
                 assign pending_load_lsu           = pending_load;
                 assign pending_store_lsu          = pending_store;
                 assign xif_mem_if.mem_valid       = pipe_xif.mem_valid;
@@ -906,7 +904,7 @@ module vproc_core #(
                 assign lsu_trans_complete_exc     = trans_complete_exc;
                 assign lsu_trans_complete_exccode = trans_complete_exccode;
             end
-            if (UNIT[i] == UNIT_ELEM) begin
+            if (PIPE_UNITS[i][UNIT_ELEM]) begin
                 assign elem_xreg_valid = xreg_valid;
                 assign elem_xreg_id    = xreg_id;
                 assign elem_xreg_addr  = xreg_addr;

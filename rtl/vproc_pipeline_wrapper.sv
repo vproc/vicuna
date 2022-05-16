@@ -8,7 +8,6 @@ module vproc_pipeline_wrapper #(
         parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
-        parameter vproc_pkg::op_unit    UNIT                = vproc_pkg::UNIT_ALU,
         parameter bit [vproc_pkg::UNIT_CNT-1:0] UNITS       = '0,
         parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
         parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
@@ -262,9 +261,9 @@ module vproc_pipeline_wrapper #(
     always_comb begin
         state_init = state_t'('0);
 
-        state_init.count_extra_phase = (UNIT == UNIT_SLD) & (pipe_in_data_i.mode.sld.dir == SLD_DOWN);
+        state_init.count_extra_phase = UNITS[UNIT_SLD] & (pipe_in_data_i.unit == UNIT_SLD) & (pipe_in_data_i.mode.sld.dir == SLD_DOWN);
         state_init.alt_count_init    = '0;
-        if (UNIT == UNIT_SLD) begin
+        if (UNITS[UNIT_SLD] & (pipe_in_data_i.unit == UNIT_SLD)) begin
             state_init.alt_count_init = DONT_CARE_ZERO ? '0 : 'x;
             if (pipe_in_data_i.mode.sld.slide1) begin
                 if (pipe_in_data_i.mode.sld.dir == SLD_UP) begin
@@ -311,31 +310,39 @@ module vproc_pipeline_wrapper #(
         end
 
         state_init.count_inc = COUNT_INC_1;
-        //if ((OP_ALLOW_ELEMWISE != '0) | (OP_ALWAYS_ELEMWISE != '0)) begin
-        if ((UNIT == UNIT_LSU) | (UNIT == UNIT_ELEM)) begin
+        if (UNITS[UNIT_LSU] & (pipe_in_data_i.unit == UNIT_LSU)) begin
             state_init.count_inc = DONT_CARE_ZERO ? count_inc_e'('0) : count_inc_e'('x);
-            unique case ((UNIT == UNIT_LSU) ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew)
+            unique case (pipe_in_data_i.mode.lsu.eew)
+                VSEW_8:  state_init.count_inc = COUNT_INC_1;
+                VSEW_16: state_init.count_inc = COUNT_INC_2;
+                VSEW_32: state_init.count_inc = COUNT_INC_4;
+                default: ;
+            endcase
+            if (pipe_in_data_i.mode.lsu.stride == LSU_UNITSTRIDE) begin
+                state_init.count_inc = COUNT_INC_MAX;
+            end
+        end
+        if (UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM)) begin
+            state_init.count_inc = DONT_CARE_ZERO ? count_inc_e'('0) : count_inc_e'('x);
+            unique case (pipe_in_data_i.vsew)
                 VSEW_8:  state_init.count_inc = COUNT_INC_1;
                 VSEW_16: state_init.count_inc = COUNT_INC_2;
                 VSEW_32: state_init.count_inc = COUNT_INC_4;
                 default: ;
             endcase
         end
-        if ((UNIT == UNIT_LSU) & (pipe_in_data_i.mode.lsu.stride == LSU_UNITSTRIDE)) begin
-            state_init.count_inc = COUNT_INC_MAX;
-        end
 
-        state_init.requires_flush = (UNIT == UNIT_ELEM) & elem_flush;
+        state_init.requires_flush = UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM) & elem_flush;
         state_init.id             = pipe_in_data_i.id;
         state_init.unit           = pipe_in_data_i.unit;
         state_init.mode           = pipe_in_data_i.mode;
         state_init.emul           = pipe_in_data_i.emul;
-        state_init.eew            = (UNIT == UNIT_LSU) ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew;
+        state_init.eew            = (UNITS[UNIT_LSU] & (pipe_in_data_i.unit == UNIT_LSU)) ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew;
         state_init.vxrm           = pipe_in_data_i.vxrm;
         state_init.vl             = pipe_in_data_i.vl;
         state_init.vl_0           = pipe_in_data_i.vl_0;
         state_init.xval           = pipe_in_data_i.rs1.r.xval;
-        if ((UNIT == UNIT_SLD) & ~pipe_in_data_i.mode.sld.slide1) begin
+        if (UNITS[UNIT_SLD] & (pipe_in_data_i.unit == UNIT_SLD) & ~pipe_in_data_i.mode.sld.slide1) begin
             // convert element offset to byte offset for the relevant section of rs1 and negate
             // for down slides
             if (pipe_in_data_i.mode.sld.dir == SLD_UP) begin
@@ -355,58 +362,71 @@ module vproc_pipeline_wrapper #(
             end
         end
 
-        state_init.op_flags[0]        = unpack_flags'('0);
-        state_init.op_flags[1]        = unpack_flags'('0);
-        state_init.op_flags[OP_CNT-2] = unpack_flags'('0);
-        state_init.op_flags[OP_CNT-1] = unpack_flags'('0);
+        for (int i = 0; i < OP_CNT; i++) begin
+            state_init.op_flags[i]    = unpack_flags'('0);
+        end
 
-        state_init.op_flags[0].vreg   = pipe_in_data_i.rs2.vreg & ((UNIT != UNIT_ELEM) | elem_vs2_data);
+        state_init.op_flags[0].vreg   = pipe_in_data_i.rs2.vreg;
         state_init.op_flags[0].narrow = pipe_in_data_i.widenarrow == OP_WIDENING;
-        state_init.op_flags[0].sigext = ((UNIT == UNIT_ALU ) & pipe_in_data_i.mode.alu.sigext    ) |
-                                        ((UNIT == UNIT_MUL ) & pipe_in_data_i.mode.mul.op2_signed) |
-                                        ((UNIT == UNIT_ELEM) & pipe_in_data_i.mode.elem.sigext   );
         state_init.op_vaddr[0]        = pipe_in_data_i.rs2.r.vaddr;
         state_init.op_xval [0]        = pipe_in_data_i.rs2.r.xval;
 
-        if (UNIT == UNIT_LSU) begin
-            state_init.op_flags[1].vreg   = pipe_in_data_i.mode.lsu.store;
-            state_init.op_vaddr[1]        = pipe_in_data_i.rd.addr;
-        end
-        else if (UNIT != UNIT_SLD) begin
-            state_init.op_flags[1].vreg   = pipe_in_data_i.rs1.vreg;
-            state_init.op_flags[1].narrow = pipe_in_data_i.widenarrow != OP_SINGLEWIDTH;
-            state_init.op_flags[1].sigext = ((UNIT == UNIT_ALU ) & pipe_in_data_i.mode.alu.sigext) |
-                                            ((UNIT == UNIT_MUL ) & pipe_in_data_i.mode.mul.op1_signed);
-            state_init.op_vaddr[1]        = pipe_in_data_i.rs1.r.vaddr;
-            state_init.op_xval [1]        = pipe_in_data_i.rs1.r.xval;
-            if (UNIT == UNIT_MUL) begin
-                state_init.op_vaddr[0]                          = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rd.addr : pipe_in_data_i.rs2.r.vaddr;
-                state_init.op_flags[(OP_CNT >= 3) ? 2 : 0].vreg = pipe_in_data_i.mode.mul.op == MUL_VMACC;
-                state_init.op_vaddr[(OP_CNT >= 3) ? 2 : 0]      = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rd.addr;
+        state_init.op_flags[1].vreg   = pipe_in_data_i.rs1.vreg;
+        state_init.op_flags[1].narrow = pipe_in_data_i.widenarrow != OP_SINGLEWIDTH;
+        state_init.op_vaddr[1]        = pipe_in_data_i.rs1.r.vaddr;
+        state_init.op_xval [1]        = pipe_in_data_i.rs1.r.xval;
+
+        state_init.op_flags[OP_CNT-1].vreg = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        unique case (pipe_in_data_i.unit)
+            UNIT_LSU:  if (UNITS[UNIT_LSU ]) begin
+                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.lsu.masked;
             end
-            if (UNIT == UNIT_ELEM) begin
-                state_init.op_flags[(OP_CNT >= 3) ? OP_CNT-3 : 0].vreg = elem_vs2_dyn_addr;
-                state_init.op_vaddr[(OP_CNT >= 3) ? OP_CNT-3 : 0]      = pipe_in_data_i.rs2.r.vaddr;
-                state_init.op_flags[                OP_CNT-2    ].vreg = pipe_in_data_i.rs2.vreg & elem_vs2_mask;
-                state_init.op_vaddr[                OP_CNT-2    ]      = pipe_in_data_i.rs2.r.vaddr;
+            UNIT_ALU:  if (UNITS[UNIT_ALU ]) begin
+                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.alu.op_mask != ALU_MASK_NONE;
             end
-        end
-        unique case (UNIT)
-            UNIT_LSU:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.lsu.masked;
-            UNIT_ALU:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.alu.op_mask != ALU_MASK_NONE;
-            UNIT_MUL:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.mul.masked;
-            UNIT_SLD:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.sld.masked;
-            UNIT_ELEM: state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.elem.masked;
+            UNIT_MUL:  if (UNITS[UNIT_MUL ]) begin
+                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.mul.masked;
+            end
+            UNIT_SLD:  if (UNITS[UNIT_SLD ]) begin
+                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.sld.masked;
+            end
+            UNIT_ELEM: if (UNITS[UNIT_ELEM]) begin
+                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.elem.masked;
+            end
             default: ;
         endcase
-        state_init.op_flags[OP_CNT-1].elemwise = (UNIT == UNIT_LSU) & (pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE);
 
-        state_init.res_vreg  [0] = (UNIT != UNIT_LSU) | ~pipe_in_data_i.mode.lsu.store;
-        state_init.res_narrow[0] = (UNIT == UNIT_ALU) ? (pipe_in_data_i.widenarrow == OP_NARROWING) : '0;
+        state_init.res_vreg  [0] = 1'b1;
+        state_init.res_narrow[0] = '0;
         state_init.res_vaddr     = pipe_in_data_i.rd.addr;
-        if (UNIT == UNIT_ALU) begin
-            state_init.res_vreg [0        ] = ~pipe_in_data_i.mode.alu.cmp;
-            state_init.res_vreg [RES_CNT-1] =  pipe_in_data_i.mode.alu.cmp;
+
+        if (UNITS[UNIT_LSU] & (pipe_in_data_i.unit == UNIT_LSU)) begin
+            state_init.op_flags[1       ].vreg     =  pipe_in_data_i.mode.lsu.store;
+            state_init.op_vaddr[1       ]          =  pipe_in_data_i.rd.addr;
+            state_init.op_flags[OP_CNT-1].elemwise =  pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE;
+            state_init.res_vreg[0       ]          = ~pipe_in_data_i.mode.lsu.store;
+        end
+        if (UNITS[UNIT_ALU] & (pipe_in_data_i.unit == UNIT_ALU)) begin
+            state_init.op_flags  [0        ].sigext =  pipe_in_data_i.mode.alu.sigext;
+            state_init.op_flags  [1        ].sigext =  pipe_in_data_i.mode.alu.sigext;
+            state_init.res_vreg  [0        ]        = ~pipe_in_data_i.mode.alu.cmp;
+            state_init.res_narrow[0        ]        =  pipe_in_data_i.widenarrow == OP_NARROWING;
+            state_init.res_vreg  [RES_CNT-1]        =  pipe_in_data_i.mode.alu.cmp;
+        end
+        if (UNITS[UNIT_MUL] & (pipe_in_data_i.unit == UNIT_MUL)) begin
+            state_init.op_vaddr[0]                          = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rd.addr : pipe_in_data_i.rs2.r.vaddr;
+            state_init.op_flags[0].sigext                   = pipe_in_data_i.mode.mul.op2_signed;
+            state_init.op_flags[1].sigext                   = pipe_in_data_i.mode.mul.op1_signed;
+            state_init.op_flags[(OP_CNT >= 3) ? 2 : 0].vreg = pipe_in_data_i.mode.mul.op == MUL_VMACC;
+            state_init.op_vaddr[(OP_CNT >= 3) ? 2 : 0]      = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rd.addr;
+        end
+        if (UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM)) begin
+            state_init.op_flags[0].vreg                            = pipe_in_data_i.rs2.vreg & elem_vs2_data;
+            state_init.op_flags[0].sigext                          = pipe_in_data_i.mode.elem.sigext;
+            state_init.op_flags[(OP_CNT >= 3) ? OP_CNT-3 : 0].vreg = elem_vs2_dyn_addr;
+            state_init.op_vaddr[(OP_CNT >= 3) ? OP_CNT-3 : 0]      = pipe_in_data_i.rs2.r.vaddr;
+            state_init.op_flags[                OP_CNT-2    ].vreg = pipe_in_data_i.rs2.vreg & elem_vs2_mask;
+            state_init.op_vaddr[                OP_CNT-2    ]      = pipe_in_data_i.rs2.r.vaddr;
         end
     end
 
