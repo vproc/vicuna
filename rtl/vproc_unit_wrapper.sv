@@ -367,10 +367,11 @@ module vproc_unit_wrapper #(
                     VSEW_32: pipe_out_res_flags_o[0].shift = 1'b1;
                     default: ;
                 endcase
-                pipe_out_res_store_o[0]      = unit_out_ctrl.res_store;
-                pipe_out_res_valid_o[0]      = unit_out_res_valid;
-                pipe_out_res_data_o [0]      = unit_out_res;
-                pipe_out_res_mask_o [0][3:0] = unit_out_mask;
+                pipe_out_res_flags_o[0].elemwise = 1'b1;
+                pipe_out_res_store_o[0]          = unit_out_ctrl.res_store;
+                pipe_out_res_valid_o[0]          = unit_out_res_valid;
+                pipe_out_res_data_o [0]          = unit_out_res;
+                pipe_out_res_mask_o [0][3:0]     = unit_out_mask;
             end
             assign pipe_out_pend_clear_o     = unit_out_ctrl.last_cycle & ~unit_out_ctrl.requires_flush & ~unit_out_ctrl.mode.elem.xreg;
             assign pipe_out_pend_clear_cnt_o = unit_out_ctrl.emul; // TODO reductions always have destination EMUL == 1

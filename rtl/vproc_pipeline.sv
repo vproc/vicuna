@@ -35,7 +35,6 @@ module vproc_pipeline #(
         parameter int unsigned          RES_CNT             = 1,
         parameter int unsigned          RES_W   [RES_CNT  ] = '{0},
         parameter bit [RES_CNT-1:0]     RES_MASK            = '0,   // result is a mask
-        parameter bit [RES_CNT-1:0]     RES_XREG            = '0,   // result may be XREG
         parameter bit [RES_CNT-1:0]     RES_NARROW          = '0,   // result may be narrow
         parameter bit [RES_CNT-1:0]     RES_ALLOW_ELEMWISE  = '0,   // result may be 1 elem
         parameter bit [RES_CNT-1:0]     RES_ALWAYS_ELEMWISE = '0,   // result is 1 elem
@@ -871,7 +870,6 @@ module vproc_pipeline #(
         .RES_CNT                     ( RES_CNT                 ),
         .RES_W                       ( RES_W                   ),
         .RES_MASK                    ( RES_MASK                ),
-        .RES_XREG                    ( '0                      ),
         .RES_NARROW                  ( RES_NARROW              ),
         .RES_ALLOW_ELEMWISE          ( RES_ALLOW_ELEMWISE      ),
         .RES_ALWAYS_ELEMWISE         ( RES_ALWAYS_ELEMWISE     ),

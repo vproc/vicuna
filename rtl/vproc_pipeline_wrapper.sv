@@ -82,12 +82,17 @@ module vproc_pipeline_wrapper #(
     //  +-----+------+----------+----------------+-----------------------------------------------+
     //  |  0  | data | vs2 (vd) |      all       | Only MUL may change address to vd             |
     //  |  1  | data | vs1 (vd) | all except SLD | Only LSU uses vd as address instead of vs1    |
-    //  |  2  | data | vd/vs2   |      MUL       | MUL may use either vd or vs2 as address       |
+    //  |  2  | data |  vd/vs2  |      MUL       | MUL may use either vd or vs2 as address       |
     //  | -3  | data | dynamic  |     ELEM       | Index-based dynamic address within vreg group |
     //  | -2  | mask |   vs2    |     ELEM       | Mask operand for some ELEM operations         |
-    //  | -1  | mask |   v0     |      all       | Mask operand for masked operations            |
+    //  | -1  | mask |    v0    |      all       | Mask operand for masked operations            |
 
-    // operand count
+    // Operand count:
+    // - default is 3 (indices 0, 1, and -1 from above table, required by almost all units)
+    // - MUL unit additionally requires index 2, raising the operand count to a minimum of 4
+    // - ELEM unit additionally requires indices -3 and -2, hence a minimum of 5 operands
+    // - if MUL and ELEM units are both present in same pipeline, then all 6 operands are required
+    // - in case a pipeline contains only the SLD unit the operand count is 2 (indices 0 and -1)
     localparam int unsigned OP_CNT        = UNITS[UNIT_MUL] ? (
                                                 UNITS[UNIT_ELEM] ? 6 : 4
                                             ) : (
@@ -96,42 +101,33 @@ module vproc_pipeline_wrapper #(
                                                 )
                                             );
 
-    // number of stages for operand unpacking
+    // Number of stages for operand unpacking
     localparam int unsigned UNPACK_STAGES = UNITS[UNIT_ELEM] ? 4 : (
                                                 (UNITS == (UNIT_CNT'(1) << UNIT_SLD)) ? 2 : 3
                                             );
 
-    // operand widths
-    localparam int unsigned DFLT_OP_W  = (UNIT == UNIT_ELEM) ? 32 : MAX_OP_W;    // default width
-    localparam int unsigned FIRST_OP_W = (UNIT == UNIT_LSU ) ? 32 : DFLT_OP_W;   // first operand
-    localparam int unsigned EXTRA_OP_W = MAX_OP_W;                               // extra operand
-    localparam int unsigned MASK_OP_W  = (UNIT == UNIT_ELEM) ? 1  : DFLT_OP_W/8; // v0 mask width
-
     // operand flags
     localparam bit OP_DYN_ADDR_OFFSET     = UNITS[UNIT_ELEM];   // operand with dynamic addr used
     localparam bit OP_SECOND_MASK         = UNITS[UNIT_ELEM];   // second mask operand used
-    localparam bit FIRST_OP_XREG          = (UNIT == UNIT_MUL) | (UNIT == UNIT_ALU);
-    localparam bit FIRST_OP_NARROW        = (UNIT == UNIT_MUL) | (UNIT == UNIT_ALU) | (UNIT == UNIT_ELEM);
-    localparam bit SECOND_OP_NARROW       = (UNIT == UNIT_MUL) | (UNIT == UNIT_ALU);
-    localparam bit ALL_OP_ELEMWISE        = UNIT == UNIT_ELEM;
-    localparam bit FIRST_OP_ELEMWISE      = UNIT == UNIT_LSU;
-    localparam bit FIRST_OP_ALT_COUNTER   = UNIT == UNIT_SLD;
-    localparam bit FIRST_OP_ALWAYS_VREG   = UNIT == UNIT_SLD;
-    localparam bit SECOND_OP_ALWAYS_VREG  = 1'b0; // UNIT == UNIT_SLD;
-    localparam bit EXTRA_OP_ALWAYS_VREG   = 1'b0; // UNIT == UNIT_SLD;
+    localparam bit OP0_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_ELEM];
+    localparam bit OP1_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU];
+    localparam bit OP1_XREG               = UNITS[UNIT_MUL] | UNITS[UNIT_ALU];
+    localparam bit OP0_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
+    localparam bit OP1_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
+    localparam bit OPMASK_ELEMWISE        = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
+    localparam bit OP0_ALT_COUNTER        = UNITS[UNIT_SLD];
 
     // result count and default width
-    localparam int unsigned RES_CNT   = (UNIT == UNIT_ALU ) ? 2  : 1;
-    localparam int unsigned MAX_RES_W = (UNIT == UNIT_ELEM) ? 32 : MAX_OP_W;
+    localparam int unsigned RES_CNT       = UNITS[UNIT_ALU] ? 2 : 1;
+    localparam int unsigned MAX_RES_W     = MAX_OP_W;
 
     // result flags
-    localparam bit FIRST_RES_ALWAYS_VREG     = (UNIT != UNIT_LSU) & (UNIT != UNIT_ELEM);
-    localparam bit FIRST_RES_NARROW          = UNIT == UNIT_ALU;
-    localparam bit FIRST_RES_ALLOW_ELEMWISE  = UNIT == UNIT_LSU;
-    localparam bit FIRST_RES_ALWAYS_ELEMWISE = UNIT == UNIT_ELEM;
+    localparam bit RES0_ALWAYS_VREG       = ~UNITS[UNIT_LSU] & ~UNITS[UNIT_ALU] & ~UNITS[UNIT_ELEM];
+    localparam bit RES0_NARROW            = UNITS[UNIT_ALU];
+    localparam bit RES0_ALLOW_ELEMWISE    = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
 
     // other pipeline flags
-    localparam bit MAY_FLUSH = UNIT == UNIT_ELEM;   // the pipeline may require flushing
+    localparam bit MAY_FLUSH              = UNITS[UNIT_ELEM];   // the pipeline may require flushing
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -420,26 +416,22 @@ module vproc_pipeline_wrapper #(
 
     generate
         if (OP_CNT == 2 && RES_CNT == 1) begin
-            localparam int unsigned OP_W           [2] = '{FIRST_OP_W, MASK_OP_W};
+            localparam int unsigned OP_W           [2] = '{MAX_OP_W, MAX_OP_W/8};
             localparam int unsigned OP_STAGE       [2] = '{1, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [2] = '{0, VPORT_CNT-1};
             localparam bit [1:0]    OP_DYN_ADDR        = '0;
             localparam bit [1:0]    OP_MASK            = 2'b10;
-            localparam bit [1:0]    OP_XREG            = FIRST_OP_XREG   ? 2'b01 : '0;
-            localparam bit [1:0]    OP_NARROW          = FIRST_OP_NARROW ? 2'b01 : '0;
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [1:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 2'b10 : '0;
-            localparam bit [1:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {1'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [1:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 2'b01 : '0;
-            localparam bit [1:0]    OP_ALWAYS_VREG     = FIRST_OP_ALWAYS_VREG ? 2'b01 : '0;
+            localparam bit [1:0]    OP_XREG            = '0;
+            localparam bit [1:0]    OP_NARROW          = {1'b0, OP0_NARROW};
+            localparam bit [1:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [1:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [1:0]    OP_ALT_COUNTER     = {1'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [1] = '{MAX_RES_W};
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
             localparam bit [0:0]    RES_MASK            = '0;
-            localparam bit [0:0]    RES_XREG            = '0;
-            localparam bit [0:0]    RES_NARROW          = FIRST_RES_NARROW;
-            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = FIRST_RES_ALLOW_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_ELEMWISE = FIRST_RES_ALWAYS_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
@@ -467,16 +459,15 @@ module vproc_pipeline_wrapper #(
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -490,26 +481,22 @@ module vproc_pipeline_wrapper #(
             );
         end
         else if (OP_CNT == 3 && RES_CNT == 1) begin
-            localparam int unsigned OP_W           [3] = '{FIRST_OP_W, DFLT_OP_W, MASK_OP_W};
+            localparam int unsigned OP_W           [3] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
             localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT-1};
             localparam bit [2:0]    OP_DYN_ADDR        = '0;
             localparam bit [2:0]    OP_MASK            = 3'b100;
-            localparam bit [2:0]    OP_XREG            = FIRST_OP_XREG  ? 3'b010 : '0;
-            localparam bit [2:0]    OP_NARROW          = {1'b0, SECOND_OP_NARROW, FIRST_OP_NARROW};
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [2:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 3'b110 : '0;
-            localparam bit [2:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {2'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [2:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 3'b001 : '0;
-            localparam bit [2:0]    OP_ALWAYS_VREG     = {1'b0, SECOND_OP_ALWAYS_VREG, FIRST_OP_ALWAYS_VREG};
+            localparam bit [2:0]    OP_XREG            = {1'b0, OP1_XREG, 1'b0};
+            localparam bit [2:0]    OP_NARROW          = {1'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [2:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [2:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [2:0]    OP_ALT_COUNTER     = {2'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [1] = '{MAX_RES_W};
-            localparam bit [0:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
             localparam bit [0:0]    RES_MASK            = '0;
-            localparam bit [0:0]    RES_XREG            = '0;
-            localparam bit [0:0]    RES_NARROW          = FIRST_RES_NARROW;
-            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = FIRST_RES_ALLOW_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_ELEMWISE = FIRST_RES_ALWAYS_ELEMWISE;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
@@ -537,16 +524,15 @@ module vproc_pipeline_wrapper #(
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -560,26 +546,23 @@ module vproc_pipeline_wrapper #(
             );
         end
         else if (OP_CNT == 3 && RES_CNT == 2) begin
-            localparam int unsigned OP_W           [3] = '{FIRST_OP_W, DFLT_OP_W, MASK_OP_W};
+            localparam int unsigned OP_W           [3] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
             localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT-1};
             localparam bit [2:0]    OP_DYN_ADDR        = '0;
             localparam bit [2:0]    OP_MASK            = 3'b100;
-            localparam bit [2:0]    OP_XREG            = FIRST_OP_XREG  ? 3'b010 : '0;
-            localparam bit [2:0]    OP_NARROW          = {1'b0, SECOND_OP_NARROW, FIRST_OP_NARROW};
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [2:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 3'b110 : '0;
-            localparam bit [2:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {2'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [2:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 3'b001 : '0;
-            localparam bit [2:0]    OP_ALWAYS_VREG     = {1'b0, SECOND_OP_ALWAYS_VREG, FIRST_OP_ALWAYS_VREG};
+            localparam bit [2:0]    OP_XREG            = {1'b0, OP1_XREG, 1'b0};
+            localparam bit [2:0]    OP_NARROW          = {1'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [2:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [2:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [2:0]    OP_ALT_COUNTER     = {2'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [2] = '{MAX_RES_W, MAX_RES_W/8};
-            localparam bit [1:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [1:0]    RES_ALWAYS_VREG     = {1'b0, RES0_ALWAYS_VREG};
             localparam bit [1:0]    RES_MASK            = 2'b10;
-            localparam bit [1:0]    RES_XREG            = '0;
-            localparam bit [1:0]    RES_NARROW          = {1'b0, FIRST_RES_NARROW};
-            localparam bit [1:0]    RES_ALLOW_ELEMWISE  = {1'b0, FIRST_RES_ALLOW_ELEMWISE};
-            localparam bit [1:0]    RES_ALWAYS_ELEMWISE = {1'b0, FIRST_RES_ALWAYS_ELEMWISE};
+            localparam bit [1:0]    RES_NARROW          = {1'b0, RES0_NARROW};
+            localparam bit [1:0]    RES_ALLOW_ELEMWISE  = {1'b0, RES0_ALLOW_ELEMWISE};
+            localparam bit [1:0]    RES_ALWAYS_ELEMWISE = '0;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
@@ -607,16 +590,15 @@ module vproc_pipeline_wrapper #(
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -630,26 +612,22 @@ module vproc_pipeline_wrapper #(
             );
         end
         else if (OP_CNT == 4 && RES_CNT == 1) begin
-            localparam int unsigned OP_W           [4] = '{FIRST_OP_W, DFLT_OP_W, EXTRA_OP_W, MASK_OP_W};
+            localparam int unsigned OP_W           [4] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
             localparam int unsigned OP_STAGE       [4] = '{1, 2, UNPACK_STAGES-1, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [4] = '{0, 0, VPORT_CNT-2, VPORT_CNT-1};
             localparam bit [3:0]    OP_DYN_ADDR        = '0;
             localparam bit [3:0]    OP_MASK            = 4'b1000;
-            localparam bit [3:0]    OP_XREG            = FIRST_OP_XREG  ? 4'b0010 : '0;
-            localparam bit [3:0]    OP_NARROW          = {2'b0, SECOND_OP_NARROW, FIRST_OP_NARROW};
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [3:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 4'b1110 : '0;
-            localparam bit [3:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {3'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [3:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 4'b0001 : '0;
-            localparam bit [3:0]    OP_ALWAYS_VREG     = {1'b0, EXTRA_OP_ALWAYS_VREG, SECOND_OP_ALWAYS_VREG, FIRST_OP_ALWAYS_VREG};
+            localparam bit [3:0]    OP_XREG            = {2'b0, OP1_XREG, 1'b0};
+            localparam bit [3:0]    OP_NARROW          = {2'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [3:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, 1'b0, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [3:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [3:0]    OP_ALT_COUNTER     = {3'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [1] = '{MAX_RES_W};
-            localparam bit [0:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
             localparam bit [0:0]    RES_MASK            = '0;
-            localparam bit [0:0]    RES_XREG            = '0;
-            localparam bit [0:0]    RES_NARROW          = FIRST_RES_NARROW;
-            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = FIRST_RES_ALLOW_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_ELEMWISE = FIRST_RES_ALWAYS_ELEMWISE;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
@@ -677,16 +655,15 @@ module vproc_pipeline_wrapper #(
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -700,26 +677,23 @@ module vproc_pipeline_wrapper #(
             );
         end
         else if (OP_CNT == 5 && RES_CNT == 1) begin
-            localparam int unsigned OP_W           [5] = '{FIRST_OP_W, DFLT_OP_W, EXTRA_OP_W, MASK_OP_W, MASK_OP_W};
-            localparam int unsigned OP_STAGE       [5] = '{2, 1, UNPACK_STAGES-1, 2, UNPACK_STAGES-1};
+            localparam int unsigned OP_W           [5] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, 1, MAX_OP_W/8};
+            // TODO it appears as if fetching operands 1 and -3 could collide
+            localparam int unsigned OP_STAGE       [5] = '{2, 1, 3, 2, UNPACK_STAGES-1};
             localparam int unsigned OP_SRC         [5] = '{0, 0, VPORT_CNT-2, 0, VPORT_CNT-1};
             localparam bit [4:0]    OP_DYN_ADDR        = OP_DYN_ADDR_OFFSET ? 5'b00100 : '0;
             localparam bit [4:0]    OP_MASK            = OP_SECOND_MASK ? 5'b11000 : 5'b10000;
-            localparam bit [4:0]    OP_XREG            = FIRST_OP_XREG  ? 5'b00010 : '0;
-            localparam bit [4:0]    OP_NARROW          = {3'b0, SECOND_OP_NARROW, FIRST_OP_NARROW};
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [4:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 5'b11110 : '0;
-            localparam bit [4:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {4'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [4:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 5'b00001 : '0;
-            localparam bit [4:0]    OP_ALWAYS_VREG     = {2'b0, EXTRA_OP_ALWAYS_VREG, SECOND_OP_ALWAYS_VREG, FIRST_OP_ALWAYS_VREG};
+            localparam bit [4:0]    OP_XREG            = {3'b0, OP1_XREG, 1'b0};
+            localparam bit [4:0]    OP_NARROW          = {3'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [4:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, 2'b0, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [4:0]    OP_ALWAYS_ELEMWISE = {1'b0, OP_SECOND_MASK, 3'b0};
+            localparam bit [4:0]    OP_ALT_COUNTER     = {4'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [1] = '{MAX_RES_W};
-            localparam bit [0:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
             localparam bit [0:0]    RES_MASK            = '0;
-            localparam bit [0:0]    RES_XREG            = '0;
-            localparam bit [0:0]    RES_NARROW          = FIRST_RES_NARROW;
-            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = FIRST_RES_ALLOW_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_ELEMWISE = FIRST_RES_ALWAYS_ELEMWISE;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
@@ -747,16 +721,15 @@ module vproc_pipeline_wrapper #(
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
                 .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
