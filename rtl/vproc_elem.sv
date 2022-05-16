@@ -106,9 +106,9 @@ module vproc_elem #(
     always_comb begin
         gather_byte_idx = DONT_CARE_ZERO ? '0 : 'x;
         unique case (pipe_in_ctrl_i.eew)
-            VSEW_8:  gather_byte_idx = {24'b0                            , elem1[7 :0]       };
-            VSEW_16: gather_byte_idx = {15'b0                            , elem1[15:0], 1'b0 };
-            VSEW_32: gather_byte_idx = {elem1[31] | elem1[30] | elem1[29], elem1[28:0], 2'b00};
+            VSEW_8:  gather_byte_idx = {24'b0                            , elem2[7 :0]       };
+            VSEW_16: gather_byte_idx = {15'b0                            , elem2[15:0], 1'b0 };
+            VSEW_32: gather_byte_idx = {elem2[31] | elem2[30] | elem2[29], elem2[28:0], 2'b00};
             default: ;
         endcase
     end
@@ -202,7 +202,7 @@ module vproc_elem #(
             // second vreg; can be masked by v0
             ELEM_VRGATHER: begin
                 result_d = (pipe_in_ctrl_i.aux_count == '0) ? '0 : result_q;
-                //if (pipe_in_ctrl_i.aux_count == elem1[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
+                //if (pipe_in_ctrl_i.aux_count == elem2[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
                 if (pipe_in_ctrl_i.aux_count == gather_byte_idx[$clog2(VREG_W/8)-1:$clog2(GATHER_OP_W/8)]) begin
                     result_d       = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, gather_byte_idx[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 2)} * 8 +: 32];
                     result_d[15:0] = gather_shift_q[{{$clog2(VREG_W/GATHER_OP_W){1'b0}}, gather_byte_idx[$clog2(GATHER_OP_W/8)-1:0] & ({$clog2(GATHER_OP_W/8){1'b1}} << 1)} * 8 +: 16];

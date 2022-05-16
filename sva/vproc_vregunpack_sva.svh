@@ -19,7 +19,7 @@
     // Assert that a vreg is still in the pending reads while being fetched
     generate
         for (genvar i = 0; i < OP_CNT; i++) begin
-            if (~OP_ADDR_OFFSET_OP0[i]) begin
+            if (~OP_DYN_ADDR[i]) begin
                 assert property (
                     @(posedge clk_i)
                     op_addressing[i] |-> pending_vreg_reads_o[vreg_rd_addr_o[OP_SRC[i]]]

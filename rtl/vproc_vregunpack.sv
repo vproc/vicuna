@@ -21,7 +21,8 @@ module vproc_vregunpack
         parameter int unsigned                        OP_W    [OP_CNT]   = '{0}, // op widths
         parameter int unsigned                        OP_STAGE[OP_CNT]   = '{0}, // op load stage
         parameter int unsigned                        OP_SRC  [OP_CNT]   = '{0}, // op port index
-        parameter bit [OP_CNT-1:0]                    OP_ADDR_OFFSET_OP0 = '0,   // offset op addr
+        parameter int unsigned                        OP_DYN_ADDR_SRC    = 0,    // dyn addr src idx
+        parameter bit [OP_CNT-1:0]                    OP_DYN_ADDR        = '0,   // dynamic addr
         parameter bit [OP_CNT-1:0]                    OP_MASK            = '0,   // op is a mask
         parameter bit [OP_CNT-1:0]                    OP_XREG            = '0,   // op may be XREG
         parameter bit [OP_CNT-1:0]                    OP_NARROW          = '0,   // op may be narrow
@@ -233,25 +234,28 @@ module vproc_vregunpack
             assign op_addressing[i] = stage_valid[ADDR_STAGE] &
                                       stage_state[ADDR_STAGE].op_load[i] &
                                       (~OP_XREG[i] | stage_state[ADDR_STAGE].op_flags[i].vreg);
-            if (OP_ADDR_OFFSET_OP0[i]) begin
-                // get address offset from operand 0
-                logic [OP_W[0]-1:0] op0_data;
-                assign op0_data = (OP_STAGE[0] + 1 == ADDR_STAGE) ? op_data[0][OP_W[0]-1:0] :
-                                            stage_state[ADDR_STAGE].op_data[0][OP_W[0]-1:0];
-                logic [31:0] op0_addr_offset;
+            if (OP_DYN_ADDR[i]) begin
+                // get dynamic address offset from operand with index OP_DYN_ADDR_SRC
+                logic [OP_W[OP_DYN_ADDR_SRC]-1:0] op_dyn_addr_data;
+                assign op_dyn_addr_data = (OP_STAGE[OP_DYN_ADDR_SRC] + 1 == ADDR_STAGE) ? op_data[
+                                              OP_DYN_ADDR_SRC][OP_W[OP_DYN_ADDR_SRC]-1:0
+                                          ] : stage_state[ADDR_STAGE].op_data[
+                                              OP_DYN_ADDR_SRC][OP_W[OP_DYN_ADDR_SRC]-1:0
+                                          ];
+                logic [31:0] op_dyn_addr_offset;
                 always_comb begin
-                    op0_addr_offset = DONT_CARE_ZERO ? '0 : 'x;
+                    op_dyn_addr_offset = DONT_CARE_ZERO ? '0 : 'x;
                     unique case (stage_state[ADDR_STAGE].eew)
-                        VSEW_8:  op0_addr_offset = {24'b0, op0_data[7 :0]      };
-                        VSEW_16: op0_addr_offset = {15'b0, op0_data[15:0], 1'b0};
-                        VSEW_32: op0_addr_offset = {       op0_data[29:0], 2'b0};
+                        VSEW_8:  op_dyn_addr_offset = {24'b0, op_dyn_addr_data[7 :0]      };
+                        VSEW_16: op_dyn_addr_offset = {15'b0, op_dyn_addr_data[15:0], 1'b0};
+                        VSEW_32: op_dyn_addr_offset = {       op_dyn_addr_data[29:0], 2'b0};
                         default: ;
                     endcase
                 end
                 // the address offset may be used to address up to 1/4 of the available vector
                 // register space and is OR-ed with the specified base address
                 assign op_vreg_addr[i] = stage_state[ADDR_STAGE].op_vaddr[i] | {2'b0,
-                    op0_addr_offset[$clog2(VPORT_W[OP_SRC[i]]/8 ) +: VADDR_W[OP_SRC[i]]-2],
+                    op_dyn_addr_offset[$clog2(VPORT_W[OP_SRC[i]]/8 ) +: VADDR_W[OP_SRC[i]]-2],
                     {(MAX_VADDR_W-VADDR_W[OP_SRC[i]]){1'b0}}
                 };
             end else begin
@@ -506,7 +510,7 @@ module vproc_vregunpack
                 always_comb begin
                     pend_vreg_reads[i][j] = '0;
                     for (int k = 0; k < OP_CNT; k++) begin
-                        if ((j == OP_SRC[k]) & (i <= OP_STAGE[k]) & ~OP_ADDR_OFFSET_OP0[k]) begin
+                        if ((j == OP_SRC[k]) & (i <= OP_STAGE[k]) & ~OP_DYN_ADDR[k]) begin
                             if (stage_valid[i] & stage_state[i].op_load [k] & (
                                 ~OP_XREG[k]    | stage_state[i].op_flags[k].vreg)
                             ) begin

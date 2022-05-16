@@ -21,13 +21,13 @@ module vproc_pipeline #(
         parameter int unsigned          OP_W    [OP_CNT   ] = '{0}, // op widths
         parameter int unsigned          OP_STAGE[OP_CNT   ] = '{0}, // op load stage
         parameter int unsigned          OP_SRC  [OP_CNT   ] = '{0}, // op port index
-        parameter bit [OP_CNT-1:0]      OP_ADDR_OFFSET_OP0  = '0,   // offset op addr
+        parameter int unsigned          OP_DYN_ADDR_SRC     = 0,    // dyn addr src idx
+        parameter bit [OP_CNT-1:0]      OP_DYN_ADDR         = '0,   // dynamic addr
         parameter bit [OP_CNT-1:0]      OP_MASK             = '0,   // op is a mask
         parameter bit [OP_CNT-1:0]      OP_XREG             = '0,   // op may be XREG
         parameter bit [OP_CNT-1:0]      OP_NARROW           = '0,   // op may be narrow
         parameter bit [OP_CNT-1:0]      OP_ALLOW_ELEMWISE   = '0,   // op may be 1 elem
         parameter bit [OP_CNT-1:0]      OP_ALWAYS_ELEMWISE  = '0,   // op is 1 elem
-        parameter bit [OP_CNT-1:0]      OP_HOLD_FLAG        = '0,   // allow hold of op
         parameter bit [OP_CNT-1:0]      OP_ALT_COUNTER      = '0,
         parameter bit [OP_CNT-1:0]      OP_ALWAYS_VREG      = '0,
         parameter int unsigned          UNPACK_STAGES       = 0,
@@ -213,7 +213,7 @@ module vproc_pipeline #(
     always_comb begin
         aux_count_used = '0;
         for (int i = 0; i < OP_CNT; i++) begin
-            if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
+            if (OP_DYN_ADDR[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
                 aux_count_used = 1'b1;
             end
         end
@@ -232,7 +232,7 @@ module vproc_pipeline #(
             state_next.count_inc               = pipe_in_state_i.count_inc;
             state_next.aux_count = '1;
             for (int i = 0; i < OP_CNT; i++) begin
-                if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | pipe_in_state_i.op_flags[i].vreg)) begin
+                if (OP_DYN_ADDR[i] & (OP_ALWAYS_VREG[i] | pipe_in_state_i.op_flags[i].vreg)) begin
                     state_next.aux_count = '0;
                 end
             end
@@ -261,7 +261,7 @@ module vproc_pipeline #(
                 state_next.aux_count = state_q.aux_count + AUX_COUNTER_W'(1);
             end
             for (int i = 0; i < OP_CNT; i++) begin
-                if ((OP_ADDR_OFFSET_OP0 != '0) & ~OP_ADDR_OFFSET_OP0[i]) begin
+                if ((OP_DYN_ADDR != '0) & ~OP_DYN_ADDR[i]) begin
                     state_next.op_flags[i].hold = state_q.aux_count != '1;
                 end
             end
@@ -284,7 +284,7 @@ module vproc_pipeline #(
     always_comb begin
         count_next_inc     = state_q.count;
         alt_count_next_inc = state_q.alt_count.val;
-        if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
+        if ((OP_DYN_ADDR == '0) | (state_q.aux_count == '1)) begin
             unique case (state_q.count_inc)
                 COUNT_INC_1: begin
                     count_next_inc.val     = state_q.count.val     + COUNTER_W'(1);
@@ -357,7 +357,7 @@ module vproc_pipeline #(
         op_load_next  = '0;
         op_shift_next = '0;
         for (int i = 0; i < OP_CNT; i++) begin
-            if (OP_ADDR_OFFSET_OP0[i]) begin
+            if (OP_DYN_ADDR[i]) begin
                 if (state_next.aux_count == '0) begin
                     op_load_next[i] = OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg;
                 end
@@ -454,7 +454,7 @@ module vproc_pipeline #(
         for (int i = 0; i < OP_CNT; i++) begin
             op_load [i]       = state_q.op_load [i];
             op_flags[i].shift = state_q.op_flags[i].shift;
-            if (state_q.op_load[i] & ~OP_ADDR_OFFSET_OP0[i]) begin
+            if (state_q.op_load[i] & ~OP_DYN_ADDR[i]) begin
                 if (OP_NARROW[i] & state_q.op_flags[i].narrow) begin
                     op_vaddr[i][1:0] = state_q.op_vaddr[i][1:0] | (OP_ALT_COUNTER[i] ? state_q.alt_count.part.mul[2:1] : state_q.count.part.mul[2:1]);
                 end else begin
@@ -503,13 +503,13 @@ module vproc_pipeline #(
     end
     always_comb begin
         op_addr_offset_pend_reads = '0;
-        if (OP_ADDR_OFFSET_OP0 != '0) begin
+        if (OP_DYN_ADDR != '0) begin
             op_addr_offset_pend_reads = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_q.emul)
-                EMUL_1: op_addr_offset_pend_reads = 32'h01 <<  state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)];
-                EMUL_2: op_addr_offset_pend_reads = 32'h03 << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:1], 1'b0};
-                EMUL_4: op_addr_offset_pend_reads = 32'h0F << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:2], 2'b0};
-                EMUL_8: op_addr_offset_pend_reads = 32'hFF << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:3], 3'b0};
+                EMUL_1: op_addr_offset_pend_reads = 32'h01 <<  state_q.op_vaddr[$clog2(OP_DYN_ADDR)];
+                EMUL_2: op_addr_offset_pend_reads = 32'h03 << {state_q.op_vaddr[$clog2(OP_DYN_ADDR)][4:1], 1'b0};
+                EMUL_4: op_addr_offset_pend_reads = 32'h0F << {state_q.op_vaddr[$clog2(OP_DYN_ADDR)][4:2], 2'b0};
+                EMUL_8: op_addr_offset_pend_reads = 32'hFF << {state_q.op_vaddr[$clog2(OP_DYN_ADDR)][4:3], 3'b0};
                 default: ;
             endcase
         end
@@ -529,7 +529,7 @@ module vproc_pipeline #(
         for (genvar i = 0; i < OP_CNT; i++) begin
             always_comb begin
                 op_pend_reads[i] = '0;
-                if (OP_ADDR_OFFSET_OP0[i]) begin
+                if (OP_DYN_ADDR[i]) begin
                     if (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) begin
                         op_pend_reads[i] = op_addr_offset_pend_reads_q;
                     end
@@ -583,7 +583,7 @@ module vproc_pipeline #(
         for (int i = 0; i < OP_CNT; i++) begin
             op_pend_reads_all |= op_pend_reads[i];
             if (op_load[i]) begin
-                if (OP_ADDR_OFFSET_OP0[i]) begin
+                if (OP_DYN_ADDR[i]) begin
                     op_pend_reads_all |= op_addr_offset_pend_reads;
                 end else begin
                     op_pend_reads_all[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : op_vaddr[i]] = 1'b1;
@@ -605,7 +605,7 @@ module vproc_pipeline #(
     always_comb begin
         state_stall = '0;
         for (int i = 0; i < OP_CNT; i++) begin
-            if (OP_ADDR_OFFSET_OP0[i]) begin
+            if (OP_DYN_ADDR[i]) begin
                 state_stall |= op_load[i] & ((op_addr_offset_pend_reads & state_q.pend_vreg_wr) != '0);
             end else begin
                 state_stall |= op_load[i] & state_q.pend_vreg_wr[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : op_vaddr[i]];
@@ -728,6 +728,10 @@ module vproc_pipeline #(
     ///////////////////////////////////////////////////////////////////////////
     // REGISTER READ/WRITE AND UNIT INSTANTIATION
 
+    // source operand of dynamic address requires hold
+    // TODO: does the mask operand (index -1) also require holding?
+    localparam bit [OP_CNT-1:0] OP_HOLD_FLAG = (OP_DYN_ADDR != '0) ? (OP_CNT'(1) << OP_DYN_ADDR_SRC) : '0;
+
     logic [VPORT_CNT-1:0][4:0]          unpack_vreg_addr;
     logic [VPORT_CNT-1:0][VREG_W  -1:0] unpack_vreg_data;
     logic                               unpack_out_valid;
@@ -747,7 +751,8 @@ module vproc_pipeline #(
         .OP_W                 ( OP_W                         ),
         .OP_STAGE             ( OP_STAGE                     ),
         .OP_SRC               ( OP_SRC                       ),
-        .OP_ADDR_OFFSET_OP0   ( OP_ADDR_OFFSET_OP0           ),
+        .OP_DYN_ADDR_SRC      ( OP_DYN_ADDR_SRC              ),
+        .OP_DYN_ADDR          ( OP_DYN_ADDR                  ),
         .OP_MASK              ( OP_MASK                      ),
         .OP_XREG              ( OP_XREG                      ),
         .OP_NARROW            ( OP_NARROW                    ),
