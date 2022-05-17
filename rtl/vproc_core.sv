@@ -792,19 +792,17 @@ module vproc_core #(
 
     generate
         for (genvar i = 0; i < PIPE_CNT; i++) begin
-            localparam int unsigned VPORT_W[VPORT_CNT[i] + 1] = '{default: VREG_W};
-            localparam int unsigned VADDR_W[VPORT_CNT[i] + 1] = '{default: 5};
-            localparam bit [VPORT_CNT[i]:0] VPORT_ADDR_ZERO   = {1'b1, {VPORT_CNT[i]{1'b0}}};
-            localparam bit [VPORT_CNT[i]:0] VPORT_BUFFER      = {{VPORT_CNT[i]{1'b0}}, 1'b1};
+            localparam int unsigned VPORT_W[VPORT_CNT[i]] = '{default: VREG_W};
+            localparam int unsigned VADDR_W[VPORT_CNT[i]] = '{default: 5};
+            localparam bit [VPORT_CNT[i]-1:0] VPORT_BUFFER = {{(PIPE_VPORT_CNT[i]-1){1'b0}}, 1'b1};
 
-            logic [VPORT_CNT[i]:0][4       :0] vreg_rd_addr;
-            logic [VPORT_CNT[i]:0][VREG_W-1:0] vreg_rd_data;
+            logic [VPORT_CNT[i]-1:0][4       :0] vreg_rd_addr;
+            logic [VPORT_CNT[i]-1:0][VREG_W-1:0] vreg_rd_data;
             always_comb begin
                 vregfile_rd_addr[VPORT_OFFSET[i]+VPORT_CNT[i]-1:VPORT_OFFSET[i]] = vreg_rd_addr[VPORT_CNT[i]-1:0];
                 for (int j = 0; j < VPORT_CNT[i]; j++) begin
                     vreg_rd_data[j] = vregfile_rd_data[VPORT_OFFSET[i] + j];
                 end
-                vreg_rd_data[VPORT_CNT[i]] = vreg_mask;
             end
 
             // LSU-related signals
@@ -832,12 +830,12 @@ module vproc_core #(
                 .UNITS                    ( PIPE_UNITS[i]              ),
                 .MAX_VPORT_W              ( VREG_W                     ),
                 .MAX_VADDR_W              ( 5                          ),
-                .VPORT_CNT                ( VPORT_CNT[i] + 1           ),
+                .VPORT_CNT                ( VPORT_CNT[i]               ),
                 .VPORT_W                  ( VPORT_W                    ),
                 .VADDR_W                  ( VADDR_W                    ),
-                .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO            ),
                 .VPORT_BUFFER             ( VPORT_BUFFER               ),
                 .MAX_OP_W                 ( MAX_OP_W[i]                ),
+                .VPORT_V0                 ( 1'b1                       ),
                 .MUL_TYPE                 ( MUL_TYPE                   ),
                 .ADDR_ALIGNED             ( ADDR_ALIGNED               ),
                 .MAX_WR_ATTEMPTS          ( MAX_WR_ATTEMPTS[i]         ),
@@ -860,6 +858,7 @@ module vproc_core #(
                 .instr_done_id_o          ( instr_complete_id   [i]    ),
                 .vreg_rd_addr_o           ( vreg_rd_addr               ),
                 .vreg_rd_data_i           ( vreg_rd_data               ),
+                .vreg_rd_v0_i             ( vreg_mask                  ),
                 .vreg_wr_valid_o          ( pipe_vreg_wr_valid[i]      ),
                 .vreg_wr_ready_i          ( pipe_vreg_wr_ready[i]      ),
                 .vreg_wr_addr_o           ( pipe_vreg_wr_addr [i]      ),

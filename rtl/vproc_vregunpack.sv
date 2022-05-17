@@ -12,8 +12,8 @@ module vproc_vregunpack
         parameter int unsigned                        VPORT_CNT          = 1,    // port count
         parameter int unsigned                        VPORT_W[VPORT_CNT] = '{0}, // port widths
         parameter int unsigned                        VADDR_W[VPORT_CNT] = '{5}, // address widths
-        parameter bit [VPORT_CNT-1:0]                 VPORT_ADDR_ZERO    = '0,   // set addr to 0
         parameter bit [VPORT_CNT-1:0]                 VPORT_BUFFER       = '0,   // buffer port
+        parameter int unsigned                        VPORT_V0_W         = 128,  // width of v0 port
 
         // vector register operands configuration
         parameter int unsigned                        MAX_OP_W           = 64,   // max op width
@@ -42,6 +42,7 @@ module vproc_vregunpack
         // vector register file read ports
         output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
         input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
+        input  logic                [VPORT_V0_W -1:0] vreg_rd_v0_i,         // vreg v0 read data
 
         // pipeline in
         input  logic                                  pipe_in_valid_i,
@@ -89,10 +90,6 @@ module vproc_vregunpack
             if (OP_STAGE[i] + 1 > UNPACK_STAGES) begin
                 $fatal(1, "Operand %d load stage %d is invalid (unpack has %d stages)",
                           i, OP_STAGE[i], UNPACK_STAGES);
-            end
-            if (OP_SRC[i] >= VPORT_CNT) begin
-                $fatal(1, "Operand %d source index %d is invalid (%d vreg read ports available)",
-                          i, OP_SRC[i], VPORT_CNT);
             end
         end
     endgenerate
@@ -229,12 +226,17 @@ module vproc_vregunpack
     logic [OP_CNT-1:0][MAX_VADDR_W-1:0] op_vreg_addr;
     generate
         for (genvar i = 0; i < OP_CNT; i++) begin
-            localparam int unsigned ADDR_STAGE = VPORT_BUFFER[OP_SRC[i]] ? OP_STAGE[i] - 1 :
-                                                                           OP_STAGE[i];
+            localparam int unsigned ADDR_STAGE = (OP_SRC[i] < VPORT_CNT) ? (
+                VPORT_BUFFER[OP_SRC[i]] ? OP_STAGE[i] - 1 : OP_STAGE[i]
+            ) : OP_STAGE[i];
             assign op_addressing[i] = stage_valid[ADDR_STAGE] &
                                       stage_state[ADDR_STAGE].op_load[i] &
                                       (~OP_XREG[i] | stage_state[ADDR_STAGE].op_flags[i].vreg);
             if (OP_DYN_ADDR[i]) begin
+                // assign legal values for v0 operands to avoid parser errors
+                localparam int unsigned OP_VADDR_W = (OP_SRC[i]<VPORT_CNT) ? VADDR_W[OP_SRC[i]] : 5;
+                localparam int unsigned OP_VPORT_W = (OP_SRC[i]<VPORT_CNT) ? VPORT_W[OP_SRC[i]] : 8;
+
                 // get dynamic address offset from operand with index OP_DYN_ADDR_SRC
                 logic [OP_W[OP_DYN_ADDR_SRC]-1:0] op_dyn_addr_data;
                 assign op_dyn_addr_data = (OP_STAGE[OP_DYN_ADDR_SRC] + 1 == ADDR_STAGE) ? op_data[
@@ -255,8 +257,8 @@ module vproc_vregunpack
                 // the address offset may be used to address up to 1/4 of the available vector
                 // register space and is OR-ed with the specified base address
                 assign op_vreg_addr[i] = stage_state[ADDR_STAGE].op_vaddr[i] | {2'b0,
-                    op_dyn_addr_offset[$clog2(VPORT_W[OP_SRC[i]]/8 ) +: VADDR_W[OP_SRC[i]]-2],
-                    {(MAX_VADDR_W-VADDR_W[OP_SRC[i]]){1'b0}}
+                    op_dyn_addr_offset[$clog2(OP_VPORT_W/8 ) +: OP_VADDR_W-2],
+                    {(MAX_VADDR_W-OP_VADDR_W){1'b0}}
                 };
             end else begin
                 assign op_vreg_addr[i] = stage_state[ADDR_STAGE].op_vaddr[i];
@@ -268,17 +270,13 @@ module vproc_vregunpack
     generate
         for (genvar i = 0; i < VPORT_CNT; i++) begin
             always_comb begin
-                if (VPORT_ADDR_ZERO[i]) begin
-                    vreg_rd_addr_o[i] = '0;
-                end else begin
-                    vreg_rd_addr_o[i] = DONT_CARE_ZERO ? '0 : 'x;
-                    for (int j = 0; j < OP_CNT; j++) begin
-                        if ((i == OP_SRC[j]) & op_addressing[j]) begin
-                            vreg_rd_addr_o[i] = {
-                                op_vreg_addr[j][MAX_VADDR_W-1:MAX_VADDR_W-VADDR_W[i]],
-                                {(MAX_VADDR_W-VADDR_W[i]){1'b0}}
-                            };
-                        end
+                vreg_rd_addr_o[i] = DONT_CARE_ZERO ? '0 : 'x;
+                for (int j = 0; j < OP_CNT; j++) begin
+                    if ((i == OP_SRC[j]) & op_addressing[j]) begin
+                        vreg_rd_addr_o[i] = {
+                            op_vreg_addr[j][MAX_VADDR_W-1:MAX_VADDR_W-VADDR_W[i]],
+                            {(MAX_VADDR_W-VADDR_W[i]){1'b0}}
+                        };
                     end
                 end
             end
@@ -305,8 +303,9 @@ module vproc_vregunpack
     logic [OP_CNT-1:0][MAX_VPORT_W-1:0] op_vreg_data;
     always_comb begin
         for (int i = 0; i < OP_CNT; i++) begin
-            op_vreg_data[i] = VPORT_BUFFER[OP_SRC[i]] ? vreg_buffer_q [OP_SRC[i]] :
-                                                        vreg_rd_data_i[OP_SRC[i]];
+            op_vreg_data[i] = (OP_SRC[i] < VPORT_CNT) ? (
+                VPORT_BUFFER[OP_SRC[i]] ? vreg_buffer_q [OP_SRC[i]] : vreg_rd_data_i[OP_SRC[i]]
+            ) : MAX_VPORT_W'(vreg_rd_v0_i);
         end
     end
 
@@ -390,6 +389,8 @@ module vproc_vregunpack
                 assign op_default = op_buffer[i][OP_W[i]-1:0];
             end
 
+            localparam int unsigned OP_VPORT_W = (OP_SRC[i] < VPORT_CNT) ? VPORT_W[OP_SRC[i]] :
+                                                                           VPORT_V0_W;
             always_comb begin
                 // by default, retain current value for upper part and assign default value for
                 // lower part
@@ -399,13 +400,11 @@ module vproc_vregunpack
                 if ((~OP_MASK[i] & ~OP_NARROW[i] & ~OP_ALLOW_ELEMWISE[i] & ~OP_ALWAYS_ELEMWISE[i]) |
                     op_load_flags[i].shift
                 ) begin
-                    op_buffer_next[i][VPORT_W[OP_SRC[i]]-OP_W[i]-1:0      ] =
-                         op_buffer[i][VPORT_W[OP_SRC[i]]        -1:OP_W[i]];
+                    op_buffer_next[i][OP_VPORT_W-OP_W[i]-1:0] = op_buffer[i][OP_VPORT_W-1:OP_W[i]];
                 end
                 // load signal overrides all others and moves vreg value into buffer
                 if (op_load[i]) begin
-                    op_buffer_next[i][VPORT_W[OP_SRC[i]]-1:0] =
-                      op_vreg_data[i][VPORT_W[OP_SRC[i]]-1:0];
+                    op_buffer_next[i][OP_VPORT_W-1:0] = op_vreg_data[i][OP_VPORT_W-1:0];
                 end
             end
         end
@@ -474,7 +473,7 @@ module vproc_vregunpack
                             default: ;
                         endcase
                     end
-                    // fill operand elements with lower bits of XREG value if this operand is no vreg
+                    // fill operand elements with lower bits of XREG value if operand is no vreg
                     if (OP_XREG[i] & ~op_extract_flags[i].vreg) begin
                         op_data[i] = DONT_CARE_ZERO ? '0 : 'x;
                         unique case (op_extract_eew[i])
@@ -514,15 +513,10 @@ module vproc_vregunpack
                             if (stage_valid[i] & stage_state[i].op_load [k] & (
                                 ~OP_XREG[k]    | stage_state[i].op_flags[k].vreg)
                             ) begin
-                                if (VPORT_ADDR_ZERO[j]) begin
-                                    pend_vreg_reads[i][j][0   +: (1 << (MAX_VADDR_W-VADDR_W[j]))
-                                    ] = '1;
-                                end else begin
-                                    pend_vreg_reads[i][j][
-                                        (stage_state[i].op_vaddr[k] << (MAX_VADDR_W-VADDR_W[j])) +:
-                                                                 (1 << (MAX_VADDR_W-VADDR_W[j]))
-                                    ] = '1;
-                                end
+                                pend_vreg_reads[i][j][
+                                    (stage_state[i].op_vaddr[k] << (MAX_VADDR_W-VADDR_W[j])) +:
+                                                             (1 << (MAX_VADDR_W-VADDR_W[j]))
+                                ] = '1;
                             end
                         end
                     end

@@ -14,7 +14,6 @@ module vproc_pipeline #(
         parameter int unsigned          VPORT_CNT           = 1,
         parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
         parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
-        parameter bit [VPORT_CNT-1:0]   VPORT_ADDR_ZERO     = '0,   // set addr to 0
         parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER        = '0,   // buffer port
         parameter int unsigned          MAX_OP_W            = 64,
         parameter int unsigned          OP_CNT              = 1,
@@ -68,6 +67,7 @@ module vproc_pipeline #(
         // connections to register file
         output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
         input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
+        input  logic                [VREG_W     -1:0] vreg_rd_v0_i,         // vreg v0 read data
 
         output logic                    vreg_wr_valid_o,
         input  logic                    vreg_wr_ready_i,
@@ -535,7 +535,7 @@ module vproc_pipeline #(
                 end
                 else if (OP_MASK[i]) begin
                     if ((OP_ALT_COUNTER != '0) & (OP_ALT_COUNTER[i] ? state_q.alt_count.part.sign : state_q.count.part.sign) & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
-                        op_pend_reads[i] = VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : (32'b1 << state_q.op_vaddr[i]);
+                        op_pend_reads[i] = (OP_SRC[i] >= VPORT_CNT) ? '0 : (32'b1 << state_q.op_vaddr[i]);
                     end
                 end
                 // TODO guard with VPORT_ADDR_ZERO[OP_SRC[i]]
@@ -585,7 +585,7 @@ module vproc_pipeline #(
                 if (OP_DYN_ADDR[i]) begin
                     op_pend_reads_all |= op_addr_offset_pend_reads;
                 end else begin
-                    op_pend_reads_all[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : op_vaddr[i]] = 1'b1;
+                    op_pend_reads_all[(OP_SRC[i] >= VPORT_CNT) ? '0 : op_vaddr[i]] = 1'b1;
                 end
             end
         end
@@ -607,7 +607,7 @@ module vproc_pipeline #(
             if (OP_DYN_ADDR[i]) begin
                 state_stall |= op_load[i] & ((op_addr_offset_pend_reads & state_q.pend_vreg_wr) != '0);
             end else begin
-                state_stall |= op_load[i] & state_q.pend_vreg_wr[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : op_vaddr[i]];
+                state_stall |= op_load[i] & state_q.pend_vreg_wr[(OP_SRC[i] >= VPORT_CNT) ? '0 : op_vaddr[i]];
             end
         end
     end
@@ -743,8 +743,8 @@ module vproc_pipeline #(
         .VPORT_CNT            ( VPORT_CNT                    ),
         .VPORT_W              ( VPORT_W                      ),
         .VADDR_W              ( VADDR_W                      ),
-        .VPORT_ADDR_ZERO      ( VPORT_ADDR_ZERO              ),
         .VPORT_BUFFER         ( VPORT_BUFFER                 ),
+        .VPORT_V0_W           ( VREG_W                       ),
         .MAX_OP_W             ( MAX_OP_W                     ),
         .OP_CNT               ( OP_CNT                       ),
         .OP_W                 ( OP_W                         ),
@@ -768,6 +768,7 @@ module vproc_pipeline #(
         .sync_rst_ni          ( sync_rst_ni                  ),
         .vreg_rd_addr_o       ( vreg_rd_addr_o               ),
         .vreg_rd_data_i       ( vreg_rd_data_i               ),
+        .vreg_rd_v0_i         ( vreg_rd_v0_i                 ),
         .pipe_in_valid_i      ( state_valid_q & ~state_stall ),
         .pipe_in_ready_o      ( unpack_ready                 ),
         .pipe_in_ctrl_i       ( unpack_ctrl                  ),

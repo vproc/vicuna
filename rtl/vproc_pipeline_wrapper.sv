@@ -14,8 +14,8 @@ module vproc_pipeline_wrapper #(
         parameter int unsigned          VPORT_CNT           = 1,
         parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
         parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
-        parameter bit [VPORT_CNT-1:0]   VPORT_ADDR_ZERO     = '0,   // set addr to 0
         parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER        = '0,   // buffer port
+        parameter bit                   VPORT_V0            = '0,   // use dedicated v0 read port
         parameter int unsigned          MAX_OP_W            = 64,   // operand width in bits
         parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
         parameter bit                   ADDR_ALIGNED        = 1'b1, // base address is aligned to VMEM_W
@@ -44,6 +44,7 @@ module vproc_pipeline_wrapper #(
 
         output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
         input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
+        input  logic                [VREG_W     -1:0] vreg_rd_v0_i,         // vreg v0 read data
 
         output logic                    vreg_wr_valid_o,
         input  logic                    vreg_wr_ready_i,
@@ -438,7 +439,7 @@ module vproc_pipeline_wrapper #(
         if (OP_CNT == 2 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [2] = '{MAX_OP_W, MAX_OP_W/8};
             localparam int unsigned OP_STAGE       [2] = '{1, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [2] = '{0, VPORT_CNT-1};
+            localparam int unsigned OP_SRC         [2] = '{0, VPORT_CNT};
             localparam bit [1:0]    OP_DYN_ADDR        = '0;
             localparam bit [1:0]    OP_MASK            = 2'b10;
             localparam bit [1:0]    OP_XREG            = '0;
@@ -464,7 +465,6 @@ module vproc_pipeline_wrapper #(
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
@@ -503,7 +503,7 @@ module vproc_pipeline_wrapper #(
         else if (OP_CNT == 3 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [3] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
             localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT-1};
+            localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT};
             localparam bit [2:0]    OP_DYN_ADDR        = '0;
             localparam bit [2:0]    OP_MASK            = 3'b100;
             localparam bit [2:0]    OP_XREG            = {1'b0, OP1_XREG, 1'b0};
@@ -529,7 +529,6 @@ module vproc_pipeline_wrapper #(
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
@@ -568,7 +567,7 @@ module vproc_pipeline_wrapper #(
         else if (OP_CNT == 3 && RES_CNT == 2) begin
             localparam int unsigned OP_W           [3] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
             localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT-1};
+            localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT};
             localparam bit [2:0]    OP_DYN_ADDR        = '0;
             localparam bit [2:0]    OP_MASK            = 3'b100;
             localparam bit [2:0]    OP_XREG            = {1'b0, OP1_XREG, 1'b0};
@@ -595,7 +594,6 @@ module vproc_pipeline_wrapper #(
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
@@ -634,7 +632,7 @@ module vproc_pipeline_wrapper #(
         else if (OP_CNT == 4 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [4] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
             localparam int unsigned OP_STAGE       [4] = '{1, 2, UNPACK_STAGES-1, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [4] = '{0, 0, VPORT_CNT-2, VPORT_CNT-1};
+            localparam int unsigned OP_SRC         [4] = '{0, 0, VPORT_CNT-1, VPORT_CNT};
             localparam bit [3:0]    OP_DYN_ADDR        = '0;
             localparam bit [3:0]    OP_MASK            = 4'b1000;
             localparam bit [3:0]    OP_XREG            = {2'b0, OP1_XREG, 1'b0};
@@ -660,7 +658,6 @@ module vproc_pipeline_wrapper #(
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
@@ -700,7 +697,7 @@ module vproc_pipeline_wrapper #(
             localparam int unsigned OP_W           [5] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, 1, MAX_OP_W/8};
             // TODO it appears as if fetching operands 1 and -3 could collide
             localparam int unsigned OP_STAGE       [5] = '{2, 1, 3, 2, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [5] = '{0, 0, VPORT_CNT-2, 0, VPORT_CNT-1};
+            localparam int unsigned OP_SRC         [5] = '{0, 0, VPORT_CNT-1, 0, VPORT_CNT};
             localparam bit [4:0]    OP_DYN_ADDR        = OP_DYN_ADDR_OFFSET ? 5'b00100 : '0;
             localparam bit [4:0]    OP_MASK            = OP_SECOND_MASK ? 5'b11000 : 5'b10000;
             localparam bit [4:0]    OP_XREG            = {3'b0, OP1_XREG, 1'b0};
@@ -726,7 +723,6 @@ module vproc_pipeline_wrapper #(
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
