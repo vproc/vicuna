@@ -794,10 +794,10 @@ module vproc_core #(
         for (genvar i = 0; i < PIPE_CNT; i++) begin
             localparam int unsigned VPORT_W[VPORT_CNT[i]] = '{default: VREG_W};
             localparam int unsigned VADDR_W[VPORT_CNT[i]] = '{default: 5};
-            localparam bit [VPORT_CNT[i]-1:0] VPORT_BUFFER = {{(PIPE_VPORT_CNT[i]-1){1'b0}}, 1'b1};
 
             logic [VPORT_CNT[i]-1:0][4       :0] vreg_rd_addr;
             logic [VPORT_CNT[i]-1:0][VREG_W-1:0] vreg_rd_data;
+            localparam bit [VPORT_CNT[i]-1:0] VPORT_BUFFER = {{(VPORT_CNT[i]-1){1'b0}}, 1'b1};
             always_comb begin
                 vregfile_rd_addr[VPORT_OFFSET[i]+VPORT_CNT[i]-1:VPORT_OFFSET[i]] = vreg_rd_addr[VPORT_CNT[i]-1:0];
                 for (int j = 0; j < VPORT_CNT[i]; j++) begin
