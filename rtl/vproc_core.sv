@@ -59,7 +59,6 @@ module vproc_core #(
                   "The current value of %d is invalid.", VREG_W);
     end
 
-    localparam int unsigned VMSK_W = VREG_W / 8;   // single register mask size
 
     // The current vector length (VL) actually counts bytes instead of elements.
     // Also, the vector lenght is actually one more element than what VL suggests;
@@ -690,12 +689,12 @@ module vproc_core #(
     // REGISTER FILE AND EXECUTION UNITS
 
     // register file:
-    logic [1:0]             vregfile_wr_en_q,   vregfile_wr_en_d;
-    logic [1:0][4:0]        vregfile_wr_addr_q, vregfile_wr_addr_d;
-    logic [1:0][VREG_W-1:0] vregfile_wr_data_q, vregfile_wr_data_d;
-    logic [1:0][VMSK_W-1:0] vregfile_wr_mask_q, vregfile_wr_mask_d;
-    logic [6:0][4:0]        vregfile_rd_addr;
-    logic [6:0][VREG_W-1:0] vregfile_rd_data;
+    logic [1:0]               vregfile_wr_en_q,   vregfile_wr_en_d;
+    logic [1:0][4:0]          vregfile_wr_addr_q, vregfile_wr_addr_d;
+    logic [1:0][VREG_W  -1:0] vregfile_wr_data_q, vregfile_wr_data_d;
+    logic [1:0][VREG_W/8-1:0] vregfile_wr_mask_q, vregfile_wr_mask_d;
+    logic [6:0][4:0]          vregfile_rd_addr;
+    logic [6:0][VREG_W  -1:0] vregfile_rd_data;
     vproc_vregfile #(
         .VREG_W       ( VREG_W             ),
         .PORT_W       ( VREG_W             ),
