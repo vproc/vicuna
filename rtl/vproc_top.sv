@@ -400,43 +400,68 @@ module vproc_top #(
     logic [VMEM_W/8-1:0] vdata_be;
     logic [VMEM_W-1:0]   vdata_wdata;
 
+    localparam int unsigned VPORT_RD_CNT               = 7;
+    localparam int unsigned VPORT_RD_W  [VPORT_RD_CNT] = '{default: VREG_W};
+    localparam int unsigned VPORT_WR_CNT               = 2;
+    localparam int unsigned VPORT_WR_W  [VPORT_WR_CNT] = '{default: VREG_W};
+
+    localparam int unsigned PIPE_CNT                                  = 5;
+    localparam bit [PIPE_CNT-1:0][vproc_pkg::UNIT_CNT-1:0] PIPE_UNITS = '{
+        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_ELEM,
+        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_SLD,
+        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_MUL,
+        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_ALU,
+        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_LSU
+    };
+    localparam int unsigned PIPE_MAX_OP_W    [PIPE_CNT] = '{VMEM_W, VALU_W, VMUL_W, VSLD_W, 32};
+    localparam int unsigned PIPE_VPORT_CNT   [PIPE_CNT] = '{1     , 1     , 2     , 1     , 1 };
+    localparam int unsigned PIPE_VPORT_OFFSET[PIPE_CNT] = '{1     , 2     , 3     , 5     , 6 };
+    localparam int unsigned PIPE_VPORT_WR    [PIPE_CNT] = '{0     , 0     , 1     , 1     , 0 };
+
     vproc_core #(
-        .VREG_W           ( VREG_W             ),
-        .VMEM_W           ( VMEM_W             ),
-        .MUL_OP_W         ( VMUL_W             ),
-        .ALU_OP_W         ( VALU_W             ),
-        .SLD_OP_W         ( VSLD_W             ),
-        .XIF_ID_W         ( X_ID_WIDTH         ),
-        .RAM_TYPE         ( RAM_TYPE           ),
-        .MUL_TYPE         ( MUL_TYPE           ),
-        .ADDR_ALIGNED     ( ~USE_XIF_MEM       ),
-        .DONT_CARE_ZERO   ( 1'b0               ),
-        .ASYNC_RESET      ( 1'b0               )
+        .VMEM_W             ( VMEM_W             ),
+        .XIF_ID_W           ( X_ID_WIDTH         ),
+        .VREG_W             ( VREG_W             ),
+        .VPORT_RD_CNT       ( VPORT_RD_CNT       ),
+        .VPORT_RD_W         ( VPORT_RD_W         ),
+        .VPORT_WR_CNT       ( VPORT_WR_CNT       ),
+        .VPORT_WR_W         ( VPORT_WR_W         ),
+        .PIPE_CNT           ( PIPE_CNT           ),
+        .PIPE_UNITS         ( PIPE_UNITS         ),
+        .PIPE_MAX_OP_W      ( PIPE_MAX_OP_W      ),
+        .PIPE_VPORT_CNT     ( PIPE_VPORT_CNT     ),
+        .PIPE_VPORT_OFFSET  ( PIPE_VPORT_OFFSET  ),
+        .PIPE_VPORT_WR      ( PIPE_VPORT_WR      ),
+        .RAM_TYPE           ( RAM_TYPE           ),
+        .MUL_TYPE           ( MUL_TYPE           ),
+        .ADDR_ALIGNED       ( ~USE_XIF_MEM       ),
+        .DONT_CARE_ZERO     ( 1'b0               ),
+        .ASYNC_RESET        ( 1'b0               )
     ) v_core (
-        .clk_i            ( clk_i              ),
-        .rst_ni           ( sync_rst_n         ),
+        .clk_i              ( clk_i              ),
+        .rst_ni             ( sync_rst_n         ),
 
-        .xif_issue_if     ( vcore_xif          ),
-        .xif_commit_if    ( vcore_xif          ),
-        .xif_mem_if       ( vcore_xif          ),
-        .xif_memres_if    ( vcore_xif          ),
-        .xif_result_if    ( vcore_xif          ),
+        .xif_issue_if       ( vcore_xif          ),
+        .xif_commit_if      ( vcore_xif          ),
+        .xif_mem_if         ( vcore_xif          ),
+        .xif_memres_if      ( vcore_xif          ),
+        .xif_result_if      ( vcore_xif          ),
 
-        .pending_load_o   ( vect_pending_load  ),
-        .pending_store_o  ( vect_pending_store ),
+        .pending_load_o     ( vect_pending_load  ),
+        .pending_store_o    ( vect_pending_store ),
 
-        .csr_vtype_o      ( csr_vtype          ),
-        .csr_vl_o         ( csr_vl             ),
-        .csr_vlenb_o      ( csr_vlenb          ),
-        .csr_vstart_o     ( csr_vstart_rd      ),
-        .csr_vstart_i     ( csr_vstart_wr      ),
-        .csr_vstart_set_i ( csr_vstart_wren    ),
-        .csr_vxrm_o       ( csr_vxrm_rd        ),
-        .csr_vxrm_i       ( csr_vxrm_wr        ),
-        .csr_vxrm_set_i   ( csr_vxrm_wren      ),
-        .csr_vxsat_o      ( csr_vxsat_rd       ),
-        .csr_vxsat_i      ( csr_vxsat_wr       ),
-        .csr_vxsat_set_i  ( csr_vxsat_wren     ),
+        .csr_vtype_o        ( csr_vtype          ),
+        .csr_vl_o           ( csr_vl             ),
+        .csr_vlenb_o        ( csr_vlenb          ),
+        .csr_vstart_o       ( csr_vstart_rd      ),
+        .csr_vstart_i       ( csr_vstart_wr      ),
+        .csr_vstart_set_i   ( csr_vstart_wren    ),
+        .csr_vxrm_o         ( csr_vxrm_rd        ),
+        .csr_vxrm_i         ( csr_vxrm_wr        ),
+        .csr_vxrm_set_i     ( csr_vxrm_wren      ),
+        .csr_vxsat_o        ( csr_vxsat_rd       ),
+        .csr_vxsat_i        ( csr_vxsat_wr       ),
+        .csr_vxsat_set_i    ( csr_vxsat_wren     ),
 
         .pend_vreg_wr_map_o ( pend_vreg_wr_map_o )
     );

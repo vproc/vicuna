@@ -4,24 +4,32 @@
 
 
 module vproc_pipeline_wrapper #(
-        parameter int unsigned          VREG_W              = 128,  // width in bits of vector registers
-        parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
-        parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
-        parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
-        parameter bit [vproc_pkg::UNIT_CNT-1:0] UNITS       = '0,
-        parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
-        parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
-        parameter int unsigned          VPORT_CNT           = 1,
-        parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
-        parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
-        parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER        = '0,   // buffer port
-        parameter bit                   VPORT_V0            = '0,   // use dedicated v0 read port
-        parameter int unsigned          MAX_OP_W            = 64,   // operand width in bits
-        parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
-        parameter bit                   ADDR_ALIGNED        = 1'b1, // base address is aligned to VMEM_W
-        parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
-        parameter type                  DECODER_DATA_T      = logic,
-        parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
+        parameter int unsigned          VREG_W             = 128,  // width in bits of vector registers
+        parameter int unsigned          CFG_VL_W           = 7,    // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned          XIF_ID_W           = 3,    // width in bits of instruction IDs
+        parameter int unsigned          XIF_ID_CNT         = 8,    // total count of instruction IDs
+        parameter bit [vproc_pkg::UNIT_CNT-1:0] UNITS      = '0,
+        parameter int unsigned          MAX_VPORT_W        = 128,  // max port width
+        parameter int unsigned          MAX_VADDR_W        = 5,    // max addr width
+        parameter int unsigned          VPORT_CNT          = 1,
+`ifdef VERILATOR
+        // Workaround for Verilator due to https://github.com/verilator/verilator/issues/3433
+        parameter int unsigned          VPORT_OFFSET       = 0,
+        parameter int unsigned          VREGFILE_VPORT_CNT = 1,
+        parameter int unsigned          VREGFILE_VPORT_W[VREGFILE_VPORT_CNT] = '{0},
+        parameter int unsigned          VREGFILE_VADDR_W[VREGFILE_VPORT_CNT] = '{0},
+`else
+        parameter int unsigned          VPORT_W[VPORT_CNT] = '{0},
+        parameter int unsigned          VADDR_W[VPORT_CNT] = '{0},
+`endif
+        parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER       = '0,   // buffer port
+        parameter bit                   VPORT_V0           = '0,   // use dedicated v0 read port
+        parameter int unsigned          MAX_OP_W           = 64,   // operand width in bits
+        parameter vproc_pkg::mul_type   MUL_TYPE           = vproc_pkg::MUL_GENERIC,
+        parameter bit                   ADDR_ALIGNED       = 1'b1, // base address is aligned to VMEM_W
+        parameter int unsigned          MAX_WR_ATTEMPTS    = 1,    // max required vregfile write attempts
+        parameter type                  DECODER_DATA_T     = logic,
+        parameter bit                   DONT_CARE_ZERO     = 1'b0  // initialize don't care values to zero
     )(
         input  logic                    clk_i,
         input  logic                    async_rst_ni,
@@ -68,6 +76,18 @@ module vproc_pipeline_wrapper #(
         output logic [4:0]              xreg_addr_o,
         output logic [31:0]             xreg_data_o
     );
+
+`ifdef VERILATOR
+    // Workaround for Verilator due to https://github.com/verilator/verilator/issues/3433
+    typedef int unsigned VERILATOR_ARRAY_SLICE_T[VPORT_CNT];
+    function VERILATOR_ARRAY_SLICE_T VERILATOR_ARRAY_SLICE(int unsigned SRC[VPORT_CNT]);
+        for (int i = 0; i < VPORT_CNT; i++) begin
+            VERILATOR_ARRAY_SLICE[i] = SRC[VPORT_OFFSET + i];
+        end
+    endfunction
+    localparam int unsigned VPORT_W[VPORT_CNT] = VERILATOR_ARRAY_SLICE(VREGFILE_VPORT_W);
+    localparam int unsigned VADDR_W[VPORT_CNT] = VERILATOR_ARRAY_SLICE(VREGFILE_VADDR_W);
+`endif
 
     import vproc_pkg::*;
 
