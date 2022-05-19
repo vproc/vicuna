@@ -7,22 +7,31 @@ on:
 
 
 jobs:
-  lint:
+  verilator:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        id: cache-verilator
         with:
-          submodules: false
+          path: /opt/verilator
+          key: ubuntu-20_04-verilator-4_210
 
-      - name: Install verible and lint
+      - name: Install Verilator
+        if: steps.cache-verilator.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install verilator
-          curl -s https://api.github.com/repos/chipsalliance/verible/releases/latest | grep browser_download_url | grep Ubuntu-20.04 | cut -d '"' -f 4 | wget -qi -
-          mkdir verible
-          tar -xf verible*.tar.gz -C verible --strip-components=1
-          export PATH=$PATH:$PWD/verible/bin
-          cd test && make lint
+          sudo apt-get install git perl python3 make autoconf g++ flex bison ccache libgoogle-perftools-dev numactl perl-doc libfl2 libfl-dev zlibc zlib1g zlib1g-dev
+          git clone https://github.com/verilator/verilator
+          unset VERILATOR_ROOT
+          cd verilator
+          git checkout tags/v4.210
+          autoconf
+          ./configure --prefix /opt/verilator
+          make
+          sudo make install
+          df -h
+          cd ..
+          rm -rf verilator
 
 
   toolchain:
@@ -50,8 +59,32 @@ jobs:
           rm -rf build
 
 
+  lint:
+    needs: verilator
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: false
+
+      - uses: actions/cache@v2
+        id: cache-verilator
+        with:
+          path: /opt/verilator
+          key: ubuntu-20_04-verilator-4_210
+
+      - name: Install verible and lint
+        run: |
+          sudo apt-get update
+          curl -sSL https://api.github.com/repos/chipsalliance/verible/releases/latest | grep browser_download_url | grep Ubuntu-20.04 | cut -d '"' -f 4 | wget -qi -
+          mkdir verible
+          tar -xf verible*.tar.gz -C verible --strip-components=1
+          export PATH=$PATH:$PWD/verible/bin:/opt/verilator/bin
+          cd test && make lint
+
+
   unit:
-    needs: toolchain
+    needs: [toolchain, verilator]
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
@@ -72,6 +105,12 @@ jobs:
           path: /opt/riscv-gcc
           key: ubuntu-20_04-riscv-gcc-rvv0_10
 
+      - uses: actions/cache@v2
+        id: cache-verilator
+        with:
+          path: /opt/verilator
+          key: ubuntu-20_04-verilator-4_210
+
       - name: Abort if no cache
         if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
         run: exit 1
@@ -79,11 +118,11 @@ jobs:
       - name: Install packages
         run: |
           sudo apt-get update
-          sudo apt-get install srecord verilator
+          sudo apt-get install srecord g++ ccache
 
       - name: Run tests
         run: |
+          export PATH=$PATH:/opt/verilator/bin:/opt/riscv-gcc/bin
           verilator --version
           cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
-          export PATH=$PATH:/opt/riscv-gcc/bin
           cd test && make ${{ matrix.unit }} CORE=${{ matrix.main_core }}
