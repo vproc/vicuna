@@ -123,12 +123,12 @@ module vproc_core #(
 
     typedef int unsigned ASSIGN_VADDR_RD_W_RET_T[VPORT_RD_CNT];
     typedef int unsigned ASSIGN_VADDR_WR_W_RET_T[VPORT_WR_CNT];
-    function ASSIGN_VADDR_RD_W_RET_T ASSIGN_VADDR_RD_W();
+    function static ASSIGN_VADDR_RD_W_RET_T ASSIGN_VADDR_RD_W();
         for (int i = 0; i < VPORT_RD_CNT; i++) begin
             ASSIGN_VADDR_RD_W[i] = 5 + $clog2(VREG_W / VPORT_RD_W[i]);
         end
     endfunction
-    function ASSIGN_VADDR_WR_W_RET_T ASSIGN_VADDR_WR_W();
+    function static ASSIGN_VADDR_WR_W_RET_T ASSIGN_VADDR_WR_W();
         for (int i = 0; i < VPORT_WR_CNT; i++) begin
             ASSIGN_VADDR_WR_W[i] = 5 + $clog2(VREG_W / VPORT_WR_W[i]);
         end
@@ -137,7 +137,7 @@ module vproc_core #(
     localparam int unsigned VADDR_RD_W[VPORT_RD_CNT] = ASSIGN_VADDR_RD_W();
     localparam int unsigned VADDR_WR_W[VPORT_WR_CNT] = ASSIGN_VADDR_WR_W();
 
-    function int unsigned MAX_VPORT_RD_SLICE(
+    function static int unsigned MAX_VPORT_RD_SLICE(
         int unsigned SRC[VPORT_RD_CNT], int unsigned OFFSET, int unsigned CNT
     );
         MAX_VPORT_RD_SLICE = 0;
@@ -147,7 +147,7 @@ module vproc_core #(
             end
         end
     endfunction
-    function int unsigned MAX_VPORT_WR_SLICE(
+    function static int unsigned MAX_VPORT_WR_SLICE(
         int unsigned SRC[VPORT_WR_CNT], int unsigned OFFSET, int unsigned CNT
     );
         MAX_VPORT_WR_SLICE = 0;
@@ -886,7 +886,7 @@ module vproc_core #(
     logic [31:0]         elem_xreg_data;
 
     // TODO move below function together with the entire repeated writes logic into the vreg write mux module
-    function int unsigned MAX_WR_ATTEMPTS(int unsigned PIPE_IDX);
+    function static int unsigned MAX_WR_ATTEMPTS(int unsigned PIPE_IDX);
         MAX_WR_ATTEMPTS = 1;
         for (int i = 0; i < PIPE_IDX; i++) begin
             if (PIPE_VPORT_WR[i] == PIPE_VPORT_WR[PIPE_IDX]) begin
