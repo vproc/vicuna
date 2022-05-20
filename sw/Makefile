@@ -1,6 +1,6 @@
 # Copyright TU Wien
 # Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
-# SPDX-License-Identifier: SHL-2.1
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
 # Generic Makefile for RV32IMV applications
