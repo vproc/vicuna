@@ -10,11 +10,15 @@ which is currently required to convert `*.bin` files to `*.vmem` files due to
 
 ## Compilation toolchain
 
-In order to compile programs for Vicuna, you need a RISC-V compiler which
-supports the RISC-V V extension (e.g., LLVM or GCC).  Currently, this extension
-is not ratified, and thus only experimental support is available, which is not
-included in the official releases.  Therefore, one needs to compile the desired
-compilation toolchain with support for the V extension from source.
+In order to compile programs for Vicuna, you need a RISC-V compiler for
+bare-metal targets (i.e, target `unknown-elf` for GCC), which supports the
+RISC-V V extension.  The V extension is only available in recent versions
+(since GCC 12 and LLVM 14).  Unless your distribution already features a
+sufficiently recent suitable compiler (which can be checked on
+[Repology](https://repology.org/) for
+[GCC](https://repology.org/project/gcc-riscv64-unknown-elf/versions) and for
+[LLVM](https://repology.org/project/llvm/versions)), you need to compile the
+desired toolchain with support for the V extension from source.
 
 Execute the following shell commands to compile the RISC-V GNU toolchain with
 V extension support enabled.  Note that `/desired/installation/path` should be
