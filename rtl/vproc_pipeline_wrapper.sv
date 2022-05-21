@@ -177,6 +177,15 @@ module vproc_pipeline_wrapper #(
         logic                     [4 :0] res_vaddr;
     } state_t;
 
+    // identify the unit of the supplied instruction
+    logic unit_lsu, unit_alu, unit_mul, unit_sld, unit_elem;
+    assign unit_lsu  = UNITS[UNIT_LSU ] & (pipe_in_data_i.unit == UNIT_LSU );
+    assign unit_alu  = UNITS[UNIT_ALU ] & (pipe_in_data_i.unit == UNIT_ALU );
+    assign unit_mul  = UNITS[UNIT_MUL ] & (pipe_in_data_i.unit == UNIT_MUL );
+    assign unit_sld  = UNITS[UNIT_SLD ] & (pipe_in_data_i.unit == UNIT_SLD );
+    assign unit_elem = UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM);
+
+    // identify the type of data that vs2 supplies for ELEM instructions
     logic elem_flush, elem_vs2_data, elem_vs2_mask, elem_vs2_dyn_addr;
     always_comb begin
         elem_flush        = DONT_CARE_ZERO ? 1'b0 : 1'bx;
@@ -278,13 +287,14 @@ module vproc_pipeline_wrapper #(
         endcase
     end
 
+    // set the initial pipeline state for the incoming instruction
     state_t state_init;
     always_comb begin
         state_init = state_t'('0);
 
-        state_init.count_extra_phase = UNITS[UNIT_SLD] & (pipe_in_data_i.unit == UNIT_SLD) & (pipe_in_data_i.mode.sld.dir == SLD_DOWN);
+        state_init.count_extra_phase = unit_sld & (pipe_in_data_i.mode.sld.dir == SLD_DOWN);
         state_init.alt_count_init    = '0;
-        if (UNITS[UNIT_SLD] & (pipe_in_data_i.unit == UNIT_SLD)) begin
+        if (unit_sld) begin
             state_init.alt_count_init = DONT_CARE_ZERO ? '0 : 'x;
             if (pipe_in_data_i.mode.sld.slide1) begin
                 if (pipe_in_data_i.mode.sld.dir == SLD_UP) begin
@@ -331,7 +341,7 @@ module vproc_pipeline_wrapper #(
         end
 
         state_init.count_inc = COUNT_INC_1;
-        if (UNITS[UNIT_LSU] & (pipe_in_data_i.unit == UNIT_LSU)) begin
+        if (unit_lsu) begin
             state_init.count_inc = DONT_CARE_ZERO ? count_inc_e'('0) : count_inc_e'('x);
             unique case (pipe_in_data_i.mode.lsu.eew)
                 VSEW_8:  state_init.count_inc = COUNT_INC_1;
@@ -343,7 +353,7 @@ module vproc_pipeline_wrapper #(
                 state_init.count_inc = COUNT_INC_MAX;
             end
         end
-        if (UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM)) begin
+        if (unit_elem) begin
             state_init.count_inc = DONT_CARE_ZERO ? count_inc_e'('0) : count_inc_e'('x);
             unique case (pipe_in_data_i.vsew)
                 VSEW_8:  state_init.count_inc = COUNT_INC_1;
@@ -353,17 +363,17 @@ module vproc_pipeline_wrapper #(
             endcase
         end
 
-        state_init.requires_flush = UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM) & elem_flush;
+        state_init.requires_flush = unit_elem & elem_flush;
         state_init.id             = pipe_in_data_i.id;
         state_init.unit           = pipe_in_data_i.unit;
         state_init.mode           = pipe_in_data_i.mode;
         state_init.emul           = pipe_in_data_i.emul;
-        state_init.eew            = (UNITS[UNIT_LSU] & (pipe_in_data_i.unit == UNIT_LSU)) ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew;
+        state_init.eew            = unit_lsu ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew;
         state_init.vxrm           = pipe_in_data_i.vxrm;
         state_init.vl             = pipe_in_data_i.vl;
         state_init.vl_0           = pipe_in_data_i.vl_0;
         state_init.xval           = pipe_in_data_i.rs1.r.xval;
-        if (UNITS[UNIT_SLD] & (pipe_in_data_i.unit == UNIT_SLD) & ~pipe_in_data_i.mode.sld.slide1) begin
+        if (unit_sld & ~pipe_in_data_i.mode.sld.slide1) begin
             // convert element offset to byte offset for the relevant section of rs1 and negate
             // for down slides
             if (pipe_in_data_i.mode.sld.dir == SLD_UP) begin
@@ -398,22 +408,12 @@ module vproc_pipeline_wrapper #(
         state_init.op_xval [1]        = pipe_in_data_i.rs1.r.xval;
 
         state_init.op_flags[OP_CNT-1].vreg = DONT_CARE_ZERO ? 1'b0 : 1'bx;
-        unique case (pipe_in_data_i.unit)
-            UNIT_LSU:  if (UNITS[UNIT_LSU ]) begin
-                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.lsu.masked;
-            end
-            UNIT_ALU:  if (UNITS[UNIT_ALU ]) begin
-                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.alu.op_mask != ALU_MASK_NONE;
-            end
-            UNIT_MUL:  if (UNITS[UNIT_MUL ]) begin
-                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.mul.masked;
-            end
-            UNIT_SLD:  if (UNITS[UNIT_SLD ]) begin
-                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.sld.masked;
-            end
-            UNIT_ELEM: if (UNITS[UNIT_ELEM]) begin
-                state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.elem.masked;
-            end
+        unique case (1'b1)
+            unit_lsu:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.lsu.masked;
+            unit_alu:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.alu.op_mask != ALU_MASK_NONE;
+            unit_mul:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.mul.masked;
+            unit_sld:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.sld.masked;
+            unit_elem: state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.elem.masked;
             default: ;
         endcase
 
@@ -421,33 +421,33 @@ module vproc_pipeline_wrapper #(
         state_init.res_narrow[0] = '0;
         state_init.res_vaddr     = pipe_in_data_i.rd.addr;
 
-        if (UNITS[UNIT_LSU] & (pipe_in_data_i.unit == UNIT_LSU)) begin
+        if (unit_lsu) begin
             state_init.op_flags[1       ].vreg     =  pipe_in_data_i.mode.lsu.store;
             state_init.op_vaddr[1       ]          =  pipe_in_data_i.rd.addr;
             state_init.op_flags[OP_CNT-1].elemwise =  pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE;
             state_init.res_vreg[0       ]          = ~pipe_in_data_i.mode.lsu.store;
         end
-        if (UNITS[UNIT_ALU] & (pipe_in_data_i.unit == UNIT_ALU)) begin
+        if (unit_alu) begin
             state_init.op_flags  [0        ].sigext =  pipe_in_data_i.mode.alu.sigext;
             state_init.op_flags  [1        ].sigext =  pipe_in_data_i.mode.alu.sigext;
             state_init.res_vreg  [0        ]        = ~pipe_in_data_i.mode.alu.cmp;
             state_init.res_narrow[0        ]        =  pipe_in_data_i.widenarrow == OP_NARROWING;
             state_init.res_vreg  [RES_CNT-1]        =  pipe_in_data_i.mode.alu.cmp;
         end
-        if (UNITS[UNIT_MUL] & (pipe_in_data_i.unit == UNIT_MUL)) begin
+        if (unit_mul) begin
             state_init.op_vaddr[0]                          = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rd.addr : pipe_in_data_i.rs2.r.vaddr;
             state_init.op_flags[0].sigext                   = pipe_in_data_i.mode.mul.op2_signed;
             state_init.op_flags[1].sigext                   = pipe_in_data_i.mode.mul.op1_signed;
             state_init.op_flags[(OP_CNT >= 3) ? 2 : 0].vreg = pipe_in_data_i.mode.mul.op == MUL_VMACC;
             state_init.op_vaddr[(OP_CNT >= 3) ? 2 : 0]      = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rd.addr;
         end
-        if (UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM)) begin
             state_init.op_flags[0].vreg                            = pipe_in_data_i.rs2.vreg & elem_vs2_data;
             state_init.op_flags[0].sigext                          = pipe_in_data_i.mode.elem.sigext;
             state_init.op_flags[(OP_CNT >= 3) ? OP_CNT-3 : 0].vreg = elem_vs2_dyn_addr;
             state_init.op_vaddr[(OP_CNT >= 3) ? OP_CNT-3 : 0]      = pipe_in_data_i.rs2.r.vaddr;
             state_init.op_flags[                OP_CNT-2    ].vreg = pipe_in_data_i.rs2.vreg & elem_vs2_mask;
             state_init.op_vaddr[                OP_CNT-2    ]      = pipe_in_data_i.rs2.r.vaddr;
+        if (unit_elem) begin
         end
     end
 
