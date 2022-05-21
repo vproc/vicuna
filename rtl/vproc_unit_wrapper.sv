@@ -111,9 +111,11 @@ module vproc_unit_wrapper #(
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
-                pipe_out_res_data_o = '0;
-                pipe_out_res_mask_o = '0;
-                pipe_out_res_flags_o[0]                 = pack_flags'('0);
+                pipe_out_res_store_o = '0;
+                pipe_out_res_valid_o = '0;
+                pipe_out_res_flags_o = '{default: pack_flags'('0)};
+                pipe_out_res_data_o  = '0;
+                pipe_out_res_mask_o  = '0;
                 pipe_out_res_flags_o[0].shift           = unit_out_ctrl.res_shift;
                 pipe_out_res_flags_o[0].elemwise        = unit_out_ctrl.mode.lsu.stride != LSU_UNITSTRIDE;
                 pipe_out_res_store_o[0]                 = unit_out_ctrl.res_store;
@@ -154,10 +156,12 @@ module vproc_unit_wrapper #(
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
-                pipe_out_res_data_o = '0;
-                pipe_out_res_mask_o = '0;
+                pipe_out_res_store_o = '0;
+                pipe_out_res_valid_o = '0;
+                pipe_out_res_flags_o = '{default: pack_flags'('0)};
+                pipe_out_res_data_o  = '0;
+                pipe_out_res_mask_o  = '0;
 
-                pipe_out_res_flags_o[0]                 = pack_flags'('0);
                 pipe_out_res_store_o[0]                 = unit_out_ctrl.res_store & ~unit_out_ctrl.mode.alu.cmp;
                 pipe_out_res_flags_o[0].shift           = unit_out_ctrl.res_shift;
                 pipe_out_res_flags_o[0].narrow          = unit_out_ctrl.res_narrow[0];
@@ -167,7 +171,6 @@ module vproc_unit_wrapper #(
                 pipe_out_res_data_o [0]                 = unit_out_res_alu;
                 pipe_out_res_mask_o [0][MAX_OP_W/8-1:0] = unit_out_mask;
 
-                pipe_out_res_flags_o[1]                 = pack_flags'('0);
                 pipe_out_res_flags_o[1].mul_idx         = unit_out_ctrl.count_mul;
                 pipe_out_res_store_o[1]                 = unit_out_ctrl.res_store & unit_out_ctrl.mode.alu.cmp;
                 pipe_out_res_valid_o[1]                 = pipe_out_valid_o;
@@ -208,9 +211,12 @@ module vproc_unit_wrapper #(
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
-                pipe_out_res_data_o = '0;
-                pipe_out_res_mask_o = '0;
-                pipe_out_res_flags_o[0]                 = pack_flags'('0);
+                pipe_out_res_store_o = '0;
+                pipe_out_res_valid_o = '0;
+                pipe_out_res_flags_o = '{default: pack_flags'('0)};
+                pipe_out_res_data_o  = '0;
+                pipe_out_res_mask_o  = '0;
+                pipe_out_res_flags_o[0].shift           = 1'b1;
                 pipe_out_res_store_o[0]                 = unit_out_ctrl.res_store;
                 pipe_out_res_valid_o[0]                 = pipe_out_valid_o;
                 pipe_out_res_data_o [0]                 = unit_out_res;
@@ -247,9 +253,12 @@ module vproc_unit_wrapper #(
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
-                pipe_out_res_data_o = '0;
-                pipe_out_res_mask_o = '0;
-                pipe_out_res_flags_o[0]                 = pack_flags'('0);
+                pipe_out_res_store_o = '0;
+                pipe_out_res_valid_o = '0;
+                pipe_out_res_flags_o = '{default: pack_flags'('0)};
+                pipe_out_res_data_o  = '0;
+                pipe_out_res_mask_o  = '0;
+                pipe_out_res_flags_o[0].shift           = 1'b1;
                 pipe_out_res_store_o[0]                 = unit_out_ctrl.res_store;
                 pipe_out_res_valid_o[0]                 = pipe_out_valid_o;
                 pipe_out_res_data_o [0]                 = unit_out_res;
@@ -357,9 +366,11 @@ module vproc_unit_wrapper #(
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
-                pipe_out_res_data_o = '0;
-                pipe_out_res_mask_o = '0;
-                pipe_out_res_flags_o[0]       = pack_flags'('0);
+                pipe_out_res_store_o = '0;
+                pipe_out_res_valid_o = '0;
+                pipe_out_res_flags_o = '{default: pack_flags'('0)};
+                pipe_out_res_data_o  = '0;
+                pipe_out_res_mask_o  = '0;
                 pipe_out_res_flags_o[0].shift = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (unit_out_ctrl.eew)
                     VSEW_8:  pipe_out_res_flags_o[0].shift = vd_count_d.val[1:0] == '0;
