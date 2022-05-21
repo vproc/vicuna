@@ -422,7 +422,9 @@ module vproc_pipeline_wrapper #(
         state_init.res_vaddr     = pipe_in_data_i.rd.addr;
 
         if (unit_lsu) begin
+            state_init.op_flags[0       ].elemwise =  pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE;
             state_init.op_flags[1       ].vreg     =  pipe_in_data_i.mode.lsu.store;
+            state_init.op_flags[1       ].elemwise =  pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE;
             state_init.op_vaddr[1       ]          =  pipe_in_data_i.rd.addr;
             state_init.op_flags[OP_CNT-1].elemwise =  pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE;
             state_init.res_vreg[0       ]          = ~pipe_in_data_i.mode.lsu.store;
@@ -441,13 +443,17 @@ module vproc_pipeline_wrapper #(
             state_init.op_flags[(OP_CNT >= 3) ? 2 : 0].vreg = pipe_in_data_i.mode.mul.op == MUL_VMACC;
             state_init.op_vaddr[(OP_CNT >= 3) ? 2 : 0]      = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rd.addr;
         end
-            state_init.op_flags[0].vreg                            = pipe_in_data_i.rs2.vreg & elem_vs2_data;
-            state_init.op_flags[0].sigext                          = pipe_in_data_i.mode.elem.sigext;
-            state_init.op_flags[(OP_CNT >= 3) ? OP_CNT-3 : 0].vreg = elem_vs2_dyn_addr;
-            state_init.op_vaddr[(OP_CNT >= 3) ? OP_CNT-3 : 0]      = pipe_in_data_i.rs2.r.vaddr;
-            state_init.op_flags[                OP_CNT-2    ].vreg = pipe_in_data_i.rs2.vreg & elem_vs2_mask;
-            state_init.op_vaddr[                OP_CNT-2    ]      = pipe_in_data_i.rs2.r.vaddr;
         if (unit_elem) begin
+            state_init.op_flags[0                           ].vreg     = pipe_in_data_i.rs2.vreg & elem_vs2_data;
+            state_init.op_flags[0                           ].elemwise = 1'b1;
+            state_init.op_flags[0                           ].sigext   = pipe_in_data_i.mode.elem.sigext;
+            state_init.op_flags[1                           ].elemwise = 1'b1;
+            state_init.op_flags[(OP_CNT >= 3) ? OP_CNT-3 : 0].vreg     = elem_vs2_dyn_addr;
+            state_init.op_vaddr[(OP_CNT >= 3) ? OP_CNT-3 : 0]          = pipe_in_data_i.rs2.r.vaddr;
+            state_init.op_flags[                OP_CNT-2    ].vreg     = pipe_in_data_i.rs2.vreg & elem_vs2_mask;
+            state_init.op_flags[                OP_CNT-2    ].elemwise = 1'b1;
+            state_init.op_vaddr[                OP_CNT-2    ]          = pipe_in_data_i.rs2.r.vaddr;
+            state_init.op_flags[                OP_CNT-1    ].elemwise = 1'b1;
         end
     end
 
@@ -601,7 +607,6 @@ module vproc_pipeline_wrapper #(
             localparam bit [1:0]    RES_MASK            = 2'b10;
             localparam bit [1:0]    RES_NARROW          = {1'b0, RES0_NARROW};
             localparam bit [1:0]    RES_ALLOW_ELEMWISE  = {1'b0, RES0_ALLOW_ELEMWISE};
-            localparam bit [1:0]    RES_ALWAYS_ELEMWISE = '0;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
