@@ -358,35 +358,32 @@ module vproc_vregunpack
                     end
                 end
             end
-            // shift down operand part by one byte, halfword, or word for element-wise unpacking
-            else if (OP_ALWAYS_ELEMWISE[i] | OP_ALLOW_ELEMWISE[i]) begin
-                always_comb begin
-                    op_default = op_buffer[i][OP_W[i]-1:0];
-                    if (~OP_HOLD_FLAG[i] | ~op_load_flags[i].hold) begin
-                        op_default[OP_W[i]-9:0] = DONT_CARE_ZERO ? '0 : 'x;
-                        unique case ({op_load_eew[i], OP_NARROW[i] & op_load_flags[i].narrow})
-                            {VSEW_8 , 1'b0},
-                            {VSEW_16, 1'b1}: op_default[OP_W[i]-9:0] = op_buffer[i][OP_W[i]-1 :8 ];
-                            {VSEW_16, 1'b0},
-                            {VSEW_32, 1'b1}: op_default[OP_W[i]-9:0] = op_buffer[i][OP_W[i]+7 :16];
-                            {VSEW_32, 1'b0}: op_default[OP_W[i]-9:0] = op_buffer[i][OP_W[i]+23:32];
-                            default: ;
-                        endcase
-                    end
-                end
-            end
-            // shift down upper half of operand part to support narrow operands
-            else if (OP_NARROW[i]) begin
-                always_comb begin
-                    op_default = op_buffer[i][OP_W[i]-1:0];
-                    if (~OP_HOLD_FLAG[i] | ~op_load_flags[i].hold) begin
-                        op_default[OP_W[i]/2-1:0] = op_buffer[i][OP_W[i]-1:OP_W[i]/2];
-                    end
-                end
-            end
-            // retain current value if nothing was selected
             else begin
-                assign op_default = op_buffer[i][OP_W[i]-1:0];
+                always_comb begin
+                    // retain current value by default
+                    op_default = op_buffer[i][OP_W[i]-1:0];
+
+                    if (~OP_HOLD_FLAG[i] | ~op_load_flags[i].hold) begin
+                        // shift down operand part by one byte, halfword, or word for element-wise unpacking
+                        if (OP_ALWAYS_ELEMWISE[i] | (OP_ALLOW_ELEMWISE[i] & op_load_flags[i].elemwise)) begin
+                            if (~OP_HOLD_FLAG[i] | ~op_load_flags[i].hold) begin
+                                op_default[OP_W[i]-9:0] = DONT_CARE_ZERO ? '0 : 'x;
+                                unique case ({op_load_eew[i], OP_NARROW[i] & op_load_flags[i].narrow})
+                                    {VSEW_8 , 1'b0},
+                                    {VSEW_16, 1'b1}: op_default[OP_W[i]-9:0] = op_buffer[i][OP_W[i]-1 :8 ];
+                                    {VSEW_16, 1'b0},
+                                    {VSEW_32, 1'b1}: op_default[OP_W[i]-9:0] = op_buffer[i][OP_W[i]+7 :16];
+                                    {VSEW_32, 1'b0}: op_default[OP_W[i]-9:0] = op_buffer[i][OP_W[i]+23:32];
+                                    default: ;
+                                endcase
+                            end
+                        end
+                        // shift down upper half of operand part to support narrow operands
+                        else if (OP_NARROW[i]) begin
+                            op_default[OP_W[i]/2-1:0] = op_buffer[i][OP_W[i]-1:OP_W[i]/2];
+                        end
+                    end
+                end
             end
 
             localparam int unsigned OP_VPORT_W = (OP_SRC[i] < VPORT_CNT) ? VPORT_W[OP_SRC[i]] :
