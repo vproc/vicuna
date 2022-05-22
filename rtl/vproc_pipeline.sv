@@ -227,7 +227,7 @@ module vproc_pipeline #(
                 state_next.count.part.sign = '1;
                 state_next.count.part.mul  = '1;
             end
-            state_next.alt_count.val           = COUNTER_W'(pipe_in_state_i.alt_count_init);
+            state_next.alt_count.val           = {pipe_in_state_i.alt_count_init, {$clog2(MAX_OP_W/COUNTER_OP_W){1'b0}}};
             state_next.count_inc               = pipe_in_state_i.count_inc;
             state_next.aux_count = '1;
             for (int i = 0; i < OP_CNT; i++) begin
