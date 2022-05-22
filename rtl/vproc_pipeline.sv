@@ -362,7 +362,12 @@ module vproc_pipeline #(
                 end
                 op_shift_next[i] = 1'b1;
             end
-            else if (~aux_count_used | (state_next.aux_count == '0)) begin
+            // Regular operands are only fetched if the auxiliary counter is either not used or is
+            // zero in the next cycle.  Note that aux_count_used may be incorrect if a new
+            // instruction is currently being loaded (i.e., pipe_in_ready_o is asserted), in which
+            // case the operands should be fetched regardless of the next auxilary counter value
+            // (which may be non-zero if the auxiliary counter is not used by the new instruction)
+            else if (~aux_count_used | (state_next.aux_count == '0) | pipe_in_ready_o) begin
                 if (~OP_MASK[i]) begin
                     if ((op_count[i].part.low == '0) &
                         (~OP_NARROW[i] | ~state_next.op_flags[i].narrow | ~op_count[i].part.mul[0])
