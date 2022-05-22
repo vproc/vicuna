@@ -362,6 +362,13 @@ module vproc_unit_wrapper #(
             assign xreg_id_o      = unit_out_ctrl.id;
             assign pipe_out_valid_o = elem_out_valid &                       ~unit_out_stall;
             assign elem_out_ready = pipe_out_ready_i &                       ~unit_out_stall;
+
+            logic res_flag_shift_vsew32;
+            if (MAX_RES_W > 32) begin
+                assign res_flag_shift_vsew32 = vd_count_d.val[$clog2(MAX_RES_W/8)-1:2] == '0;
+            end else begin
+                assign res_flag_shift_vsew32 = 1'b1;
+            end
             always_comb begin
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
@@ -373,9 +380,9 @@ module vproc_unit_wrapper #(
                 pipe_out_res_mask_o  = '0;
                 pipe_out_res_flags_o[0].shift = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (unit_out_ctrl.eew)
-                    VSEW_8:  pipe_out_res_flags_o[0].shift = vd_count_d.val[1:0] == '0;
-                    VSEW_16: pipe_out_res_flags_o[0].shift = vd_count_d.val[1:1] == '0;
-                    VSEW_32: pipe_out_res_flags_o[0].shift = 1'b1;
+                    VSEW_8:  pipe_out_res_flags_o[0].shift = vd_count_d.val[$clog2(MAX_RES_W/8)-1:0] == '0;
+                    VSEW_16: pipe_out_res_flags_o[0].shift = vd_count_d.val[$clog2(MAX_RES_W/8)-1:1] == '0;
+                    VSEW_32: pipe_out_res_flags_o[0].shift = res_flag_shift_vsew32;
                     default: ;
                 endcase
                 pipe_out_res_flags_o[0].elemwise = 1'b1;
