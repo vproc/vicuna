@@ -122,7 +122,7 @@ module vproc_pipeline_wrapper #(
                                             );
 
     // Number of stages for operand unpacking
-    localparam int unsigned UNPACK_STAGES = UNITS[UNIT_ELEM] ? 4 : (
+    localparam int unsigned UNPACK_STAGES = UNITS[UNIT_ELEM] ? 5 : (
                                                 (UNITS == (UNIT_CNT'(1) << UNIT_SLD)) ? 2 : 3
                                             );
 
@@ -721,9 +721,8 @@ module vproc_pipeline_wrapper #(
         end
         else if (OP_CNT == 5 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [5] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, 1, MAX_OP_W/8};
-            // TODO it appears as if fetching operands 1 and -3 could collide
-            localparam int unsigned OP_STAGE       [5] = '{2, 1, 3, 2, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [5] = '{0, 0, VPORT_CNT-1, 0, VPORT_CNT};
+            localparam int unsigned OP_STAGE       [5] = '{4, 1, 4, 4, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [5] = '{0, 0, 0, 0, VPORT_CNT};
             localparam bit [4:0]    OP_DYN_ADDR        = OP_DYN_ADDR_OFFSET ? 5'b00100 : '0;
             localparam bit [4:0]    OP_MASK            = OP_SECOND_MASK ? 5'b11000 : 5'b10000;
             localparam bit [4:0]    OP_XREG            = {3'b0, OP1_XREG, 1'b0};
