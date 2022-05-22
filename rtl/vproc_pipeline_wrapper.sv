@@ -121,10 +121,42 @@ module vproc_pipeline_wrapper #(
                                                 )
                                             );
 
-    // Number of stages for operand unpacking
-    localparam int unsigned UNPACK_STAGES = UNITS[UNIT_ELEM] ? 5 : (
-                                                (UNITS == (UNIT_CNT'(1) << UNIT_SLD)) ? 2 : 3
-                                            );
+    // Operand source ports and unpack stages
+    localparam int unsigned OP0_SRC   = 0;
+    localparam int unsigned OP1_SRC   = (VPORT_CNT >= (UNITS[UNIT_MUL] ? 3 : 2)) ? 1 : 0;
+    localparam int unsigned OP2_SRC   = VPORT_CNT - 1;
+    localparam int unsigned MIN_STAGE = 1; // first possible unpack stage
+    // start by fetching op 0, then op1, except for ELEM unit which needs to fetch op1 first since
+    // that is used as index for dynamic addressing in gather operations
+    localparam int unsigned OP0_STAGE = MIN_STAGE + (UNITS[UNIT_ELEM] ? (
+                                            // delay by an extra cycle to avoid collisions if op0
+                                            // and op1 share their source read port
+                                            ((OP0_SRC == OP1_SRC) & (MAX_OP_W * 2 >= VPORT_W[OP0_SRC])) ? 3 : 2
+                                        ) : 0);
+    localparam int unsigned OP1_STAGE = MIN_STAGE + (UNITS[UNIT_ELEM] ? 0 : 1);
+    // op2 is either fetched simultaneously with last operand being fetched (if using a different
+    // source read port) or one cycle earlier or later (earlier if possible, otherwise later)
+    localparam int unsigned OP2_STAGE = UNITS[UNIT_ELEM] ? (
+                                            (OP2_SRC == OP0_SRC) ? OP0_STAGE - 1 : OP0_STAGE
+                                        ) : (
+                                            (OP2_SRC == OP1_SRC) ? OP1_STAGE + 1 : OP1_STAGE
+                                        );
+
+    // Verify that shared read ports are sufficiently wide
+    if (UNITS[UNIT_MUL] & (OP0_SRC == OP1_SRC) & (OP0_SRC == OP2_SRC) & (MAX_OP_W * 2 >= VPORT_W[OP0_SRC])) begin
+        $fatal(1, "If operands 0, 1, and 2 share the same source read port, then the operand ",
+                  "width must not be larger than one quarter of the read port width (the current",
+                  "read port width is %d bits, hence the operand width can be at most %d bits; ",
+                  VPORT_W[OP0_SRC], VPORT_W[OP0_SRC] / 4,
+                  "however, the specified operand width is %d bits).", MAX_OP_W);
+    end
+
+    // Number of stages for required for operand unpacking (maximum of operand stages + 1)
+    localparam int unsigned UNPACK_STAGES = 1 + ((OP0_STAGE > OP1_STAGE) ? (
+                                                 (OP0_STAGE > OP2_STAGE) ? OP0_STAGE : OP2_STAGE
+                                            ) : (
+                                                 (OP1_STAGE > OP2_STAGE) ? OP1_STAGE : OP2_STAGE
+                                            ));
 
     // operand flags
     localparam bit OP_DYN_ADDR_OFFSET     = UNITS[UNIT_ELEM];   // operand with dynamic addr used
@@ -465,8 +497,8 @@ module vproc_pipeline_wrapper #(
     generate
         if (OP_CNT == 2 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [2] = '{MAX_OP_W, MAX_OP_W/8};
-            localparam int unsigned OP_STAGE       [2] = '{1, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [2] = '{0, VPORT_CNT};
+            localparam int unsigned OP_STAGE       [2] = '{OP0_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [2] = '{OP0_SRC  , VPORT_CNT};
             localparam bit [1:0]    OP_DYN_ADDR        = '0;
             localparam bit [1:0]    OP_MASK            = 2'b10;
             localparam bit [1:0]    OP_XREG            = '0;
@@ -529,8 +561,8 @@ module vproc_pipeline_wrapper #(
         end
         else if (OP_CNT == 3 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [3] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
-            localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT};
+            localparam int unsigned OP_STAGE       [3] = '{OP0_STAGE, OP1_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [3] = '{OP0_SRC  , OP1_SRC  , VPORT_CNT};
             localparam bit [2:0]    OP_DYN_ADDR        = '0;
             localparam bit [2:0]    OP_MASK            = 3'b100;
             localparam bit [2:0]    OP_XREG            = {1'b0, OP1_XREG, 1'b0};
@@ -593,8 +625,8 @@ module vproc_pipeline_wrapper #(
         end
         else if (OP_CNT == 3 && RES_CNT == 2) begin
             localparam int unsigned OP_W           [3] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
-            localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT};
+            localparam int unsigned OP_STAGE       [3] = '{OP0_STAGE, OP1_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [3] = '{OP0_SRC  , OP1_SRC  , VPORT_CNT};
             localparam bit [2:0]    OP_DYN_ADDR        = '0;
             localparam bit [2:0]    OP_MASK            = 3'b100;
             localparam bit [2:0]    OP_XREG            = {1'b0, OP1_XREG, 1'b0};
@@ -657,8 +689,8 @@ module vproc_pipeline_wrapper #(
         end
         else if (OP_CNT == 4 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [4] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
-            localparam int unsigned OP_STAGE       [4] = '{1, 2, UNPACK_STAGES-1, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [4] = '{0, 0, VPORT_CNT-1, VPORT_CNT};
+            localparam int unsigned OP_STAGE       [4] = '{OP0_STAGE, OP1_STAGE, OP2_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [4] = '{OP0_SRC  , OP1_SRC  , OP2_SRC  , VPORT_CNT};
             localparam bit [3:0]    OP_DYN_ADDR        = '0;
             localparam bit [3:0]    OP_MASK            = 4'b1000;
             localparam bit [3:0]    OP_XREG            = {2'b0, OP1_XREG, 1'b0};
@@ -721,8 +753,8 @@ module vproc_pipeline_wrapper #(
         end
         else if (OP_CNT == 5 && RES_CNT == 1) begin
             localparam int unsigned OP_W           [5] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, 1, MAX_OP_W/8};
-            localparam int unsigned OP_STAGE       [5] = '{4, 1, 4, 4, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [5] = '{0, 0, 0, 0, VPORT_CNT};
+            localparam int unsigned OP_STAGE       [5] = '{OP0_STAGE, OP1_STAGE, OP0_STAGE, OP0_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [5] = '{OP0_SRC  , OP1_SRC  , OP0_SRC  , OP0_SRC  , VPORT_CNT};
             localparam bit [4:0]    OP_DYN_ADDR        = OP_DYN_ADDR_OFFSET ? 5'b00100 : '0;
             localparam bit [4:0]    OP_MASK            = OP_SECOND_MASK ? 5'b11000 : 5'b10000;
             localparam bit [4:0]    OP_XREG            = {3'b0, OP1_XREG, 1'b0};
