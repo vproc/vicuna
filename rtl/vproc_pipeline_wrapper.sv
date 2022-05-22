@@ -448,6 +448,7 @@ module vproc_pipeline_wrapper #(
             state_init.op_flags[0                           ].elemwise = 1'b1;
             state_init.op_flags[0                           ].sigext   = pipe_in_data_i.mode.elem.sigext;
             state_init.op_flags[1                           ].elemwise = 1'b1;
+            state_init.op_flags[1                           ].narrow   = 1'b0; // only op 0 can be narrow
             state_init.op_flags[(OP_CNT >= 3) ? OP_CNT-3 : 0].vreg     = elem_vs2_dyn_addr;
             state_init.op_vaddr[(OP_CNT >= 3) ? OP_CNT-3 : 0]          = pipe_in_data_i.rs2.r.vaddr;
             state_init.op_flags[                OP_CNT-2    ].vreg     = pipe_in_data_i.rs2.vreg & elem_vs2_mask;
