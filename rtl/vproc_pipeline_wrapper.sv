@@ -145,7 +145,7 @@ module vproc_pipeline_wrapper #(
     // Verify that shared read ports are sufficiently wide
     if (UNITS[UNIT_MUL] & (OP0_SRC == OP1_SRC) & (OP0_SRC == OP2_SRC) & (MAX_OP_W * 2 >= VPORT_W[OP0_SRC])) begin
         $fatal(1, "If operands 0, 1, and 2 share the same source read port, then the operand ",
-                  "width must not be larger than one quarter of the read port width (the current",
+                  "width must not be larger than one quarter of the read port width (the current ",
                   "read port width is %d bits, hence the operand width can be at most %d bits; ",
                   VPORT_W[OP0_SRC], VPORT_W[OP0_SRC] / 4,
                   "however, the specified operand width is %d bits).", MAX_OP_W);
