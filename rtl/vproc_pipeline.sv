@@ -38,7 +38,6 @@ module vproc_pipeline #(
         parameter bit [RES_CNT-1:0]     RES_ALLOW_ELEMWISE  = '0,   // result may be 1 elem
         parameter bit [RES_CNT-1:0]     RES_ALWAYS_ELEMWISE = '0,   // result is 1 elem
         parameter bit [RES_CNT-1:0]     RES_ALWAYS_VREG     = '0,   // result is 1 elem
-        parameter bit                   MAY_FLUSH           = '0,
         parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
         parameter bit                   ADDR_ALIGNED        = 1'b1, // base address is aligned to VMEM_W
         parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
@@ -181,8 +180,7 @@ module vproc_pipeline #(
 
     logic state_stall, unpack_ready;
     assign state_ready     = ~state_valid_q | (~state_stall & unpack_ready);
-    assign pipe_in_ready_o = state_ready & (~state_valid_q | (state_q.last_cycle &
-                             (~MAY_FLUSH | ~state_q.requires_flush)));
+    assign pipe_in_ready_o = state_ready & (~state_valid_q | state_q.last_cycle);
 
     // State update logic
     state_t            state_next;
@@ -262,18 +260,6 @@ module vproc_pipeline #(
             for (int i = 0; i < OP_CNT; i++) begin
                 if ((OP_DYN_ADDR != '0) & ~OP_DYN_ADDR[i]) begin
                     state_next.op_flags[i].hold = state_q.aux_count != '1;
-                end
-            end
-
-            // flush pipeline if required
-            if (MAY_FLUSH & state_q.last_cycle) begin
-                state_next.count.val      = '0;
-                state_next.count.part.mul = '1;
-                state_next.first_cycle    = '0;
-                state_next.mode.elem.op   = ELEM_FLUSH;
-                state_next.requires_flush = '0;
-                for (int i = 0; i < OP_CNT; i++) begin
-                    state_next.op_flags[i].vreg = '0;
                 end
             end
         end
@@ -372,8 +358,7 @@ module vproc_pipeline #(
                     if ((op_count[i].part.low == '0) &
                         (~OP_NARROW[i] | ~state_next.op_flags[i].narrow | ~op_count[i].part.mul[0])
                     ) begin
-                        op_load_next[i] = (OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg) &
-                                          (~MAY_FLUSH | ~last_cycle_next); // may need flushing
+                        op_load_next[i] = OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg;
 
                         // if the alternative counter is used for some operands the counter's
                         // sign and MUL part might be invalid for the current EMUL, in which

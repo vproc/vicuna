@@ -178,9 +178,6 @@ module vproc_pipeline_wrapper #(
     localparam bit RES0_NARROW            = UNITS[UNIT_ALU];
     localparam bit RES0_ALLOW_ELEMWISE    = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
 
-    // other pipeline flags
-    localparam bit MAY_FLUSH              = UNITS[UNIT_ELEM];   // the pipeline may require flushing
-
 
     ///////////////////////////////////////////////////////////////////////////
     // CONVERT DECODER DATA TO INITIAL PIPELINE STATE
@@ -548,7 +545,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
@@ -612,7 +608,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
@@ -676,7 +671,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
@@ -740,7 +734,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
@@ -804,7 +797,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
@@ -868,7 +860,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
@@ -932,7 +923,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
@@ -996,7 +986,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
@@ -1060,7 +1049,6 @@ module vproc_pipeline_wrapper #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
                 .MUL_TYPE            ( MUL_TYPE            ),
                 .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),

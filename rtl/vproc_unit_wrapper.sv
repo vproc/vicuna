@@ -375,6 +375,17 @@ module vproc_unit_wrapper #(
                 flushing_emul_d     = flushing_emul_q;
                 flushing_vaddr_d    = flushing_vaddr_q;
                 flushing_last_cycle = 1'b0;
+                if (~flushing_q & unit_out_valid & unit_out_ctrl.last_cycle & unit_out_ctrl.requires_flush) begin
+                    flushing_d       = 1'b1;
+                    flushing_id_d    = unit_out_ctrl.id;
+                    flushing_eew_d   = unit_out_ctrl.eew;
+                    flushing_emul_d  = unit_out_ctrl.emul;
+                    flushing_vaddr_d = unit_out_ctrl.res_vaddr;
+                end
+                if (flushing_q & (vd_count_d.part.low == '1)) begin
+                    flushing_d          = 1'b0;
+                    flushing_last_cycle = 1'b1;
+                end
             end
 
             assign xreg_valid_o     = unit_out_valid & unit_out_xreg_valid & ~unit_out_stall & ~flushing_q & ~instr_killed_i[unit_out_ctrl.id];
