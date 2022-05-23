@@ -331,12 +331,16 @@ module vproc_core #(
                 end
             end
 
-            if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & (dec_data_q.id == xif_commit_if.commit.id) & result_csr_ready) begin
+            if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & (dec_data_q.id == xif_commit_if.commit.id)) begin
                 // Configuration instructions are not enqueued.  The instruction
                 // is retired and the result returned as soon as it is
                 // committed.
-                dec_clear        = 1'b1;
                 result_csr_valid = ~xif_commit_if.commit.commit_kill;
+                if (result_csr_ready | xif_commit_if.commit.commit_kill) begin
+                    dec_clear = 1'b1;
+                end else begin
+                    instr_notspec_d[xif_commit_if.commit.id] = 1'b1;
+                end
             end else begin
                 instr_notspec_d[xif_commit_if.commit.id] = 1'b1;
             end
@@ -347,9 +351,11 @@ module vproc_core #(
             // Execute a configuration instruction that has already been
             // committed earlier (i.e., while decoding and accepting the
             // instruction).
-            dec_clear                      = result_csr_ready;
-            result_csr_valid               = ~instr_killed_q[dec_data_q.id];
-            instr_notspec_d[dec_data_q.id] = 1'b0;
+            result_csr_valid = ~instr_killed_q[dec_data_q.id];
+            if (result_csr_ready | instr_killed_q[dec_data_q.id]) begin
+                dec_clear                      = 1'b1;
+                instr_notspec_d[dec_data_q.id] = 1'b0;
+            end
         end
         for (int i = 0; i < PIPE_CNT; i++) begin
             if (instr_complete_valid[i]) begin
