@@ -4,6 +4,10 @@
 
 
 # Synthesis Makefile for demo
+# requires GNU make; avoid spaces in directory names!
+
+# get the absolute path of the simulation directory (must not contain spaces!)
+DEMO_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # tcl script
 GEN_DEMO_TCL := gen_demo.tcl
@@ -11,7 +15,7 @@ GET_PERF_TCL := get_max_clk.tcl
 
 # select the core to use as main processor (defaults to Ibex)
 CORE     ?= ibex
-CORE_DIR := ../$(CORE)/
+CORE_DIR := $(DEMO_DIR)/../$(CORE)/
 
 # board and associated part, constraints file and clock info
 BOARD  ?= nexysvideo
@@ -41,10 +45,16 @@ RAM_FILE ?= demo.vmem
 
 all: proj
 
-proj:
+# vector coprocessor configuration file generation (defines VMEM_W and VREG_W)
+VPROC_CONFIG_PKG := $(PROJ_DIR)/vproc_config.sv
+VMEM_W			 := 32
+include $(DEMO_DIR)/../config.mk
+
+proj: $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR) && vivado -mode batch -source $(abspath $(GEN_DEMO_TCL))   \
-	    -tclargs $(abspath ../) $(abspath $(CORE_DIR)) $(PART)                \
-	    $(abspath $(CONSTR)) $(abspath $(RAM_FILE)) $(DIFF_CLK) $(CLK_PER)
+	    -tclargs $(DEMO_DIR)/../ $(abspath $(CORE_DIR)) $(VPROC_CONFIG_PKG)   \
+	    $(PART) $(abspath $(CONSTR)) $(abspath $(RAM_FILE))                   \
+	    $(DIFF_CLK) $(CLK_PER)
 
 perf: proj
 	cd $(PROJ_DIR) && vivado -mode batch -source $(abspath $(GET_PERF_TCL))   \

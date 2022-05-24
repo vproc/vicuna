@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_dispatcher #(
-        parameter int unsigned                            PIPE_CNT       = 1,
-        parameter bit [PIPE_CNT-1:0][vproc_pkg::UNIT_CNT-1:0] PIPE_UNITS = '0,
-        parameter int unsigned                            MAX_VADDR_W    = 5,    // max addr width
-        parameter type                                    DECODER_DATA_T = logic,
-        parameter bit                                     DONT_CARE_ZERO = 1'b0  // initialize don't care values to zero
+module vproc_dispatcher import vproc_pkg::*; #(
+        parameter int unsigned                            PIPE_CNT             = 1,
+        parameter bit [UNIT_CNT-1:0]                      PIPE_UNITS[PIPE_CNT] = '{'0},
+        parameter int unsigned                            MAX_VADDR_W          = 5,    // max addr width
+        parameter type                                    DECODER_DATA_T       = logic,
+        parameter bit                                     DONT_CARE_ZERO       = 1'b0  // initialize don't care values to zero
     )(
         input  logic                                      clk_i,
         input  logic                                      async_rst_ni,
@@ -26,8 +26,6 @@ module vproc_dispatcher #(
         output logic               [(1<<MAX_VADDR_W)-1:0] pend_vreg_wr_map_o,
         input  logic [PIPE_CNT-1:0][(1<<MAX_VADDR_W)-1:0] pend_vreg_wr_clear_i
     );
-
-    import vproc_pkg::*;
 
     localparam int unsigned VADDR_CNT = 1 << MAX_VADDR_W;
 

@@ -8,11 +8,7 @@ module vproc_tb #(
         parameter int unsigned MEM_W           = 32,
         parameter int unsigned MEM_SZ          = 262144,
         parameter int unsigned MEM_LATENCY     = 1,
-        parameter int unsigned VREG_W          = 128,
         parameter int unsigned VMEM_W          = 32,
-        parameter int unsigned VMUL_W          = 64,
-        parameter int unsigned VALU_W          = 64,
-        parameter int unsigned VSLD_W          = 64,
         parameter int unsigned ICACHE_SZ       = 0,   // instruction cache size in bytes
         parameter int unsigned ICACHE_LINE_W   = 128, // instruction cache line width in bits
         parameter int unsigned DCACHE_SZ       = 0,   // data cache size in bytes
@@ -38,11 +34,7 @@ module vproc_tb #(
 
     vproc_top #(
         .MEM_W         ( MEM_W                       ),
-        .VREG_W        ( VREG_W                      ),
         .VMEM_W        ( VMEM_W                      ),
-        .VMUL_W        ( VMUL_W                      ),
-        .VALU_W        ( VALU_W                      ),
-        .VSLD_W        ( VSLD_W                      ),
         .RAM_TYPE      ( vproc_pkg::RAM_XLNX_RAM32M  ),
         .MUL_TYPE      ( vproc_pkg::MUL_XLNX_DSP48E1 ),
         .ICACHE_SZ     ( ICACHE_SZ                   ),

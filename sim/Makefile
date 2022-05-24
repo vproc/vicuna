@@ -32,12 +32,10 @@ PROG_PATHS_LIST ?= progs.csv
 TRACE_FILE ?= sim_trace.csv
 TRACE_SIGS ?= '*'
 
-# select width of vector registers, vector memory, and multiplier in bits
-VREG_W ?= 128
-VMEM_W ?= 32
-VMUL_W ?= 64
-VALU_W ?= $(VMUL_W)
-VSLD_W ?= $(if $(filter-out 32,$(VMUL_W)),$(VMUL_W),64)
+# select memory width (bits), size (bytes), and latency (cycles, 1 is minimum)
+MEM_W		?= 32
+MEM_SZ      ?= 262144
+MEM_LATENCY ?= 1
 
 # set configuration of instruction and data caches (both disabled by default)
 ICACHE_SZ     ?= 0
@@ -45,21 +43,22 @@ ICACHE_LINE_W ?= 128
 DCACHE_SZ     ?= 0
 DCACHE_LINE_W ?= $(shell echo $$(( $(VMEM_W) * 2 )))
 
-# select memory width (bits), size (bytes), and latency (cycles, 1 is minimum)
-MEM_W		?= 32
-MEM_SZ      ?= 262144
-MEM_LATENCY ?= 1
+all: verilator
 
-vivado:
+# vector coprocessor configuration file generation (defines VMEM_W and VREG_W)
+VPROC_CONFIG_PKG := $(PROJ_DIR)/vproc_config.sv
+include $(SIM_DIR)/../config.mk
+
+vivado: $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR) && vivado -mode batch -source $(VIVADO_TCL)                \
-	    -tclargs $(SIM_DIR)/../ $(CORE_DIR) "VREG_W=$(VREG_W)                 \
-	    VMEM_W=$(VMEM_W) VMUL_W=$(VMUL_W) VALU_W=$(VALU_W) VSLD_W=$(VSLD_W)   \
+	    -tclargs $(SIM_DIR)/../ $(CORE_DIR) $(VPROC_CONFIG_PKG)               \
+	    "MEM_W=$(MEM_W) MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)           \
+	    VMEM_W=$(VMEM_W)                                                      \
 	    ICACHE_SZ=$(ICACHE_SZ) ICACHE_LINE_W=$(ICACHE_LINE_W)                 \
-	    DCACHE_SZ=$(DCACHE_SZ) DCACHE_LINE_W=$(DCACHE_LINE_W)                 \
-	    MEM_W=$(MEM_W) MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)"           \
+	    DCACHE_SZ=$(DCACHE_SZ) DCACHE_LINE_W=$(DCACHE_LINE_W)"                \
 	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS_LIST)) $(TRACE_SIGS)
 
-verilator:
+verilator: $(VPROC_CONFIG_PKG)
 	cp $(SIM_DIR)/verilator_main.cpp $(PROJ_DIR)/
 	cd $(PROJ_DIR);                                                           \
 	options="";                                                               \
@@ -101,11 +100,10 @@ verilator:
 	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
 	    -Wno-SYMRSVDWORD -Wno-BLKANDNBLK -Wno-BLKSEQ -Wno-SYNCASYNCNET        \
 	    -I$(SIM_DIR)/../rtl/ -I$(SIM_DIR)/../sva/ $$inc $$core                \
-	    -GMEM_W=$(MEM_W) -GVREG_W=$(VREG_W) -GVMEM_W=$(VMEM_W)                \
-	    -GVMUL_W=$(VMUL_W) -GVALU_W=$(VALU_W) -GVSLD_W=$(VSLD_W)              \
+	    -GMEM_W=$(MEM_W) -GVMEM_W=$(VMEM_W)                                   \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
-	    --cc $$src vproc_pkg.sv vproc_top.sv vproc_xif.sv                     \
+	    --cc $$src vproc_pkg.sv $(VPROC_CONFIG_PKG) vproc_top.sv vproc_xif.sv \
 	    vproc_vregpack.sv vproc_vregunpack.sv --top-module vproc_top          \
 	    --clk clk_i $$options $$cflags --exe verilator_main.cpp;              \
 	if [ "$$?" != "0" ]; then                                                 \
@@ -116,9 +114,9 @@ verilator:
 	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(abspath $(TRACE_FILE)) \
 	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
 
-questa:
+questa: $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR) && $(VSIM) -batch -do 'do $(QUESTA_TCL)                    \
-	    $(SIM_DIR).. $(CORE_DIR) "$(VREG_W) $(VMEM_W) $(VMUL_W) $(VALU_W)     \
-	    $(VSLD_W) $(ICACHE_SZ) $(ICACHE_LINE_W) $(DCACHE_SZ) $(DCACHE_LINE_W) \
-	    $(MEM_W) $(MEM_SZ) $(MEM_LATENCY)" $(abspath $(TRACE_FILE))           \
-	    $(abspath $(PROG_PATHS_LIST)) "$(TRACE_SIGS)"'
+	    $(SIM_DIR).. $(CORE_DIR) $(VPROC_CONFIG_PKG)                          \
+	    "$(VMEM_W) $(MEM_W) $(MEM_SZ) $(MEM_LATENCY)                          \
+	    $(ICACHE_SZ) $(ICACHE_LINE_W) $(DCACHE_SZ) $(DCACHE_LINE_W)"          \
+	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS_LIST)) "$(TRACE_SIGS)"'

@@ -5,11 +5,7 @@
 
 module vproc_top #(
         parameter int unsigned        MEM_W         = 32,  // memory bus width in bits
-        parameter int unsigned        VREG_W        = 128, // vector register width in bits
         parameter int unsigned        VMEM_W        = 32,  // vector memory interface width in bits
-        parameter int unsigned        VMUL_W        = 64,  // MUL unit operand width in bits
-        parameter int unsigned        VALU_W        = 64,  // ALU unit operand width in bits
-        parameter int unsigned        VSLD_W        = 64,  // SLD unit operand width in bits
         parameter vproc_pkg::ram_type RAM_TYPE      = vproc_pkg::RAM_GENERIC,
         parameter vproc_pkg::mul_type MUL_TYPE      = vproc_pkg::MUL_GENERIC,
         parameter int unsigned        ICACHE_SZ     = 0,   // instruction cache size in bytes
@@ -381,7 +377,7 @@ module vproc_top #(
     assign vect_csr_rdata[3] = {29'b0, csr_vxrm_rd, csr_vxsat_rd};
     assign vect_csr_rdata[4] = csr_vl;
     assign vect_csr_rdata[5] = csr_vtype;
-    assign vect_csr_rdata[6] = VREG_W / 8;
+    assign vect_csr_rdata[6] = csr_vlenb;
     assign csr_vstart_wr     = vect_csr_wdata[0];
     assign csr_vstart_wren   = vect_csr_we[0];
     assign csr_vxsat_wr      = vect_csr_we[1] ? vect_csr_wdata[1][0]   : vect_csr_wdata[3][0];
@@ -400,38 +396,10 @@ module vproc_top #(
     logic [VMEM_W/8-1:0] vdata_be;
     logic [VMEM_W-1:0]   vdata_wdata;
 
-    localparam int unsigned VPORT_RD_CNT               = 7;
-    localparam int unsigned VPORT_RD_W  [VPORT_RD_CNT] = '{default: VREG_W};
-    localparam int unsigned VPORT_WR_CNT               = 2;
-    localparam int unsigned VPORT_WR_W  [VPORT_WR_CNT] = '{default: VREG_W};
-
-    localparam int unsigned PIPE_CNT                                  = 5;
-    localparam bit [PIPE_CNT-1:0][vproc_pkg::UNIT_CNT-1:0] PIPE_UNITS = '{
-        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_ELEM,
-        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_SLD,
-        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_MUL,
-        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_ALU,
-        vproc_pkg::UNIT_CNT'(1) << vproc_pkg::UNIT_LSU
-    };
-    localparam int unsigned PIPE_MAX_OP_W    [PIPE_CNT] = '{VMEM_W, VALU_W, VMUL_W, VSLD_W, 32};
-    localparam int unsigned PIPE_VPORT_CNT   [PIPE_CNT] = '{1     , 1     , 2     , 1     , 1 };
-    localparam int unsigned PIPE_VPORT_OFFSET[PIPE_CNT] = '{1     , 2     , 3     , 5     , 6 };
-    localparam int unsigned PIPE_VPORT_WR    [PIPE_CNT] = '{0     , 0     , 1     , 1     , 0 };
 
     vproc_core #(
-        .VMEM_W             ( VMEM_W             ),
         .XIF_ID_W           ( X_ID_WIDTH         ),
-        .VREG_W             ( VREG_W             ),
-        .VPORT_RD_CNT       ( VPORT_RD_CNT       ),
-        .VPORT_RD_W         ( VPORT_RD_W         ),
-        .VPORT_WR_CNT       ( VPORT_WR_CNT       ),
-        .VPORT_WR_W         ( VPORT_WR_W         ),
-        .PIPE_CNT           ( PIPE_CNT           ),
-        .PIPE_UNITS         ( PIPE_UNITS         ),
-        .PIPE_MAX_OP_W      ( PIPE_MAX_OP_W      ),
-        .PIPE_VPORT_CNT     ( PIPE_VPORT_CNT     ),
-        .PIPE_VPORT_OFFSET  ( PIPE_VPORT_OFFSET  ),
-        .PIPE_VPORT_WR      ( PIPE_VPORT_WR      ),
+        .XIF_MEM_W          ( VMEM_W             ),
         .RAM_TYPE           ( RAM_TYPE           ),
         .MUL_TYPE           ( MUL_TYPE           ),
         .ADDR_ALIGNED       ( ~USE_XIF_MEM       ),

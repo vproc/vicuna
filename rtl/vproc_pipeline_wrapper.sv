@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_pipeline_wrapper #(
+module vproc_pipeline_wrapper import vproc_pkg::*; #(
         parameter int unsigned          VREG_W             = 128,  // width in bits of vector registers
         parameter int unsigned          CFG_VL_W           = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned          XIF_ID_W           = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT         = 8,    // total count of instruction IDs
-        parameter bit [vproc_pkg::UNIT_CNT-1:0] UNITS      = '0,
+        parameter bit [UNIT_CNT-1:0]    UNITS              = '0,
         parameter int unsigned          MAX_VPORT_W        = 128,  // max port width
         parameter int unsigned          MAX_VADDR_W        = 5,    // max addr width
         parameter int unsigned          VPORT_CNT          = 1,
@@ -25,7 +25,7 @@ module vproc_pipeline_wrapper #(
         parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER       = '0,   // buffer port
         parameter bit                   VPORT_V0           = '0,   // use dedicated v0 read port
         parameter int unsigned          MAX_OP_W           = 64,   // operand width in bits
-        parameter vproc_pkg::mul_type   MUL_TYPE           = vproc_pkg::MUL_GENERIC,
+        parameter mul_type              MUL_TYPE           = MUL_GENERIC,
         parameter bit                   ADDR_ALIGNED       = 1'b1, // base address is aligned to VMEM_W
         parameter int unsigned          MAX_WR_ATTEMPTS    = 1,    // max required vregfile write attempts
         parameter type                  DECODER_DATA_T     = logic,
@@ -88,8 +88,6 @@ module vproc_pipeline_wrapper #(
     localparam int unsigned VPORT_W[VPORT_CNT] = VERILATOR_ARRAY_SLICE(VREGFILE_VPORT_W);
     localparam int unsigned VADDR_W[VPORT_CNT] = VERILATOR_ARRAY_SLICE(VREGFILE_VADDR_W);
 `endif
-
-    import vproc_pkg::*;
 
     // OPERAND DEFINITIONS
     // The operand count depends on the units used within a pipeline.  Most units require two
