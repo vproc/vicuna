@@ -125,7 +125,6 @@ $(VPROC_CONFIG_PKG):
 	echo ""                                                                                 >>$@; \
 	echo "    import vproc_pkg::*;"                                                         >>$@; \
 	echo ""                                                                                 >>$@; \
-	echo "    parameter int unsigned VMEM_W                      = $(VMEM_W);"              >>$@; \
 	echo "    parameter int unsigned VREG_W                      = $(VREG_W);"              >>$@; \
 	echo "    parameter int unsigned VPORT_RD_CNT                = $$vport_rd_cnt;"         >>$@; \
 	echo "    parameter int unsigned VPORT_RD_W   [VPORT_RD_CNT] = '{default: VREG_W};"     >>$@; \
