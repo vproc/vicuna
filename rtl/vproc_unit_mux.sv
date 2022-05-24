@@ -220,10 +220,13 @@ module vproc_unit_mux #(
         active_unit_d       = active_unit_q;
         out_unit_valid      = '0;
         out_unit            = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
+        unit_out_ready      = {UNIT_CNT{pipe_out_ready_i}};
         if (active_unit_valid_q) begin
             active_unit_valid_d = ~unit_out_instr_done[active_unit_q];
             out_unit_valid      = 1'b1;
             out_unit            = active_unit_q;
+            // disable ready signal for all units that are not currently active
+            unit_out_ready      = UNIT_CNT'(pipe_out_ready_i) << active_unit_q;
         end else begin
             // select first unit with valid data as next active unit
             for (int i = 0; i < UNIT_CNT; i++) begin
@@ -232,19 +235,11 @@ module vproc_unit_mux #(
                     active_unit_d       = op_unit'(i);
                     out_unit_valid      = 1'b1;
                     out_unit            = op_unit'(i);
+                    // disable ready signal for remaining units
+                    for (int j = i + 1; j < UNIT_CNT; j++) begin
+                        unit_out_ready[j] = 1'b0;
+                    end
                     break;
-                end
-            end
-        end
-    end
-
-    always_comb begin
-        unit_out_ready = {UNIT_CNT{pipe_out_ready_i}};
-        if (active_unit_valid_q) begin
-            // disable ready signal for all units that are not currently active
-            for (int i = 0; i < UNIT_CNT; i++) begin
-                if (UNITS[i] & (op_unit'(i) != active_unit_q)) begin
-                    unit_out_ready = '0;
                 end
             end
         end
