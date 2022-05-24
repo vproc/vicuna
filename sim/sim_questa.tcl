@@ -30,6 +30,7 @@ set MUL_TYPE "0"
 
 # create source file list
 lappend src_list "$vproc_dir/rtl/vproc_pkg.sv"
+lappend src_list "$config_file_path"
 lappend src_list "$vproc_dir/sim/vproc_tb.sv"
 set main_core ""
 if {[string first "ibex" $core_dir] != -1} {
