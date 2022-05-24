@@ -44,7 +44,8 @@ module vproc_elem #(
     logic  state_res_valid_q, state_res_valid_d;
     CTRL_T state_res_q,       state_res_d;
 
-    // operands and result
+    // counter, operands and result
+    logic [31:0] counter_q,        counter_d;
     logic [31:0] result_q,         result_d;
     logic        result_mask_q,    result_mask_d;
     logic        result_valid_q,   result_valid_d;
@@ -65,6 +66,7 @@ module vproc_elem #(
             always_ff @(posedge clk_i) begin : vproc_elem_stage_res
                 if (state_res_ready & state_res_valid_d) begin
                     state_res_q    <= state_res_d;
+                    counter_q      <= counter_d;
                     result_q       <= result_d;
                     result_mask_q  <= result_mask_d;
                     result_valid_q <= result_valid_d;
@@ -72,12 +74,18 @@ module vproc_elem #(
             end
             assign state_res_ready = ~state_res_valid_q | pipe_out_ready_i;
         end else begin
+            // TODO result needs always to be buffered as well
             always_comb begin
                 state_res_valid_q = state_res_valid_d;
                 state_res_q       = state_res_d;
                 result_q          = result_d;
                 result_mask_q     = result_mask_d;
                 result_valid_q    = result_valid_d;
+            end
+            always_ff @(posedge clk_i) begin
+                if (state_res_ready & state_res_valid_d) begin
+                    counter_q <= counter_d;
+                end
             end
             assign state_res_ready = pipe_out_ready_i;
         end
@@ -138,11 +146,7 @@ module vproc_elem #(
     ///////////////////////////////////////////////////////////////////////////
     // ELEM OPERATION:
 
-    logic [31:0] counter_q, counter_d;
-    logic        counter_inc;
-    always_ff @(posedge clk_i) begin
-        counter_q <= counter_d;
-    end
+    logic counter_inc;
     assign counter_d = (pipe_in_ctrl_i.first_cycle ? 32'b0 : counter_q) + {31'b0, counter_inc};
 
     logic        v0msk;
