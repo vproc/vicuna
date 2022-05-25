@@ -124,5 +124,4 @@ jobs:
         run: |
           export PATH=$PATH:/opt/verilator/bin:/opt/riscv-gcc/bin
           verilator --version
-          cd cv32e40x && git apply ../.github/cv32e40x_ci.patch && cd ..
           cd test && make ${{ matrix.unit }} CORE=${{ matrix.main_core }}
