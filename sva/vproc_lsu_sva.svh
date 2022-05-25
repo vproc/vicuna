@@ -9,3 +9,19 @@
     ) else begin
         $error("attempt to stall LSU output");
     end
+
+    // Assert that there is no memory response transaction while dequeueing a suppressed request
+    assert property (
+        @(posedge clk_i)
+        (deq_valid & xif_memres_if.mem_result_valid) |-> ~deq_state.suppressed
+    ) else begin
+        $error("incoming memory response transaction while dequeueing a suppressed request");
+    end
+
+    // Assert that there is no memory response transaction while dequeueing a failed request
+    assert property (
+        @(posedge clk_i)
+        (deq_valid & xif_memres_if.mem_result_valid) |-> ~deq_state.exc
+    ) else begin
+        $error("incoming memory response transaction while dequeueing a failed request");
+    end

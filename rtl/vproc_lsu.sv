@@ -61,11 +61,10 @@ module vproc_lsu import vproc_pkg::*; #(
         logic [4:0]                  res_vaddr;
         logic                        res_store;
         logic                        res_shift;
+        logic                        suppressed;
         logic                        exc;
         logic [5:0]                  exccode;
     } lsu_state_red;
-
-    logic mem_result_valid; // XIF mem_result_valid guarded by LSU queue deq_valid_o
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -73,7 +72,7 @@ module vproc_lsu import vproc_pkg::*; #(
 
     logic         state_req_ready,   lsu_queue_ready;
     logic         state_req_stall;
-    logic         state_req_valid_q, state_req_valid_d, state_rdata_valid_q;
+    logic         state_req_valid_q, state_req_valid_d, state_rdata_valid_q, state_rdata_valid_d;
     CTRL_T        state_req_q,       state_req_d;
     lsu_state_red                                       state_rdata_q,       state_rdata_d;
 
@@ -157,11 +156,11 @@ module vproc_lsu import vproc_pkg::*; #(
                     state_rdata_valid_q <= 1'b0;
                 end
                 else begin
-                    state_rdata_valid_q <= mem_result_valid;
+                    state_rdata_valid_q <= state_rdata_valid_d;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_rdata
-                if (mem_result_valid) begin
+                if (state_rdata_valid_d) begin
                     state_rdata_q <= state_rdata_d;
                     rdata_buf_q   <= rdata_buf_d;
                     rdata_off_q   <= rdata_off_d;
@@ -172,7 +171,7 @@ module vproc_lsu import vproc_pkg::*; #(
             end
         end else begin
             always_comb begin
-                state_rdata_valid_q = mem_result_valid;
+                state_rdata_valid_q = state_rdata_valid_d;
                 state_rdata_q       = state_rdata_d;
                 rdata_buf_q         = rdata_buf_d;
                 rdata_off_q         = rdata_off_d;
@@ -278,8 +277,15 @@ module vproc_lsu import vproc_pkg::*; #(
         end
     end
 
+    // suppress memory request if all data elements are invalid (have indices greater than VL)
+    // TODO: memory requests should probably also be suppressed if all elements are masked off, but
+    // that could be tricky because the LSU cannot accept a memory response transaction while
+    // dequeueing a suppressed request
+    logic req_suppress;
+    assign req_suppress = state_req_q.vl_part_0;
+
     // memory request (keep requesting next access while addressing is not complete)
-    assign xif_mem_if.mem_valid     = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
+    assign xif_mem_if.mem_valid     = state_req_valid_q & ~req_suppress & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
     assign xif_mem_if.mem_req.id    = state_req_q.id;
     assign xif_mem_if.mem_req.addr  = VLSU_FLAGS[VLSU_ADDR_ALIGNED] ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
     assign xif_mem_if.mem_req.mode  = '0;
@@ -312,10 +318,12 @@ module vproc_lsu import vproc_pkg::*; #(
         state_req_red.res_vaddr   = state_req_q.res_vaddr;
         state_req_red.res_store   = state_req_q.res_store;
         state_req_red.res_shift   = state_req_q.res_shift;
+        state_req_red.suppressed  = req_suppress;
         state_req_red.exc         = xif_mem_if.mem_resp.exc;
         state_req_red.exccode     = xif_mem_if.mem_resp.exccode;
     end
     logic         deq_valid; // LSU queue dequeue valid signal
+    logic         deq_ready;
     lsu_state_red deq_state;
     vproc_queue #(
         .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
@@ -327,22 +335,23 @@ module vproc_lsu import vproc_pkg::*; #(
         .enq_ready_o  ( lsu_queue_ready                                               ),
         .enq_valid_i  ( state_req_valid_q & state_req_ready                           ),
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
-        .deq_ready_i  ( mem_result_valid | mem_err_d                                  ),
+        .deq_ready_i  ( deq_ready                                                     ),
         .deq_valid_o  ( deq_valid                                                     ),
         .deq_data_o   ( {rdata_off_d, rmask_buf_d, deq_state}                         ),
         .flags_any_o  (                                                               ),
         .flags_all_o  (                                                               )
     );
-    assign mem_result_valid = xif_memres_if.mem_result_valid & deq_valid;
+    assign deq_ready           = xif_memres_if.mem_result_valid | deq_state.suppressed | mem_err_d;
+    assign state_rdata_valid_d = deq_valid & deq_ready;
 
     // monitor the memory result for bus errors and the queue for exceptions
     always_comb begin
         mem_err_d     = mem_err_q;
         mem_exccode_d = mem_exccode_q;
-        if ((deq_valid & deq_state.first_cycle) | ~mem_err_q) begin
+        if (deq_valid & (deq_state.first_cycle | ~mem_err_q)) begin
             // reset the error flag in the first cycle, unless there is a bus
             // error or an exception occured during the request
-            mem_err_d     = deq_state.exc | (mem_result_valid & xif_memres_if.mem_result.err);
+            mem_err_d     = deq_state.exc | (xif_memres_if.mem_result_valid & xif_memres_if.mem_result.err);
             mem_exccode_d = deq_state.exc ? deq_state.exccode : (
                 // bus error translates to a load/store access fault exception
                 deq_state.mode.store ? 6'h07 : 6'h05
@@ -351,7 +360,7 @@ module vproc_lsu import vproc_pkg::*; #(
     end
 
     // LSU result (indicates potential exceptions):
-    assign trans_complete_valid_o   = deq_valid & deq_state.last_cycle & (mem_result_valid | mem_err_d);
+    assign trans_complete_valid_o   = deq_valid & deq_ready & deq_state.last_cycle;
     assign trans_complete_id_o      = deq_state.id;
     assign trans_complete_exc_o     = mem_err_d;
     assign trans_complete_exccode_o = mem_exccode_d;
