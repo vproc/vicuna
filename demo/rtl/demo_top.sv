@@ -88,7 +88,7 @@ module demo_top #(
     vproc_top #(
         .MEM_W        ( 32                          ),
         .VMEM_W       ( 32                          ),
-        .RAM_TYPE     ( vproc_pkg::RAM_XLNX_RAM32M  ),
+        .VREG_TYPE    ( vproc_pkg::VREG_XLNX_RAM32M ),
         .MUL_TYPE     ( vproc_pkg::MUL_XLNX_DSP48E1 )
     ) vproc (
         .clk_i        ( clk                         ),
