@@ -197,6 +197,38 @@ module vproc_unit_mux #(
         end
     endgenerate
 
+    // if this pipeline contains an LSU, remember how many instr have entered it
+    // TODO: assert that this counter does not overflow
+    logic [1:0] lsu_instr_cnt_q, lsu_instr_cnt_d;
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin
+        if (~async_rst_ni) begin
+            lsu_instr_cnt_q <= '0;
+        end
+        else if (~sync_rst_ni) begin
+            lsu_instr_cnt_q <= '0;
+        end
+        else begin
+            lsu_instr_cnt_q <= lsu_instr_cnt_d;
+        end
+    end
+    logic lsu_empty;
+    always_comb begin
+        lsu_instr_cnt_d = lsu_instr_cnt_q;
+        lsu_empty       = 1'b1;
+        if (UNITS[UNIT_LSU]) begin
+            unique case ({
+                unit_in_valid [UNIT_LSU] & unit_in_ready [UNIT_LSU] & pipe_in_ctrl_i.first_cycle,
+                unit_out_valid[UNIT_LSU] & unit_out_ready[UNIT_LSU] & unit_out_instr_done[UNIT_LSU]
+            })
+                2'b01: lsu_instr_cnt_d = lsu_instr_cnt_q + 2'b01;
+                2'b10: lsu_instr_cnt_d = lsu_instr_cnt_q - 2'b01;
+                default: ;
+            endcase
+            lsu_empty = lsu_instr_cnt_q == '0;
+        end
+    end
+
+    // store the currently active unit
     logic   active_unit_valid_q, active_unit_valid_d;
     op_unit active_unit_q,       active_unit_d;
     always_ff @(posedge clk_i or negedge async_rst_ni) begin
@@ -228,18 +260,29 @@ module vproc_unit_mux #(
             // disable ready signal for all units that are not currently active
             unit_out_ready      = UNIT_CNT'(pipe_out_ready_i) << active_unit_q;
         end else begin
-            // select first unit with valid data as next active unit
-            for (int i = 0; i < UNIT_CNT; i++) begin
-                if (UNITS[i] & unit_out_valid[i]) begin
-                    active_unit_valid_d = ~unit_out_instr_done[i];
-                    active_unit_d       = op_unit'(i);
-                    out_unit_valid      = 1'b1;
-                    out_unit            = op_unit'(i);
-                    // disable ready signal for remaining units
-                    for (int j = i + 1; j < UNIT_CNT; j++) begin
-                        unit_out_ready[j] = 1'b0;
+            // if the LSU is not empty it immediatly becomes active (since the
+            // LSU cannot stall and data will eventually arrive)
+            if (UNITS[UNIT_LSU] & ~lsu_empty) begin
+                active_unit_valid_d = ~unit_out_instr_done[UNIT_LSU];
+                active_unit_d       = UNIT_LSU;
+                out_unit_valid      = 1'b1;
+                out_unit            = UNIT_LSU;
+                // disable ready signal for all other units
+                unit_out_ready      = UNIT_CNT'(pipe_out_ready_i) << UNIT_LSU;
+            end else begin
+                // select first unit with valid data as next active unit
+                for (int i = 0; i < UNIT_CNT; i++) begin
+                    if (UNITS[i] & unit_out_valid[i]) begin
+                        active_unit_valid_d = ~unit_out_instr_done[i];
+                        active_unit_d       = op_unit'(i);
+                        out_unit_valid      = 1'b1;
+                        out_unit            = op_unit'(i);
+                        // disable ready signal for remaining units
+                        for (int j = i + 1; j < UNIT_CNT; j++) begin
+                            unit_out_ready[j] = 1'b0;
+                        end
+                        break;
                     end
-                    break;
                 end
             end
         end
