@@ -69,13 +69,10 @@ vopt +acc vproc_tb -o vproc_tb_opt -debugdb -G VMEM_W=$VMEM_W      \
 
 vsim -work work vproc_tb_opt
 
-# add trace_signals
-foreach sig $log_signals {
-    add wave $sig
-}
+# add all signals
+add wave -r /*
 
 set complete_signal "done"
-add wave "done"
 
 set outf [open $log_file_path "w"]
 puts "logging following signals to $log_file_path: $log_signals"
