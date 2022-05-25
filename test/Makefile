@@ -96,7 +96,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" 2>&1 |             \
 	        tee sim.log | sed -n 's/^>>>\(.*\)/\[INFO\]\1/p';                 \
 	    if [ "$$?" != "0" ]; then                                             \
-	        printf "\033[0;31m[FAIL]\033[0;0m $@ simulation error; "          \
+	        printf "\033[0;31m[FAIL]\033[0;0m $@ simulation error; ";         \
 	        printf "log file $@/sim.log:\n";                                  \
 	        cat sim.log;                                                      \
 	        exit 1;                                                           \
