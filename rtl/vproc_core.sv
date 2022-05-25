@@ -96,6 +96,12 @@ module vproc_core import vproc_pkg::*; #(
 
     generate
         for (genvar i = 0; i < PIPE_CNT; i++) begin
+            if (PIPE_UNITS[i][UNIT_LSU] & (PIPE_MAX_OP_W[i] != XIF_MEM_W)) begin
+                $fatal(1, "The vector pipeline containing the VLSU must have a datapath width ",
+                          "equal to the memory interface width.  However, pipeline %d ", i,
+                          "containing the VLSU has a width of %d bits ", PIPE_MAX_OP_W[i],
+                          "while the memory interface is %d bits wide.", XIF_MEM_W);
+            end
             if ((PIPE_VPORT_IDX[i] >= VPORT_RD_CNT) |
                 (PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] > VPORT_RD_CNT)
             ) begin
