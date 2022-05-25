@@ -77,7 +77,7 @@ $(VPROC_CONFIG_PKG):
 	pipe_units="";                                                                                \
 	pipe_widths="";                                                                               \
 	pipe_vport_cnt="";                                                                            \
-	pipe_vport_offset="";                                                                         \
+	pipe_vport_idx="";                                                                            \
 	pipe_vport_wr="";                                                                             \
 	for pipe in $(VPROC_PIPELINES); do                                                            \
 	    width=`echo $$pipe | cut -d ":" -f 1`;                                                    \
@@ -96,13 +96,13 @@ $(VPROC_CONFIG_PKG):
 	        pipe_units="$${unit_mask}";                                                           \
 	        pipe_widths="$${width}";                                                              \
 	        pipe_vport_cnt="$${vport_cnt}";                                                       \
-	        pipe_vport_offset="$${vport_rd_cnt}";                                                 \
+	        pipe_vport_idx="$${vport_rd_cnt}";                                                    \
 	        pipe_vport_wr="$${vport_wr}";                                                         \
 	    else                                                                                      \
 	        pipe_units="$${pipe_units}, $${unit_mask}";                                           \
 	        pipe_widths="$${pipe_widths}, $${width}";                                             \
 	        pipe_vport_cnt="$${pipe_vport_cnt}, $${vport_cnt}";                                   \
-	        pipe_vport_offset="$${pipe_vport_offset}, $${vport_rd_cnt}";                          \
+	        pipe_vport_idx="$${pipe_vport_idx}, $${vport_rd_cnt}";                                \
 	        pipe_vport_wr="$${pipe_vport_wr}, $${vport_wr}";                                      \
 	    fi;                                                                                       \
 	    vport_rd_cnt=$$(($$vport_rd_cnt + $$vport_cnt));                                          \
@@ -116,7 +116,7 @@ $(VPROC_CONFIG_PKG):
 	done;                                                                                         \
 	pipe_widths="'{$${pipe_widths}}";                                                             \
 	pipe_vport_cnt="'{$${pipe_vport_cnt}}";                                                       \
-	pipe_vport_offset="'{$${pipe_vport_offset}}";                                                 \
+	pipe_vport_idx="'{$${pipe_vport_idx}}";                                                       \
 	pipe_vport_wr="'{$${pipe_vport_wr}}";                                                         \
 	echo "// - Vector register file needs $${vport_rd_cnt} read ports and $${vport_wr_cnt}"       \
 	     "write ports"                                                                      >>$@; \
@@ -125,6 +125,7 @@ $(VPROC_CONFIG_PKG):
 	echo ""                                                                                 >>$@; \
 	echo "    import vproc_pkg::*;"                                                         >>$@; \
 	echo ""                                                                                 >>$@; \
+	echo "    parameter vreg_type    VREG_TYPE                   = VREG_GENERIC;"           >>$@; \
 	echo "    parameter int unsigned VREG_W                      = $(VREG_W);"              >>$@; \
 	echo "    parameter int unsigned VPORT_RD_CNT                = $$vport_rd_cnt;"         >>$@; \
 	echo "    parameter int unsigned VPORT_RD_W   [VPORT_RD_CNT] = '{default: VREG_W};"     >>$@; \
@@ -137,16 +138,14 @@ $(VPROC_CONFIG_PKG):
 	echo "    };"                                                                           >>$@; \
 	echo "    parameter int unsigned PIPE_MAX_OP_W    [PIPE_CNT] = $$pipe_widths;"          >>$@; \
 	echo "    parameter int unsigned PIPE_VPORT_CNT   [PIPE_CNT] = $$pipe_vport_cnt;"       >>$@; \
-	echo "    parameter int unsigned PIPE_VPORT_OFFSET[PIPE_CNT] = $$pipe_vport_offset;"    >>$@; \
+	echo "    parameter int unsigned PIPE_VPORT_IDX   [PIPE_CNT] = $$pipe_vport_idx;"       >>$@; \
 	echo "    parameter int unsigned PIPE_VPORT_WR    [PIPE_CNT] = $$pipe_vport_wr;"        >>$@; \
 	echo ""                                                                                 >>$@; \
-	echo "    parameter ram_type     RAM_TYPE                    = RAM_GENERIC;"            >>$@; \
+	echo "    parameter int unsigned VLSU_QUEUE_SZ               = 4;"                      >>$@; \
+	echo "    parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0;"                     >>$@; \
 	echo "    parameter mul_type     MUL_TYPE                    = MUL_GENERIC;"            >>$@; \
-	echo "    parameter int unsigned QUEUE_SZ                    = 2;"                      >>$@; \
-	echo "    parameter bit          BUF_DEC                     = 1'b1;"                   >>$@; \
-	echo "    parameter bit          BUF_DEQUEUE                 = 1'b1;"                   >>$@; \
-	echo "    parameter bit          BUF_VREG_WR                 = 1'b0;"                   >>$@; \
-	echo "    parameter bit          BUF_VREG_PEND               = 1'b1;"                   >>$@; \
-	echo "    parameter bit          ADDR_ALIGNED                = 1'b1;"                   >>$@; \
+	echo ""                                                                                 >>$@; \
+	echo "    parameter int unsigned INSTR_QUEUE_SZ              = 2;"                      >>$@; \
+	echo "    parameter bit [BUF_FLAGS_W-1:0] BUF_FLAGS          = '0;"                     >>$@; \
 	echo ""                                                                                 >>$@; \
 	echo "endpackage"                                                                       >>$@;

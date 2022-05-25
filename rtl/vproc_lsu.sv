@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_lsu #(
+module vproc_lsu import vproc_pkg::*; #(
         parameter int unsigned        VMEM_W          = 32,   // width in bits of the vector memory interface
         parameter bit                 BUF_REQUEST     = 1'b1, // insert pipeline stage before issuing request
         parameter bit                 BUF_RDATA       = 1'b1, // insert pipeline stage after memory read
         parameter type                CTRL_T          = logic,
         parameter int unsigned        XIF_ID_W        = 3,    // width in bits of instruction IDs
         parameter int unsigned        XIF_ID_CNT      = 8,    // total count of instruction IDs
-        parameter bit                 ADDR_ALIGNED    = 1'b1, // base address is aligned to VMEM_W
+        parameter int unsigned           VLSU_QUEUE_SZ = 4,
+        parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS    = '0,
         parameter bit                 DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )
     (
@@ -48,8 +49,6 @@ module vproc_lsu #(
         vproc_xif.coproc_mem          xif_mem_if,
         vproc_xif.coproc_mem_result   xif_memres_if
     );
-
-    import vproc_pkg::*;
 
     // reduced LSU state for passing through the queue
     typedef struct packed {
@@ -267,7 +266,7 @@ module vproc_lsu #(
                 end
                 default: ;
             endcase
-            if (~ADDR_ALIGNED) begin
+            if (~VLSU_FLAGS[VLSU_ADDR_ALIGNED]) begin
                 wdata_buf_d = vs3_data[VMEM_W-1:0];
                 unique case (pipe_in_ctrl_i.mode.lsu.eew)
                     VSEW_8:  wmask_buf_d = {{VMEM_W/8-1{1'b0}},    wdata_stri_mask  };
@@ -282,7 +281,7 @@ module vproc_lsu #(
     // memory request (keep requesting next access while addressing is not complete)
     assign xif_mem_if.mem_valid     = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
     assign xif_mem_if.mem_req.id    = state_req_q.id;
-    assign xif_mem_if.mem_req.addr  = ADDR_ALIGNED ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
+    assign xif_mem_if.mem_req.addr  = VLSU_FLAGS[VLSU_ADDR_ALIGNED] ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
     assign xif_mem_if.mem_req.mode  = '0;
     assign xif_mem_if.mem_req.we    = state_req_q.mode.lsu.store;
     assign xif_mem_if.mem_req.be    = wmask_buf_q;
@@ -320,7 +319,7 @@ module vproc_lsu #(
     lsu_state_red deq_state;
     vproc_queue #(
         .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
-        .DEPTH        ( 4                                                             )
+        .DEPTH        ( VLSU_QUEUE_SZ                                                 )
     ) lsu_queue (
         .clk_i        ( clk_i                                                         ),
         .async_rst_ni ( async_rst_ni                                                  ),
@@ -400,7 +399,7 @@ module vproc_lsu #(
                 VSEW_32: pipe_out_res_o[31:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32];
                 default: ;
             endcase
-            if (~ADDR_ALIGNED) begin
+            if (~VLSU_FLAGS[VLSU_ADDR_ALIGNED]) begin
                 pipe_out_res_o = rdata_buf_q;
             end
         end

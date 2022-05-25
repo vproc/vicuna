@@ -4,14 +4,14 @@
 
 
 module vproc_top #(
-        parameter int unsigned        MEM_W         = 32,  // memory bus width in bits
-        parameter int unsigned        VMEM_W        = 32,  // vector memory interface width in bits
-        parameter vproc_pkg::ram_type RAM_TYPE      = vproc_pkg::RAM_GENERIC,
-        parameter vproc_pkg::mul_type MUL_TYPE      = vproc_pkg::MUL_GENERIC,
-        parameter int unsigned        ICACHE_SZ     = 0,   // instruction cache size in bytes
-        parameter int unsigned        ICACHE_LINE_W = 128, // instruction cache line width in bits
-        parameter int unsigned        DCACHE_SZ     = 0,   // data cache size in bytes
-        parameter int unsigned        DCACHE_LINE_W = 512  // data cache line width in bits
+        parameter int unsigned         MEM_W         = 32,  // memory bus width in bits
+        parameter int unsigned         VMEM_W        = 32,  // vector memory interface width in bits
+        parameter vproc_pkg::vreg_type VREG_TYPE     = vproc_pkg::VREG_GENERIC,
+        parameter vproc_pkg::mul_type  MUL_TYPE      = vproc_pkg::MUL_GENERIC,
+        parameter int unsigned         ICACHE_SZ     = 0,   // instruction cache size in bytes
+        parameter int unsigned         ICACHE_LINE_W = 128, // instruction cache line width in bits
+        parameter int unsigned         DCACHE_SZ     = 0,   // data cache size in bytes
+        parameter int unsigned         DCACHE_LINE_W = 512  // data cache line width in bits
     )(
         input  logic               clk_i,
         input  logic               rst_ni,
@@ -396,13 +396,19 @@ module vproc_top #(
     logic [VMEM_W/8-1:0] vdata_be;
     logic [VMEM_W-1:0]   vdata_wdata;
 
+    localparam bit [vproc_pkg::VLSU_FLAGS_W-1:0] VLSU_FLAGS = USE_XIF_MEM ? '0 :
+                                                              (vproc_pkg::VLSU_FLAGS_W'(1) << vproc_pkg::VLSU_ADDR_ALIGNED);
+
+    localparam bit [vproc_pkg::BUF_FLAGS_W -1:0] BUF_FLAGS  = (vproc_pkg::BUF_FLAGS_W'(1) << vproc_pkg::BUF_DEQUEUE  ) |
+                                                              (vproc_pkg::BUF_FLAGS_W'(1) << vproc_pkg::BUF_VREG_PEND);
 
     vproc_core #(
         .XIF_ID_W           ( X_ID_WIDTH         ),
         .XIF_MEM_W          ( VMEM_W             ),
-        .RAM_TYPE           ( RAM_TYPE           ),
+        .VREG_TYPE          ( VREG_TYPE          ),
         .MUL_TYPE           ( MUL_TYPE           ),
-        .ADDR_ALIGNED       ( ~USE_XIF_MEM       ),
+        .VLSU_FLAGS         ( VLSU_FLAGS         ),
+        .BUF_FLAGS          ( BUF_FLAGS          ),
         .DONT_CARE_ZERO     ( 1'b0               ),
         .ASYNC_RESET        ( 1'b0               )
     ) v_core (

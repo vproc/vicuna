@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_unit_mux #(
-        parameter bit [vproc_pkg::UNIT_CNT-1:0]      UNITS           = '0,
+module vproc_unit_mux import vproc_pkg::*; #(
+        parameter bit [UNIT_CNT-1:0]                 UNITS           = '0,
         parameter int unsigned                       XIF_ID_W        = 3,
         parameter int unsigned                       XIF_ID_CNT      = 8,
         parameter int unsigned                       VREG_W          = 128,
@@ -12,8 +12,9 @@ module vproc_unit_mux #(
         parameter int unsigned                       MAX_OP_W        = 32,
         parameter int unsigned                       RES_CNT         = 2,
         parameter int unsigned                       MAX_RES_W       = 32,
-        parameter vproc_pkg::mul_type                MUL_TYPE        = vproc_pkg::MUL_GENERIC,
-        parameter bit                                ADDR_ALIGNED    = 1'b1,
+        parameter int unsigned                       VLSU_QUEUE_SZ   = 4,
+        parameter bit [VLSU_FLAGS_W-1:0]             VLSU_FLAGS      = '0,
+        parameter mul_type                           MUL_TYPE        = MUL_GENERIC,
         parameter type                               CTRL_T          = logic,
         parameter type                               COUNTER_T       = logic,
         parameter int unsigned                       COUNTER_W       = 0,
@@ -32,11 +33,11 @@ module vproc_unit_mux #(
         output logic                                 pipe_out_valid_o,
         input  logic                                 pipe_out_ready_i,
         output logic    [XIF_ID_W              -1:0] pipe_out_instr_id_o,
-        output vproc_pkg::cfg_vsew                   pipe_out_eew_o,
+        output cfg_vsew                              pipe_out_eew_o,
         output logic    [4:0]                        pipe_out_vaddr_o,
         output logic    [RES_CNT-1:0]                pipe_out_res_store_o,
         output logic    [RES_CNT-1:0]                pipe_out_res_valid_o,
-        output vproc_pkg::pack_flags [RES_CNT  -1:0] pipe_out_res_flags_o,
+        output pack_flags            [RES_CNT  -1:0] pipe_out_res_flags_o,
         output logic    [RES_CNT-1:0][MAX_RES_W-1:0] pipe_out_res_data_o,
         output logic    [RES_CNT-1:0][MAX_RES_W-1:0] pipe_out_res_mask_o,
         output logic                                 pipe_out_pend_clear_o,
@@ -64,8 +65,6 @@ module vproc_unit_mux #(
         output logic    [4:0]                        xreg_addr_o,
         output logic    [31:0]                       xreg_data_o
     );
-
-    import vproc_pkg::*;
 
     logic [UNIT_CNT-1:0] unit_in_valid;
     logic [UNIT_CNT-1:0] unit_in_ready;
@@ -121,8 +120,9 @@ module vproc_unit_mux #(
                     .MAX_OP_W                  ( MAX_OP_W                   ),
                     .RES_CNT                   ( RES_CNT                    ),
                     .MAX_RES_W                 ( MAX_RES_W                  ),
+                    .VLSU_QUEUE_SZ             ( VLSU_QUEUE_SZ              ),
+                    .VLSU_FLAGS                ( VLSU_FLAGS                 ),
                     .MUL_TYPE                  ( MUL_TYPE                   ),
-                    .ADDR_ALIGNED              ( ADDR_ALIGNED               ),
                     .CTRL_T                    ( CTRL_T                     ),
                     .COUNTER_T                 ( COUNTER_T                  ),
                     .COUNTER_W                 ( COUNTER_W                  ),

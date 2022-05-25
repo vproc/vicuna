@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_unit_wrapper #(
-        parameter vproc_pkg::op_unit                 UNIT            = vproc_pkg::UNIT_ALU,
+module vproc_unit_wrapper import vproc_pkg::*; #(
+        parameter op_unit                            UNIT            = UNIT_ALU,
         parameter int unsigned                       XIF_ID_W        = 3,
         parameter int unsigned                       XIF_ID_CNT      = 8,
         parameter int unsigned                       VREG_W          = 128,
@@ -12,8 +12,9 @@ module vproc_unit_wrapper #(
         parameter int unsigned                       MAX_OP_W        = 32,
         parameter int unsigned                       RES_CNT         = 2,
         parameter int unsigned                       MAX_RES_W       = 32,
-        parameter vproc_pkg::mul_type                MUL_TYPE        = vproc_pkg::MUL_GENERIC,
-        parameter bit                                ADDR_ALIGNED    = 1'b1,
+        parameter int unsigned                       VLSU_QUEUE_SZ   = 4,
+        parameter bit [VLSU_FLAGS_W-1:0]             VLSU_FLAGS      = '0,
+        parameter mul_type                           MUL_TYPE        = MUL_GENERIC,
         parameter type                               CTRL_T          = logic,
         parameter type                               COUNTER_T       = logic,
         parameter int unsigned                       COUNTER_W       = 0,
@@ -32,11 +33,11 @@ module vproc_unit_wrapper #(
         output logic                                 pipe_out_valid_o,
         input  logic                                 pipe_out_ready_i,
         output logic    [XIF_ID_W              -1:0] pipe_out_instr_id_o,
-        output vproc_pkg::cfg_vsew                   pipe_out_eew_o,
+        output cfg_vsew                              pipe_out_eew_o,
         output logic    [4:0]                        pipe_out_vaddr_o,
         output logic    [RES_CNT-1:0]                pipe_out_res_store_o,
         output logic    [RES_CNT-1:0]                pipe_out_res_valid_o,
-        output vproc_pkg::pack_flags [RES_CNT  -1:0] pipe_out_res_flags_o,
+        output pack_flags            [RES_CNT  -1:0] pipe_out_res_flags_o,
         output logic    [RES_CNT-1:0][MAX_RES_W-1:0] pipe_out_res_data_o,
         output logic    [RES_CNT-1:0][MAX_RES_W-1:0] pipe_out_res_mask_o,
         output logic                                 pipe_out_pend_clear_o,
@@ -65,8 +66,6 @@ module vproc_unit_wrapper #(
         output logic    [31:0]                       xreg_data_o
     );
 
-    import vproc_pkg::*;
-
     generate
         if (UNIT == UNIT_LSU) begin
             CTRL_T                 unit_out_ctrl;
@@ -77,7 +76,8 @@ module vproc_unit_wrapper #(
                 .CTRL_T                   ( CTRL_T                                      ),
                 .XIF_ID_W                 ( XIF_ID_W                                    ),
                 .XIF_ID_CNT               ( XIF_ID_CNT                                  ),
-                .ADDR_ALIGNED             ( ADDR_ALIGNED                                ),
+                .VLSU_QUEUE_SZ            ( VLSU_QUEUE_SZ                               ),
+                .VLSU_FLAGS               ( VLSU_FLAGS                                  ),
                 .DONT_CARE_ZERO           ( DONT_CARE_ZERO                              )
             ) lsu (
                 .clk_i                    ( clk_i                                       ),

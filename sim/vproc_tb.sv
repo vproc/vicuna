@@ -35,7 +35,7 @@ module vproc_tb #(
     vproc_top #(
         .MEM_W         ( MEM_W                       ),
         .VMEM_W        ( VMEM_W                      ),
-        .RAM_TYPE      ( vproc_pkg::RAM_XLNX_RAM32M  ),
+        .VREG_TYPE     ( vproc_pkg::VREG_XLNX_RAM32M ),
         .MUL_TYPE      ( vproc_pkg::MUL_XLNX_DSP48E1 ),
         .ICACHE_SZ     ( ICACHE_SZ                   ),
         .ICACHE_LINE_W ( ICACHE_LINE_W               ),

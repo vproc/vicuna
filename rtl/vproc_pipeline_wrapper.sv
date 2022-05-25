@@ -25,8 +25,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER       = '0,   // buffer port
         parameter bit                   VPORT_V0           = '0,   // use dedicated v0 read port
         parameter int unsigned          MAX_OP_W           = 64,   // operand width in bits
-        parameter mul_type              MUL_TYPE           = MUL_GENERIC,
-        parameter bit                   ADDR_ALIGNED       = 1'b1, // base address is aligned to VMEM_W
+        parameter int unsigned           VLSU_QUEUE_SZ     = 4,
+        parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0,
+        parameter mul_type               MUL_TYPE          = MUL_GENERIC,
         parameter int unsigned          MAX_WR_ATTEMPTS    = 1,    // max required vregfile write attempts
         parameter type                  DECODER_DATA_T     = logic,
         parameter bit                   DONT_CARE_ZERO     = 1'b0  // initialize don't care values to zero
@@ -543,8 +544,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -606,8 +608,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -669,8 +672,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -732,8 +736,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -795,8 +800,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -858,8 +864,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -921,8 +928,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -984,8 +992,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -1047,8 +1056,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )

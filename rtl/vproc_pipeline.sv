@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_pipeline #(
+module vproc_pipeline import vproc_pkg::*; #(
         parameter int unsigned          VREG_W              = 128,  // width in bits of vector registers
         parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
-        parameter bit [vproc_pkg::UNIT_CNT-1:0] UNITS       = '0,
+        parameter bit [UNIT_CNT-1:0]    UNITS               = '0,
         parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
         parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
         parameter int unsigned          VPORT_CNT           = 1,
@@ -38,8 +38,9 @@ module vproc_pipeline #(
         parameter bit [RES_CNT-1:0]     RES_ALLOW_ELEMWISE  = '0,   // result may be 1 elem
         parameter bit [RES_CNT-1:0]     RES_ALWAYS_ELEMWISE = '0,   // result is 1 elem
         parameter bit [RES_CNT-1:0]     RES_ALWAYS_VREG     = '0,   // result is 1 elem
-        parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
-        parameter bit                   ADDR_ALIGNED        = 1'b1, // base address is aligned to VMEM_W
+        parameter int unsigned           VLSU_QUEUE_SZ     = 4,
+        parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0,
+        parameter mul_type               MUL_TYPE          = MUL_GENERIC,
         parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
         parameter type                  INIT_STATE_T        = logic,
         parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
@@ -90,8 +91,6 @@ module vproc_pipeline #(
         output logic [4:0]              xreg_addr_o,
         output logic [31:0]             xreg_data_o
     );
-
-    import vproc_pkg::*;
 
     if ((MAX_OP_W & (MAX_OP_W - 1)) != 0 || MAX_OP_W < 32 || MAX_OP_W >= VREG_W) begin
         $fatal(1, "The vector pipeline operand width MAX_OP_W must be at least 32, less than ",
@@ -805,8 +804,9 @@ module vproc_pipeline #(
         .MAX_OP_W                  ( MAX_OP_W                 ),
         .RES_CNT                   ( RES_CNT                  ),
         .MAX_RES_W                 ( MAX_RES_W                ),
+        .VLSU_QUEUE_SZ             ( VLSU_QUEUE_SZ            ),
+        .VLSU_FLAGS                ( VLSU_FLAGS               ),
         .MUL_TYPE                  ( MUL_TYPE                 ),
-        .ADDR_ALIGNED              ( ADDR_ALIGNED             ),
         .CTRL_T                    ( ctrl_t                   ),
         .COUNTER_T                 ( counter_t                ),
         .COUNTER_W                 ( COUNTER_W                ),

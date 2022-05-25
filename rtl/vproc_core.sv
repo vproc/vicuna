@@ -5,35 +5,36 @@
 
 module vproc_core import vproc_pkg::*; #(
         // XIF interface configuration (must be provided when instantiating this module)
-        parameter int unsigned       XIF_ID_W                    = 0, // width of instruction IDs
-        parameter int unsigned       XIF_MEM_W                   = 0, // memory interface width
+        parameter int unsigned           XIF_ID_W                 = 0, // width of instruction IDs
+        parameter int unsigned           XIF_MEM_W                = 0, // memory interface width
 
         // Vector register file configuration
-        parameter int unsigned       VREG_W                      = vproc_config::VREG_W,
-        parameter int unsigned       VPORT_RD_CNT                = vproc_config::VPORT_RD_CNT,
-        parameter int unsigned       VPORT_RD_W   [VPORT_RD_CNT] = vproc_config::VPORT_RD_W,
-        parameter int unsigned       VPORT_WR_CNT                = vproc_config::VPORT_WR_CNT,
-        parameter int unsigned       VPORT_WR_W   [VPORT_WR_CNT] = vproc_config::VPORT_WR_W,
+        parameter vreg_type              VREG_TYPE                = vproc_config::VREG_TYPE,
+        parameter int unsigned           VREG_W                   = vproc_config::VREG_W,
+        parameter int unsigned           VPORT_RD_CNT             = vproc_config::VPORT_RD_CNT,
+        parameter int unsigned           VPORT_RD_W[VPORT_RD_CNT] = vproc_config::VPORT_RD_W,
+        parameter int unsigned           VPORT_WR_CNT             = vproc_config::VPORT_WR_CNT,
+        parameter int unsigned           VPORT_WR_W[VPORT_WR_CNT] = vproc_config::VPORT_WR_W,
 
         // Vector pipeline configuration
-        parameter int unsigned       PIPE_CNT                    = vproc_config::PIPE_CNT,
-        parameter bit [UNIT_CNT-1:0] PIPE_UNITS       [PIPE_CNT] = vproc_config::PIPE_UNITS,
-        parameter int unsigned       PIPE_MAX_OP_W    [PIPE_CNT] = vproc_config::PIPE_MAX_OP_W,
-        parameter int unsigned       PIPE_VPORT_CNT   [PIPE_CNT] = vproc_config::PIPE_VPORT_CNT,
-        parameter int unsigned       PIPE_VPORT_OFFSET[PIPE_CNT] = vproc_config::PIPE_VPORT_OFFSET,
-        parameter int unsigned       PIPE_VPORT_WR    [PIPE_CNT] = vproc_config::PIPE_VPORT_WR,
+        parameter int unsigned           PIPE_CNT                 = vproc_config::PIPE_CNT,
+        parameter bit [UNIT_CNT-1:0]     PIPE_UNITS    [PIPE_CNT] = vproc_config::PIPE_UNITS,
+        parameter int unsigned           PIPE_MAX_OP_W [PIPE_CNT] = vproc_config::PIPE_MAX_OP_W,
+        parameter int unsigned           PIPE_VPORT_CNT[PIPE_CNT] = vproc_config::PIPE_VPORT_CNT,
+        parameter int unsigned           PIPE_VPORT_IDX[PIPE_CNT] = vproc_config::PIPE_VPORT_IDX,
+        parameter int unsigned           PIPE_VPORT_WR [PIPE_CNT] = vproc_config::PIPE_VPORT_WR,
 
-        parameter ram_type           RAM_TYPE                    = RAM_GENERIC,
-        parameter mul_type           MUL_TYPE                    = MUL_GENERIC,
+        // Unit-specific configuration
+        parameter int unsigned           VLSU_QUEUE_SZ            = vproc_config::VLSU_QUEUE_SZ,
+        parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS               = vproc_config::VLSU_FLAGS,
+        parameter mul_type               MUL_TYPE                 = vproc_config::MUL_TYPE,
 
-        parameter int unsigned       QUEUE_SZ       = 2,    // instruction queue size
-        parameter bit                BUF_DEC        = 1'b1, // buffer decoder outputs
-        parameter bit                BUF_DEQUEUE    = 1'b1, // buffer instruction queue outputs
-        parameter bit                BUF_VREG_WR    = 1'b0,
-        parameter bit                BUF_VREG_PEND  = 1'b1, // buffer pending vreg reads
-        parameter bit                ADDR_ALIGNED   = 1'b1, // base address is aligned to XIF_MEM_W
-        parameter bit                DONT_CARE_ZERO = 1'b0, // initialize don't care values to zero
-        parameter bit                ASYNC_RESET    = 1'b0  // set if rst_ni is an asynchronous reset
+        // Miscellaneous configuration
+        parameter int unsigned           INSTR_QUEUE_SZ           = vproc_config::INSTR_QUEUE_SZ,
+        parameter bit [BUF_FLAGS_W-1:0]  BUF_FLAGS                = vproc_config::BUF_FLAGS,
+
+        parameter bit                    DONT_CARE_ZERO           = 1'b0, // init don't cares to 0
+        parameter bit                    ASYNC_RESET              = 1'b0  // rst_ni is async
     )(
         input  logic                 clk_i,
         input  logic                 rst_ni,
@@ -95,25 +96,25 @@ module vproc_core import vproc_pkg::*; #(
 
     generate
         for (genvar i = 0; i < PIPE_CNT; i++) begin
-            if ((PIPE_VPORT_OFFSET[i] >= VPORT_RD_CNT) |
-                (PIPE_VPORT_OFFSET[i] + PIPE_VPORT_CNT[i] > VPORT_RD_CNT)
+            if ((PIPE_VPORT_IDX[i] >= VPORT_RD_CNT) |
+                (PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] > VPORT_RD_CNT)
             ) begin
                 $fatal(1, "Vector pipeline %d uses vector register read port %d through %d, ", i,
-                          PIPE_VPORT_OFFSET[i], PIPE_VPORT_OFFSET[i] + PIPE_VPORT_CNT[i] - 1,
+                          PIPE_VPORT_IDX[i], PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] - 1,
                           "but the valid range is 0 through %d.", VPORT_RD_CNT - 1);
             end
             for (genvar j = i + 1; j < PIPE_CNT; j++) begin
-                if (((PIPE_VPORT_OFFSET[i] < PIPE_VPORT_OFFSET[j]) &
-                    (PIPE_VPORT_OFFSET[i] + PIPE_VPORT_CNT[i] > PIPE_VPORT_OFFSET[j])) |
-                    ((PIPE_VPORT_OFFSET[i] >= PIPE_VPORT_OFFSET[j]) &
-                    (PIPE_VPORT_OFFSET[j] + PIPE_VPORT_CNT[j] > PIPE_VPORT_OFFSET[i]))
+                if (((PIPE_VPORT_IDX[i] < PIPE_VPORT_IDX[j]) &
+                    (PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] > PIPE_VPORT_IDX[j])) |
+                    ((PIPE_VPORT_IDX[i] >= PIPE_VPORT_IDX[j]) &
+                    (PIPE_VPORT_IDX[j] + PIPE_VPORT_CNT[j] > PIPE_VPORT_IDX[i]))
                 ) begin
                     $fatal(1, "Vector register read ports of vector pipeline %d overlap ", i,
                               "with the vector register read ports of vector pipeline %d ", j,
                               "(pipeline %d uses ports %d through %d ", i,
-                              PIPE_VPORT_OFFSET[i], PIPE_VPORT_OFFSET[i] + PIPE_VPORT_CNT[i] - 1,
+                              PIPE_VPORT_IDX[i], PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] - 1,
                               "and pipeline %d uses ports %d through %d).", j,
-                              PIPE_VPORT_OFFSET[j], PIPE_VPORT_OFFSET[j] + PIPE_VPORT_CNT[j] - 1);
+                              PIPE_VPORT_IDX[j], PIPE_VPORT_IDX[j] + PIPE_VPORT_CNT[j] - 1);
                 end
             end
         end
@@ -666,7 +667,7 @@ module vproc_core import vproc_pkg::*; #(
     logic [31:0] queue_pending_wr_q, queue_pending_wr_d; // potential write hazards
     generate
         // add an extra pipeline stage to calculate the hazards
-        if (BUF_DEQUEUE) begin
+        if (BUF_FLAGS[BUF_DEQUEUE]) begin
             always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_queue_valid
                 if (~async_rst_n) begin
                     queue_valid_q <= 1'b0;
@@ -696,10 +697,10 @@ module vproc_core import vproc_pkg::*; #(
     // instruction queue
     decoder_data queue_flags_any;
     generate
-        if (QUEUE_SZ > 0) begin
+        if (INSTR_QUEUE_SZ > 0) begin
             vproc_queue #(
                 .WIDTH        ( $bits(decoder_data)     ),
-                .DEPTH        ( QUEUE_SZ                )
+                .DEPTH        ( INSTR_QUEUE_SZ          )
             ) instr_queue (
                 .clk_i        ( clk_i                   ),
                 .async_rst_ni ( async_rst_n             ),
@@ -794,7 +795,7 @@ module vproc_core import vproc_pkg::*; #(
         .PORT_RD_W    ( VPORT_RD_W         ),
         .PORT_WR_CNT  ( VPORT_WR_CNT       ),
         .PORT_WR_W    ( VPORT_WR_W         ),
-        .RAM_TYPE     ( RAM_TYPE           )
+        .VREG_TYPE    ( VREG_TYPE          )
     ) vregfile (
         .clk_i        ( clk_i              ),
         .async_rst_ni ( async_rst_n        ),
@@ -812,7 +813,7 @@ module vproc_core import vproc_pkg::*; #(
     assign vregfile_rd_addr[0] = 5'b0;
 
     generate
-        if (BUF_VREG_WR) begin
+        if (BUF_FLAGS[BUF_VREG_WR]) begin
             always_ff @(posedge clk_i) begin
                 for (int i = 0; i < VPORT_WR_CNT; i++) begin
                     vregfile_wr_en_q  [i] <= vregfile_wr_en_d  [i];
@@ -838,7 +839,7 @@ module vproc_core import vproc_pkg::*; #(
     logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_by_q, pipe_vreg_pend_rd_by_d;
     logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_to_q, pipe_vreg_pend_rd_to_d;
     generate
-        if (BUF_VREG_PEND) begin
+        if (BUF_FLAGS[BUF_VREG_PEND]) begin
             // Note: A vreg write cannot happen within the first two cycles of
             // an instruction, hence delaying the pending vreg reads signals by
             // two cycles should cause no issues. This adds two unnecessary
@@ -897,11 +898,11 @@ module vproc_core import vproc_pkg::*; #(
         for (genvar i = 0; i < PIPE_CNT; i++) begin
 `ifndef VERILATOR
             // Currently not possible in Verilator due to https://github.com/verilator/verilator/issues/3433
-            localparam int unsigned PIPE_VPORT_W[PIPE_VPORT_CNT[i]]  = VPORT_RD_W[PIPE_VPORT_OFFSET[i] +: PIPE_VPORT_CNT[i]];
-            localparam int unsigned PIPE_VADDR_W[PIPE_VPORT_CNT[i]]  = VADDR_RD_W[PIPE_VPORT_OFFSET[i] +: PIPE_VPORT_CNT[i]];
+            localparam int unsigned PIPE_VPORT_W[PIPE_VPORT_CNT[i]]  = VPORT_RD_W[PIPE_VPORT_IDX[i] +: PIPE_VPORT_CNT[i]];
+            localparam int unsigned PIPE_VADDR_W[PIPE_VPORT_CNT[i]]  = VADDR_RD_W[PIPE_VPORT_IDX[i] +: PIPE_VPORT_CNT[i]];
 `endif
-            localparam int unsigned PIPE_MAX_VPORT_W = MAX_VPORT_RD_SLICE(VPORT_RD_W, PIPE_VPORT_OFFSET[i], PIPE_VPORT_CNT[i]);
-            localparam int unsigned PIPE_MAX_VADDR_W = MAX_VPORT_RD_SLICE(VADDR_RD_W, PIPE_VPORT_OFFSET[i], PIPE_VPORT_CNT[i]);
+            localparam int unsigned PIPE_MAX_VPORT_W = MAX_VPORT_RD_SLICE(VPORT_RD_W, PIPE_VPORT_IDX[i], PIPE_VPORT_CNT[i]);
+            localparam int unsigned PIPE_MAX_VADDR_W = MAX_VPORT_RD_SLICE(VADDR_RD_W, PIPE_VPORT_IDX[i], PIPE_VPORT_CNT[i]);
 
             localparam bit [PIPE_VPORT_CNT[i]-1:0] PIPE_VPORT_BUFFER = {{(PIPE_VPORT_CNT[i]-1){1'b0}}, 1'b1};
 
@@ -910,9 +911,9 @@ module vproc_core import vproc_pkg::*; #(
             logic [PIPE_VPORT_CNT[i]-1:0][4       :0] vreg_rd_addr;
             logic [PIPE_VPORT_CNT[i]-1:0][VREG_W-1:0] vreg_rd_data;
             always_comb begin
-                vregfile_rd_addr[PIPE_VPORT_OFFSET[i]+PIPE_VPORT_CNT[i]-1:PIPE_VPORT_OFFSET[i]] = vreg_rd_addr[PIPE_VPORT_CNT[i]-1:0];
+                vregfile_rd_addr[PIPE_VPORT_IDX[i]+PIPE_VPORT_CNT[i]-1:PIPE_VPORT_IDX[i]] = vreg_rd_addr[PIPE_VPORT_CNT[i]-1:0];
                 for (int j = 0; j < PIPE_VPORT_CNT[i]; j++) begin
-                    vreg_rd_data[j] = vregfile_rd_data[PIPE_VPORT_OFFSET[i] + j];
+                    vreg_rd_data[j] = vregfile_rd_data[PIPE_VPORT_IDX[i] + j];
                 end
             end
 
@@ -944,7 +945,7 @@ module vproc_core import vproc_pkg::*; #(
                 .VPORT_CNT                ( PIPE_VPORT_CNT[i]          ),
 `ifdef VERILATOR
                 // Workaround for Verilator due to https://github.com/verilator/verilator/issues/3433
-                .VPORT_OFFSET             ( PIPE_VPORT_OFFSET[i]       ),
+                .VPORT_OFFSET             ( PIPE_VPORT_IDX[i]          ),
                 .VREGFILE_VPORT_CNT       ( VPORT_RD_CNT               ),
                 .VREGFILE_VPORT_W         ( VPORT_RD_W                 ),
                 .VREGFILE_VADDR_W         ( VADDR_RD_W                 ),
@@ -955,8 +956,9 @@ module vproc_core import vproc_pkg::*; #(
                 .VPORT_BUFFER             ( PIPE_VPORT_BUFFER          ),
                 .VPORT_V0                 ( 1'b1                       ),
                 .MAX_OP_W                 ( PIPE_MAX_OP_W[i]           ),
+                .VLSU_QUEUE_SZ            ( VLSU_QUEUE_SZ              ),
+                .VLSU_FLAGS               ( VLSU_FLAGS                 ),
                 .MUL_TYPE                 ( MUL_TYPE                   ),
-                .ADDR_ALIGNED             ( ADDR_ALIGNED               ),
                 .MAX_WR_ATTEMPTS          ( PIPE_MAX_WR_ATTEMPTS       ),
                 .DECODER_DATA_T           ( decoder_data               ),
                 .DONT_CARE_ZERO           ( DONT_CARE_ZERO             )
