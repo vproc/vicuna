@@ -90,12 +90,14 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    if [[ "$$line" == "" ]] || [[ "$$line" == \#* ]]; then                \
 	        continue;                                                         \
 	    fi;                                                                   \
-	    echo "[CONFIG ] $@ $$line";                                           \
+	    printf "\033[0;34m[CONF]\033[0;0m $@ $$line\n";                       \
 	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) $$line               \
 	        PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR) ENABLE_SVA=1       \
-	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" >sim.log 2>&1;     \
+	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" 2>&1 |             \
+	        tee sim.log | sed -n 's/^>>>\(.*\)/\[INFO\]\1/p';                 \
 	    if [ "$$?" != "0" ]; then                                             \
-	        echo "[ ERROR ] $@ simulation failed; content of $@/sim.log:";    \
+	        printf "\033[0;31m[FAIL]\033[0;0m $@ simulation error; "          \
+	        printf "log file $@/sim.log:\n";                                  \
 	        cat sim.log;                                                      \
 	        exit 1;                                                           \
 	    fi;                                                                   \
@@ -106,10 +108,12 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        hazards=`tail -n 1 sim_trace.csv |                                \
 	                 awk -F ';' -v idx="$$pend_vreg_wr_col" '{print $$idx}'`; \
 	        if [ "$$hazards" != "00000000" ]; then                            \
-	            echo "[WARNING] $@ uncleared write hazard(s) (0x$${hazards})";\
+	            printf "\033[0;33m[WARN]\033[0;0m $@ ";                       \
+	            printf "uncleared write hazard(s) (0x$${hazards})\n";         \
 	        fi;                                                               \
 	    else                                                                  \
-	        echo "[WARNING] $@ write hazards are not among traced signals";   \
+	        printf "\033[0;33m[WARN]\033[0;0m $@ ";                           \
+	        printf "write hazards are not among traced signals\n";            \
 	    fi;                                                                   \
 	    rst_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' | grep -n rst_ni |  \
 	             awk -F ':' '{print $$1}' | head -n 1`;                       \
@@ -136,12 +140,14 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        memo="$${memi%.*}.dump.vmem";                                     \
 	        memdiff=`diff -u $$memref $$memo`;                                \
 	        if [ "$$?" != "0" ]; then                                         \
-	            printf '[ ERROR ] %-30s %s\n' $@/$$prog_name "$$perf_info";   \
+	            printf '\033[0;31m[FAIL]\033[0;0m %-30s %s\n' $@/$$prog_name  \
+				    "$$perf_info";                                            \
 	            echo "incorrect memory content; diff:";                       \
 	            echo "$$memdiff";                                             \
 	            retval=1;                                                     \
 	        else                                                              \
-	            printf '[SUCCESS] %-30s %s\n' $@/$$prog_name "$$perf_info";   \
+	            printf '\033[0;32m[PASS]\033[0;0m %-30s %s\n' $@/$$prog_name  \
+	                "$$perf_info";                                            \
 	        fi;                                                               \
 	        idx=$$(($$idx + 1));                                              \
 	    done;                                                                 \
@@ -157,7 +163,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	make -f $(TEST_DIR)/../sw/Makefile PROG=$$prog OBJ="$$obj"                \
 	COMPILER=$(COMPILER) >$$log 2>&1;                                         \
 	if [ "$$?" != "0" ]; then                                                 \
-	    echo "[ ERROR ] $@ build failed; content of $$log:";                  \
+	    printf "\033[0;31m[FAIL]\033[0;0m $@ build error; log file $$log:\n"; \
 	    cat $$log;                                                            \
 	    exit 1;                                                               \
 	fi

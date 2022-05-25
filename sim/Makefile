@@ -50,6 +50,7 @@ VPROC_CONFIG_PKG := $(PROJ_DIR)/vproc_config.sv
 include $(SIM_DIR)/../config.mk
 
 vivado: $(VPROC_CONFIG_PKG)
+	echo ">>> View waveform with: $$ vivado $(PROJ_DIR)/vproc_sim/vproc_sim.xpr"
 	cd $(PROJ_DIR) && vivado -mode batch -source $(VIVADO_TCL)                \
 	    -tclargs $(SIM_DIR)/../ $(CORE_DIR) $(VPROC_CONFIG_PKG)               \
 	    "MEM_W=$(MEM_W) MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)           \
@@ -66,9 +67,11 @@ verilator: $(VPROC_CONFIG_PKG)
 	if [[ "$(TRACE_VCD)" != "" ]]; then                                       \
 	    options="--trace";                                                    \
 	    cflags="-CFLAGS -DTRACE_VCD";                                         \
+	    echo ">>> View waveform with: $$ gtkwave $(abspath $(TRACE_VCD))";    \
 	elif [[ "$(TRACE_FST)" != "" ]]; then                                     \
 	    options="--trace-fst";                                                \
 	    cflags="-CFLAGS -DTRACE_FST";                                         \
+	    echo ">>> View waveform with: $$ gtkwave $(abspath $(TRACE_FST))";    \
 	fi;                                                                       \
 	if [[ "$(ENABLE_SVA)" != "" ]]; then                                      \
 	    options="$$options --assert -DVPROC_SVA";                             \
@@ -115,6 +118,7 @@ verilator: $(VPROC_CONFIG_PKG)
 	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
 
 questa: $(VPROC_CONFIG_PKG)
+	echo ">>> View waveform with: $$ $(VSIM) -view $(PROJ_DIR)/vsim.wlf"
 	cd $(PROJ_DIR) && $(VSIM) -batch -do 'do $(QUESTA_TCL)                    \
 	    $(SIM_DIR).. $(CORE_DIR) $(VPROC_CONFIG_PKG)                          \
 	    "$(VMEM_W) $(MEM_W) $(MEM_SZ) $(MEM_LATENCY)                          \
