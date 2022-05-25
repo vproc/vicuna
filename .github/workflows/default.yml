@@ -91,9 +91,6 @@ jobs:
       matrix:
         unit: [lsu, alu, mul, sld, elem, csr, misc]
         main_core: [ibex, cv32e40x]
-        exclude:
-          - unit: csr
-            main_core: cv32e40x
     steps:
       - uses: actions/checkout@v2
         with:
