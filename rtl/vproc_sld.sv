@@ -121,6 +121,8 @@ module vproc_sld #(
     ///////////////////////////////////////////////////////////////////////////
     // SLD OPERAND AND RESULT CONVERSION
 
+    localparam bit [$clog2(SLD_OP_W/8)-1:0] SLD_1UP_XVAL = (SLD_OP_W > 32) ? $clog2(SLD_OP_W/8)'(3'b100) : '0;
+
     assign pipe_in_ready_o  = state_ex_ready;
     assign state_ex_valid_d = pipe_in_valid_i;
     assign v0msk_d          = pipe_in_mask_i;
@@ -130,16 +132,16 @@ module vproc_sld #(
         if (pipe_in_ctrl_i.mode.sld.slide1) begin
             if (pipe_in_ctrl_i.mode.sld.dir == SLD_UP) begin
                 unique case (pipe_in_ctrl_i.eew)
-                    VSEW_8:  state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b001};
-                    VSEW_16: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b010};
-                    VSEW_32: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b0}}, 3'b100};
+                    VSEW_8:  state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-2{1'b0}}, 2'b01};
+                    VSEW_16: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-2{1'b0}}, 2'b10};
+                    VSEW_32: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = SLD_1UP_XVAL;
                     default: ;
                 endcase
             end else begin
                 unique case (pipe_in_ctrl_i.eew)
-                    VSEW_8:  state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b111};
-                    VSEW_16: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b110};
-                    VSEW_32: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-3{1'b1}}, 3'b100};
+                    VSEW_8:  state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-2{1'b1}}, 2'b11};
+                    VSEW_16: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-2{1'b1}}, 2'b10};
+                    VSEW_32: state_ex_d.xval[$clog2(SLD_OP_W/8)-1:0] = {{$clog2(SLD_OP_W/8)-2{1'b1}}, 2'b00};
                     default: ;
                 endcase
             end
@@ -151,9 +153,11 @@ module vproc_sld #(
         operand_high_d      = pipe_in_op_i;
         operand_low_d       = DONT_CARE_ZERO ? '0 : 'x;
         operand_low_valid_d = 1'b0;
-        if ((pipe_in_ctrl_i.mode.sld.dir == SLD_DOWN) & pipe_in_ctrl_i.mode.sld.slide1 &
+        if (((pipe_in_ctrl_i.mode.sld.dir == SLD_DOWN) & pipe_in_ctrl_i.mode.sld.slide1 &
             pipe_in_ctrl_i.last_vl_part
-        ) begin
+        ) | (
+            (SLD_OP_W == 32) & (pipe_in_ctrl_i.eew == VSEW_32) & ~pipe_in_ctrl_i.alt_count_valid
+        )) begin
             operand_high_d[31:0] = pipe_in_ctrl_i.xval;
         end
         unique case (pipe_in_ctrl_i.eew)

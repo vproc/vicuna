@@ -337,7 +337,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                     unique case (pipe_in_data_i.vsew)
                         VSEW_8,
                         VSEW_16: state_init.alt_count_init = '0;
-                        VSEW_32: state_init.alt_count_init = {{ALT_COUNT_W-1{1'b0}}, MAX_OP_W == 32};
+                        VSEW_32: state_init.alt_count_init = (MAX_OP_W == 32) ? '1 : '0;
                         default: ;
                     endcase
                 end else begin
