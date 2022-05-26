@@ -121,6 +121,11 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                                             );
 
     // Operand source ports and unpack stages
+    // TODO: figure out a proper way to deal with operands using the alternative counter (which are
+    // fetched out of sync with other operands and thus might collide with operands of a subsequent
+    // or preceeding instr that use the same vreg read port); the operands using the alt counter
+    // should be fetched at the latest possible stage, since the pipeline waits until the alt count
+    // completes its cycle before accepting the next instruction.
     localparam int unsigned OP0_SRC   = 0;
     localparam int unsigned OP1_SRC   = (VPORT_CNT >= (UNITS[UNIT_MUL] ? 3 : 2)) ? 1 : 0;
     localparam int unsigned OP2_SRC   = VPORT_CNT - 1;

@@ -136,6 +136,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         logic        [AUX_COUNTER_W-1:0] aux_count;
         logic                            first_cycle;
         logic                            last_cycle;
+        logic                            alt_last_cycle;
         logic                            requires_flush;
         logic        [XIF_ID_W     -1:0] id;
         op_unit                          unit;
@@ -160,39 +161,42 @@ module vproc_pipeline import vproc_pkg::*; #(
     ///////////////////////////////////////////////////////////////////////////
     // STATE LOGIC
 
-    logic        state_valid_q,  state_valid_d;
-    state_t      state_q,        state_d;
+    logic        state_valid_q,          state_valid_d;
+    logic        state_wait_alt_count_q, state_wait_alt_count_d; // wait for last cycle of alt_count
+    state_t      state_q,                state_d;
     logic        state_ready;
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_pipeline_state_valid
         if (~async_rst_ni) begin
-            state_valid_q <= 1'b0;
+            state_valid_q          <= 1'b0;
+            state_wait_alt_count_q <= 1'b0;
         end
         else if (~sync_rst_ni) begin
-            state_valid_q <= 1'b0;
+            state_valid_q          <= 1'b0;
+            state_wait_alt_count_q <= 1'b0;
         end else begin
-            state_valid_q <= state_valid_d;
+            state_valid_q          <= state_valid_d;
+            state_wait_alt_count_q <= state_wait_alt_count_d;
         end
     end
     always_ff @(posedge clk_i) begin : vproc_pipeline_state
         state_q <= state_d;
     end
 
-    logic state_stall, unpack_ready;
-    assign state_ready     = ~state_valid_q | (~state_stall & unpack_ready);
-    assign pipe_in_ready_o = state_ready & (~state_valid_q | state_q.last_cycle);
-
     // State update logic
     state_t            state_next;
-    counter_t          count_next_inc, alt_count_next_inc;
-    logic              last_cycle_next;
+    counter_t          count_next_inc,  alt_count_next_inc;
+    logic              last_cycle_next, alt_last_cycle_next, wait_alt_count_next;
     logic [OP_CNT-1:0] op_load_next, op_shift_next;
     always_comb begin
-        state_valid_d = state_valid_q;
-        state_d       = state_q;
+        state_valid_d          = state_valid_q;
+        state_wait_alt_count_d = state_wait_alt_count_q;
+        state_d                = state_q;
         if (state_ready) begin
-            state_d            = state_next;
-            state_d.last_cycle = last_cycle_next;
-            state_d.op_load    = op_load_next;
+            state_wait_alt_count_d = wait_alt_count_next;
+            state_d                = state_next;
+            state_d.last_cycle     = last_cycle_next;
+            state_d.alt_last_cycle = alt_last_cycle_next;
+            state_d.op_load        = op_load_next;
             for (int i = 0; i < OP_CNT; i++) begin
                 state_d.op_flags[i].shift = op_shift_next[i];
             end
@@ -203,6 +207,15 @@ module vproc_pipeline import vproc_pkg::*; #(
             state_d.pend_vreg_wr = vreg_pend_wr_i;
         end
     end
+    assign wait_alt_count_next = (state_wait_alt_count_q | state_q.last_cycle) & (OP_ALT_COUNTER != 0) & ~state_q.alt_last_cycle;
+
+    logic state_stall, unpack_ready;
+    logic state_done;                // the current instruction is done, next can be accepted
+    assign state_ready     = ~state_valid_q | (~state_stall & unpack_ready);
+    assign state_done      = (OP_ALT_COUNTER == 0) ? state_q.last_cycle : (
+        (state_q.last_cycle | state_wait_alt_count_q) & ~wait_alt_count_next
+    );
+    assign pipe_in_ready_o = state_ready & (~state_valid_q | state_done);
 
     // Identify whether the auxiliary counter is used
     logic aux_count_used;
@@ -293,27 +306,34 @@ module vproc_pipeline import vproc_pkg::*; #(
 
     // Last cycle logic
     always_comb begin
-        last_cycle_next = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        last_cycle_next     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        alt_last_cycle_next = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         // first cycle is not last cycle unless EMUL is 1 and the counter has no low part
-        if (~state_valid_q | state_q.last_cycle) begin
+        if (~state_valid_q | state_done) begin
             // TODO take exceptions into account (OP_ALT_COUNTER != 0 and auxiliary counter)
-            last_cycle_next = (pipe_in_state_i.emul == EMUL_1) & (COUNTER_W == 4);
+            last_cycle_next     = (pipe_in_state_i.emul == EMUL_1) & (COUNTER_W == 4);
+            alt_last_cycle_next = (pipe_in_state_i.emul == EMUL_1) & (COUNTER_W == 4);
         end else begin
-            last_cycle_next = count_next_inc.val[COUNTER_W-5:$clog2(MAX_OP_W/COUNTER_OP_W)] == '1;
+            last_cycle_next     =     count_next_inc.val[COUNTER_W-5:$clog2(MAX_OP_W/COUNTER_OP_W)] == '1;
+            alt_last_cycle_next = alt_count_next_inc.val[COUNTER_W-5:$clog2(MAX_OP_W/COUNTER_OP_W)] == '1;
             // clear last cycle in case lower bits are not set for lower counter increments
             unique case (state_q.count_inc)
                 COUNT_INC_1: for (int i = 0; i < $clog2(MAX_OP_W/COUNTER_OP_W); i++) begin
-                    last_cycle_next &= count_next_inc.val[i];
+                    last_cycle_next     &=     count_next_inc.val[i];
+                    alt_last_cycle_next &= alt_count_next_inc.val[i];
                 end
                 COUNT_INC_2: for (int i = 1; i < $clog2(MAX_OP_W/COUNTER_OP_W); i++) begin
-                    last_cycle_next &= count_next_inc.val[i];
+                    last_cycle_next     &=     count_next_inc.val[i];
+                    alt_last_cycle_next &= alt_count_next_inc.val[i];
                 end
                 COUNT_INC_4: for (int i = 2; i < $clog2(MAX_OP_W/COUNTER_OP_W); i++) begin
-                    last_cycle_next &= count_next_inc.val[i];
+                    last_cycle_next     &=     count_next_inc.val[i];
+                    alt_last_cycle_next &= alt_count_next_inc.val[i];
                 end
                 default: ;
             endcase
-            // clear last cycle based on EMUL
+            // clear last cycle based on EMUL (note: the alt_last_cycle signal is not cleared here
+            // as that is only required to indicate completion of one vreg cycle)
             unique case (state_q.emul)
                 EMUL_2: last_cycle_next &= count_next_inc.part.mul[  0] == '1;
                 EMUL_4: last_cycle_next &= count_next_inc.part.mul[1:0] == '1;
@@ -403,6 +423,10 @@ module vproc_pipeline import vproc_pkg::*; #(
                     end
                 end
             end
+        end
+        // do not load anything while waiting for the last cycle of the alt counter
+        if (wait_alt_count_next) begin
+            op_load_next = '0;
         end
     end
 
@@ -632,8 +656,10 @@ module vproc_pipeline import vproc_pkg::*; #(
         logic                          pend_store;
     } ctrl_t;
 
+    logic  unpack_valid;
     ctrl_t unpack_ctrl;
     always_comb begin
+        unpack_valid                = state_valid_q & ~state_stall & ~state_wait_alt_count_q;
         unpack_ctrl.count_mul       = state_q.count.part.mul;
         unpack_ctrl.first_cycle     = state_q.first_cycle;
         unpack_ctrl.last_cycle      = state_valid_q & state_q.last_cycle; // TODO remove state_valid_q
@@ -758,7 +784,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         .vreg_rd_addr_o       ( vreg_rd_addr_o               ),
         .vreg_rd_data_i       ( vreg_rd_data_i               ),
         .vreg_rd_v0_i         ( vreg_rd_v0_i                 ),
-        .pipe_in_valid_i      ( state_valid_q & ~state_stall ),
+        .pipe_in_valid_i      ( unpack_valid                 ),
         .pipe_in_ready_o      ( unpack_ready                 ),
         .pipe_in_ctrl_i       ( unpack_ctrl                  ),
         .pipe_in_eew_i        ( unpack_ctrl.eew              ),
