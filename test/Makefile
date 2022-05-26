@@ -91,14 +91,24 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        continue;                                                         \
 	    fi;                                                                   \
 	    printf "\033[0;34m[CONF]\033[0;0m $@ $$line\n";                       \
-	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) $$line               \
-	        PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR) ENABLE_SVA=1       \
-	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" 2>&1 |             \
-	        tee sim.log | sed -n 's/^>>>\(.*\)/\[INFO\]\1/p';                 \
+	    sim_dir=`mktemp -d`;                                                  \
+	    echo "[INFO] Writing temporary files to $${sim_dir}";                 \
+	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) PROJ_DIR=$$sim_dir   \
+	        $$line PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR) ENABLE_SVA=1\
+	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" >sim.log 2>&1;     \
 	    if [ "$$?" != "0" ]; then                                             \
 	        printf "\033[0;31m[FAIL]\033[0;0m $@ simulation error; ";         \
-	        printf "log file $@/sim.log:\n";                                  \
-	        cat sim.log;                                                      \
+	        printf "last 10 lines of log file $@/sim.log:\n";                 \
+	        tail -n 10 sim.log;                                               \
+	        echo "";                                                          \
+	        echo "[INFO] View full log with: $$ less $(abspath $@/sim.log)";  \
+	        if [ "$(SIMULATOR)" == "vivado" ]; then                           \
+				xpr_path="$${sim_dir}/vproc_sim/vproc_sim.xpr";               \
+			    echo "[INFO] View waveform with: $$ vivado $${xpr_path}";     \
+	        elif [ "$(SIMULATOR)" == "questa" ]; then                         \
+				wlf_path="$${sim_dir}/vsim.wlf";                              \
+				echo "[INFO] View waveform with: $$ vsim -view $${wlf_path}"; \
+	        fi;                                                               \
 	        exit 1;                                                           \
 	    fi;                                                                   \
 	    pend_vreg_wr_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |          \
