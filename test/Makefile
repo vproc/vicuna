@@ -102,13 +102,6 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        tail -n 10 sim.log;                                               \
 	        echo "";                                                          \
 	        echo "[INFO] View full log with: $$ less $(abspath $@/sim.log)";  \
-	        if [ "$(SIMULATOR)" == "vivado" ]; then                           \
-				xpr_path="$${sim_dir}/vproc_sim/vproc_sim.xpr";               \
-			    echo "[INFO] View waveform with: $$ vivado $${xpr_path}";     \
-	        elif [ "$(SIMULATOR)" == "questa" ]; then                         \
-				wlf_path="$${sim_dir}/vsim.wlf";                              \
-				echo "[INFO] View waveform with: $$ vsim -view $${wlf_path}"; \
-	        fi;                                                               \
 	        exit 1;                                                           \
 	    fi;                                                                   \
 	    pend_vreg_wr_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |          \
@@ -161,6 +154,13 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        fi;                                                               \
 	        idx=$$(($$idx + 1));                                              \
 	    done;                                                                 \
+	    if [ "$(SIMULATOR)" == "vivado" ]; then                               \
+	        xpr_path="$${sim_dir}/vproc_sim/vproc_sim.xpr";                   \
+	        echo "[INFO] View waveform with: $$ vivado $${xpr_path}";         \
+	    elif [ "$(SIMULATOR)" == "questa" ]; then                             \
+	        wlf_path="$${sim_dir}/vsim.wlf";                                  \
+	        echo "[INFO] View waveform with: $$ vsim -view $${wlf_path}";     \
+	    fi;                                                                   \
 	done < test_configs.conf;                                                 \
 	exit $$retval
 
