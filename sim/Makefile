@@ -33,7 +33,7 @@ TRACE_FILE ?= sim_trace.csv
 TRACE_SIGS ?= '*'
 
 # select memory width (bits), size (bytes), and latency (cycles, 1 is minimum)
-MEM_W		?= 32
+MEM_W       ?= 32
 MEM_SZ      ?= 262144
 MEM_LATENCY ?= 1
 

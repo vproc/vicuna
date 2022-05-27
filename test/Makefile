@@ -56,7 +56,7 @@ lint-verible:
 
 lint-verilator:
 	verilator -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSED -Wno-UNDRIVEN            \
-		-Wno-UNSIGNED -Wno-DECLFILENAME -Wno-USERFATAL -Wno-SYNCASYNCNET      \
+	    -Wno-UNSIGNED -Wno-DECLFILENAME -Wno-USERFATAL -Wno-SYNCASYNCNET      \
 	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_config.sv vproc_top.sv  \
 	    vproc_xif.sv vproc_core.sv vproc_vregpack.sv vproc_vregunpack.sv      \
 	    --top-module vproc_top --clk clk_i --lint-only
@@ -144,7 +144,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        memdiff=`diff -u $$memref $$memo`;                                \
 	        if [ "$$?" != "0" ]; then                                         \
 	            printf '\033[0;31m[FAIL]\033[0;0m %-30s %s\n' $@/$$prog_name  \
-				    "$$perf_info";                                            \
+	                "$$perf_info";                                            \
 	            echo "incorrect memory content; diff:";                       \
 	            echo "$$memdiff";                                             \
 	            retval=1;                                                     \
