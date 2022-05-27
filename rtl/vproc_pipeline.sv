@@ -82,11 +82,13 @@ module vproc_pipeline import vproc_pkg::*; #(
         vproc_xif.coproc_mem_result     xif_memres_if,
 
         output logic                    trans_complete_valid_o,
+        input  logic                    trans_complete_ready_i,
         output logic [XIF_ID_W-1:0]     trans_complete_id_o,
         output logic                    trans_complete_exc_o,
         output logic [5:0]              trans_complete_exccode_o,
 
         output logic                    xreg_valid_o,
+        input  logic                    xreg_ready_i,
         output logic [XIF_ID_W-1:0]     xreg_id_o,
         output logic [4:0]              xreg_addr_o,
         output logic [31:0]             xreg_data_o
@@ -866,10 +868,12 @@ module vproc_pipeline import vproc_pkg::*; #(
         .xif_mem_if                ( xif_mem_if               ),
         .xif_memres_if             ( xif_memres_if            ),
         .trans_complete_valid_o    ( trans_complete_valid_o   ),
+        .trans_complete_ready_i    ( trans_complete_ready_i   ),
         .trans_complete_id_o       ( trans_complete_id_o      ),
         .trans_complete_exc_o      ( trans_complete_exc_o     ),
         .trans_complete_exccode_o  ( trans_complete_exccode_o ),
         .xreg_valid_o              ( xreg_valid_o             ),
+        .xreg_ready_i              ( xreg_ready_i             ),
         .xreg_id_o                 ( xreg_id_o                ),
         .xreg_addr_o               ( xreg_addr_o              ),
         .xreg_data_o               ( xreg_data_o              )

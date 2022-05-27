@@ -56,11 +56,13 @@ module vproc_unit_mux import vproc_pkg::*; #(
         vproc_xif.coproc_mem_result                  xif_memres_if,
 
         output logic                                 trans_complete_valid_o,
+        input  logic                                 trans_complete_ready_i,
         output logic    [XIF_ID_W              -1:0] trans_complete_id_o,
         output logic                                 trans_complete_exc_o,
         output logic    [5:0]                        trans_complete_exccode_o,
 
         output logic                                 xreg_valid_o,
+        input  logic                                 xreg_ready_i,
         output logic    [XIF_ID_W              -1:0] xreg_id_o,
         output logic    [4:0]                        xreg_addr_o,
         output logic    [31:0]                       xreg_data_o
@@ -104,12 +106,14 @@ module vproc_unit_mux import vproc_pkg::*; #(
                 logic                pending_load;
                 logic                pending_store;
                 logic                trans_complete_valid;
+                logic                trans_complete_ready;
                 logic [XIF_ID_W-1:0] trans_complete_id;
                 logic                trans_complete_exc;
                 logic [5:0]          trans_complete_exccode;
 
                 // ELEM-related signals (for XREG writeback)
                 logic                xreg_valid;
+                logic                xreg_ready;
                 logic [XIF_ID_W-1:0] xreg_id;
                 logic [4:0]          xreg_addr;
                 logic [31:0]         xreg_data;
@@ -160,10 +164,12 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     .xif_mem_if                ( unit_xif                   ),
                     .xif_memres_if             ( unit_xif                   ),
                     .trans_complete_valid_o    ( trans_complete_valid       ),
+                    .trans_complete_ready_i    ( trans_complete_ready       ),
                     .trans_complete_id_o       ( trans_complete_id          ),
                     .trans_complete_exc_o      ( trans_complete_exc         ),
                     .trans_complete_exccode_o  ( trans_complete_exccode     ),
                     .xreg_valid_o              ( xreg_valid                 ),
+                    .xreg_ready_i              ( xreg_ready                 ),
                     .xreg_id_o                 ( xreg_id                    ),
                     .xreg_addr_o               ( xreg_addr                  ),
                     .xreg_data_o               ( xreg_data                  )
@@ -188,12 +194,14 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     assign unit_xif.mem_result.err   = xif_memres_if.mem_result.err;
                     assign unit_xif.mem_result.dbg   = xif_memres_if.mem_result.dbg;
                     assign trans_complete_valid_o    = trans_complete_valid;
+                    assign trans_complete_ready      = trans_complete_ready_i;
                     assign trans_complete_id_o       = trans_complete_id;
                     assign trans_complete_exc_o      = trans_complete_exc;
                     assign trans_complete_exccode_o  = trans_complete_exccode;
                 end
                 if (op_unit'(i) == UNIT_ELEM) begin
                     assign xreg_valid_o = xreg_valid;
+                    assign xreg_ready   = xreg_ready_i;
                     assign xreg_id_o    = xreg_id;
                     assign xreg_addr_o  = xreg_addr;
                     assign xreg_data_o  = xreg_data;

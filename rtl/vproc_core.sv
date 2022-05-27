@@ -881,11 +881,13 @@ module vproc_core import vproc_pkg::*; #(
     logic [PIPE_CNT-1:0][VREG_W/8-1:0] pipe_vreg_wr_be;
 
     logic                lsu_trans_complete_valid;
+    logic                lsu_trans_complete_ready;
     logic [XIF_ID_W-1:0] lsu_trans_complete_id;
     logic                lsu_trans_complete_exc;
     logic [5:0]          lsu_trans_complete_exccode;
 
     logic                elem_xreg_valid;
+    logic                elem_xreg_ready;
     logic [XIF_ID_W-1:0] elem_xreg_id;
     logic [4:0]          elem_xreg_addr;
     logic [31:0]         elem_xreg_data;
@@ -930,12 +932,14 @@ module vproc_core import vproc_pkg::*; #(
             ) pipe_xif ();
             logic                pending_load, pending_store;
             logic                trans_complete_valid;
+            logic                trans_complete_ready;
             logic [XIF_ID_W-1:0] trans_complete_id;
             logic                trans_complete_exc;
             logic [5:0]          trans_complete_exccode;
 
             // ELEM-related signals (for XREG writeback)
             logic                xreg_valid;
+            logic                xreg_ready;
             logic [XIF_ID_W-1:0] xreg_id;
             logic [4:0]          xreg_addr;
             logic [31:0]         xreg_data;
@@ -996,10 +1000,12 @@ module vproc_core import vproc_pkg::*; #(
                 .xif_mem_if               ( pipe_xif                   ),
                 .xif_memres_if            ( pipe_xif                   ),
                 .trans_complete_valid_o   ( trans_complete_valid       ),
+                .trans_complete_ready_i   ( trans_complete_ready       ),
                 .trans_complete_id_o      ( trans_complete_id          ),
                 .trans_complete_exc_o     ( trans_complete_exc         ),
                 .trans_complete_exccode_o ( trans_complete_exccode     ),
                 .xreg_valid_o             ( xreg_valid                 ),
+                .xreg_ready_i             ( xreg_ready                 ),
                 .xreg_id_o                ( xreg_id                    ),
                 .xreg_addr_o              ( xreg_addr                  ),
                 .xreg_data_o              ( xreg_data                  )
@@ -1026,12 +1032,14 @@ module vproc_core import vproc_pkg::*; #(
                 assign pipe_xif.mem_result.err    = xif_memres_if.mem_result.err;
                 assign pipe_xif.mem_result.dbg    = xif_memres_if.mem_result.dbg;
                 assign lsu_trans_complete_valid   = trans_complete_valid;
+                assign trans_complete_ready       = lsu_trans_complete_ready;
                 assign lsu_trans_complete_id      = trans_complete_id;
                 assign lsu_trans_complete_exc     = trans_complete_exc;
                 assign lsu_trans_complete_exccode = trans_complete_exccode;
             end
             if (PIPE_UNITS[i][UNIT_ELEM]) begin
                 assign elem_xreg_valid = xreg_valid;
+                assign xreg_ready      = elem_xreg_ready;
                 assign elem_xreg_id    = xreg_id;
                 assign elem_xreg_addr  = xreg_addr;
                 assign elem_xreg_data  = xreg_data;
@@ -1070,17 +1078,18 @@ module vproc_core import vproc_pkg::*; #(
         .clk_i                     ( clk_i                      ),
         .async_rst_ni              ( async_rst_n                ),
         .sync_rst_ni               ( sync_rst_n                 ),
+        .result_empty_valid_i      ( result_empty_valid         ),
+        .result_empty_id_i         ( result_empty_id            ),
         .result_lsu_valid_i        ( lsu_trans_complete_valid   ),
+        .result_lsu_ready_o        ( lsu_trans_complete_ready   ),
         .result_lsu_id_i           ( lsu_trans_complete_id      ),
         .result_lsu_exc_i          ( lsu_trans_complete_exc     ),
         .result_lsu_exccode_i      ( lsu_trans_complete_exccode ),
         .result_xreg_valid_i       ( elem_xreg_valid            ),
+        .result_xreg_ready_o       ( elem_xreg_ready            ),
         .result_xreg_id_i          ( elem_xreg_id               ),
         .result_xreg_addr_i        ( elem_xreg_addr             ),
         .result_xreg_data_i        ( elem_xreg_data             ),
-        .result_empty_valid_i      ( result_empty_valid         ),
-        .result_empty_ready_o      (                            ),
-        .result_empty_id_i         ( result_empty_id            ),
         .result_csr_valid_i        ( result_csr_valid           ),
         .result_csr_ready_o        ( result_csr_ready           ),
         .result_csr_id_i           ( result_csr_id              ),

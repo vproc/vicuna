@@ -57,11 +57,13 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
         vproc_xif.coproc_mem_result                  xif_memres_if,
 
         output logic                                 trans_complete_valid_o,
+        input  logic                                 trans_complete_ready_i,
         output logic    [XIF_ID_W              -1:0] trans_complete_id_o,
         output logic                                 trans_complete_exc_o,
         output logic    [5:0]                        trans_complete_exccode_o,
 
         output logic                                 xreg_valid_o,
+        input  logic                                 xreg_ready_i,
         output logic    [XIF_ID_W              -1:0] xreg_id_o,
         output logic    [4:0]                        xreg_addr_o,
         output logic    [31:0]                       xreg_data_o
@@ -103,6 +105,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 .instr_spec_i             ( instr_spec_i                                ),
                 .instr_killed_i           ( instr_killed_i                              ),
                 .trans_complete_valid_o   ( trans_complete_valid_o                      ),
+                .trans_complete_ready_i   ( trans_complete_ready_i                      ),
                 .trans_complete_id_o      ( trans_complete_id_o                         ),
                 .trans_complete_exc_o     ( trans_complete_exc_o                        ),
                 .trans_complete_exccode_o ( trans_complete_exccode_o                    ),
@@ -366,7 +369,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                     endcase
                 end
             end
-            assign unit_out_stall = unit_out_xreg_valid & instr_spec_i[unit_out_ctrl.id];
+            assign unit_out_stall = unit_out_xreg_valid & (instr_spec_i[unit_out_ctrl.id] | ~xreg_ready_i);
 
             // flush the downstream part of the pipeline after the last cycle if needed
             logic flushing_last_cycle;
@@ -390,7 +393,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 end
             end
 
-            assign xreg_valid_o     = unit_out_valid & unit_out_xreg_valid & ~unit_out_stall & ~flushing_q & ~instr_killed_i[unit_out_ctrl.id];
+            assign xreg_valid_o     = unit_out_valid & unit_out_xreg_valid & ~instr_spec_i[unit_out_ctrl.id] & ~flushing_q & ~instr_killed_i[unit_out_ctrl.id];
             assign xreg_id_o        = unit_out_ctrl.id;
             assign pipe_out_valid_o = (unit_out_valid & ~unit_out_stall) | flushing_q;
             assign unit_out_ready   = pipe_out_ready_i & ~flushing_q & ~unit_out_stall;

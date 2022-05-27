@@ -68,11 +68,13 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         vproc_xif.coproc_mem_result     xif_memres_if,
 
         output logic                    trans_complete_valid_o,
+        input  logic                    trans_complete_ready_i,
         output logic [XIF_ID_W-1:0]     trans_complete_id_o,
         output logic                    trans_complete_exc_o,
         output logic [5:0]              trans_complete_exccode_o,
 
         output logic                    xreg_valid_o,
+        input  logic                    xreg_ready_i,
         output logic [XIF_ID_W-1:0]     xreg_id_o,
         output logic [4:0]              xreg_addr_o,
         output logic [31:0]             xreg_data_o

@@ -26,6 +26,14 @@
         $error("incoming memory response transaction while dequeueing a failed request");
     end
 
+    // Assert that the transaction complete queue is always ready
+    assert property (
+        @(posedge clk_i)
+        trans_complete_valid |-> trans_complete_ready
+    ) else begin
+        $error("transaction complete queue is full");
+    end
+
     // Assert that the instruction counter does not overflow
     assert property (
         @(posedge clk_i)

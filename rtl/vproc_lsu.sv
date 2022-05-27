@@ -43,6 +43,7 @@ module vproc_lsu import vproc_pkg::*; #(
         input  logic [XIF_ID_CNT-1:0] instr_killed_i,
 
         output logic                  trans_complete_valid_o,
+        input  logic                  trans_complete_ready_i,
         output logic [XIF_ID_W-1:0]   trans_complete_id_o,
         output logic                  trans_complete_exc_o,
         output logic [5:0]            trans_complete_exccode_o,
@@ -386,11 +387,25 @@ module vproc_lsu import vproc_pkg::*; #(
         end
     end
 
-    // LSU result (indicates potential exceptions):
-    assign trans_complete_valid_o   = deq_valid & deq_ready & deq_state.last_cycle;
-    assign trans_complete_id_o      = deq_state.id;
-    assign trans_complete_exc_o     = mem_err_d;
-    assign trans_complete_exccode_o = mem_exccode_d;
+    // LSU transaction complete queue, result indicates potential exceptions
+    logic trans_complete_valid, trans_complete_ready;
+    assign trans_complete_valid = deq_valid & deq_ready & deq_state.last_cycle;
+    vproc_queue #(
+        .WIDTH        ( XIF_ID_W + 7                                                          ),
+        .DEPTH        ( 2                                                                     )
+    ) trans_complete_queue (
+        .clk_i        ( clk_i                                                                 ),
+        .async_rst_ni ( async_rst_ni                                                          ),
+        .sync_rst_ni  ( sync_rst_ni                                                           ),
+        .enq_ready_o  ( trans_complete_ready                                                  ),
+        .enq_valid_i  ( trans_complete_valid                                                  ),
+        .enq_data_i   ( {deq_state.id, mem_err_d, mem_exccode_d}                              ),
+        .deq_ready_i  ( trans_complete_ready_i                                                ),
+        .deq_valid_o  ( trans_complete_valid_o                                                ),
+        .deq_data_o   ( {trans_complete_id_o, trans_complete_exc_o, trans_complete_exccode_o} ),
+        .flags_any_o  (                                                                       ),
+        .flags_all_o  (                                                                       )
+    );
 
     // load data state
     always_comb begin
