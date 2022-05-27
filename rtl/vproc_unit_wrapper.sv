@@ -44,6 +44,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
         output logic    [1:0]                        pipe_out_pend_clear_cnt_o,
         output logic                                 pipe_out_instr_done_o,
 
+        output logic                                 lsu_empty_o,
         output logic                                 pending_load_o,
         output logic                                 pending_store_o,
 
@@ -95,6 +96,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 .pipe_out_pend_clr_o      ( pipe_out_pend_clear_o                       ),
                 .pipe_out_res_o           ( unit_out_res                                ),
                 .pipe_out_mask_o          ( unit_out_mask                               ),
+                .lsu_empty_o              ( lsu_empty_o                                 ),
                 .pending_load_o           ( pending_load_o                              ),
                 .pending_store_o          ( pending_store_o                             ),
                 .vreg_pend_rd_i           ( vreg_pend_rd_i                              ),

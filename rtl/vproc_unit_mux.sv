@@ -90,6 +90,8 @@ module vproc_unit_mux import vproc_pkg::*; #(
     logic      [UNIT_CNT-1:0]                             unit_out_pend_clear;
     logic      [UNIT_CNT-1:0][1:0]                        unit_out_pend_clear_cnt;
     logic      [UNIT_CNT-1:0]                             unit_out_instr_done;
+
+    logic lsu_empty;
     generate
         for (genvar i = 0; i < UNIT_CNT; i++) begin
             if (UNITS[i]) begin
@@ -98,6 +100,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     .X_ID_WIDTH  ( XIF_ID_W ),
                     .X_MEM_WIDTH ( MAX_OP_W )
                 ) unit_xif ();
+                logic                unit_lsu_empty;
                 logic                pending_load;
                 logic                pending_store;
                 logic                trans_complete_valid;
@@ -148,6 +151,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     .pipe_out_pend_clear_o     ( unit_out_pend_clear    [i] ),
                     .pipe_out_pend_clear_cnt_o ( unit_out_pend_clear_cnt[i] ),
                     .pipe_out_instr_done_o     ( unit_out_instr_done    [i] ),
+                    .lsu_empty_o               ( unit_lsu_empty             ),
                     .pending_load_o            ( pending_load               ),
                     .pending_store_o           ( pending_store              ),
                     .vreg_pend_rd_i            ( vreg_pend_rd_i             ),
@@ -166,6 +170,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
                 );
 
                 if (op_unit'(i) == UNIT_LSU) begin
+                    assign lsu_empty                 = unit_lsu_empty;
                     assign pending_load_o            = pending_load;
                     assign pending_store_o           = pending_store;
                     assign xif_mem_if.mem_valid      = unit_xif.mem_valid;
@@ -196,37 +201,6 @@ module vproc_unit_mux import vproc_pkg::*; #(
             end
         end
     endgenerate
-
-    // if this pipeline contains an LSU, remember how many instr have entered it
-    // TODO: assert that this counter does not overflow
-    logic [1:0] lsu_instr_cnt_q, lsu_instr_cnt_d;
-    always_ff @(posedge clk_i or negedge async_rst_ni) begin
-        if (~async_rst_ni) begin
-            lsu_instr_cnt_q <= '0;
-        end
-        else if (~sync_rst_ni) begin
-            lsu_instr_cnt_q <= '0;
-        end
-        else begin
-            lsu_instr_cnt_q <= lsu_instr_cnt_d;
-        end
-    end
-    logic lsu_empty;
-    always_comb begin
-        lsu_instr_cnt_d = lsu_instr_cnt_q;
-        lsu_empty       = 1'b1;
-        if (UNITS[UNIT_LSU]) begin
-            unique case ({
-                unit_in_valid [UNIT_LSU] & unit_in_ready [UNIT_LSU] & pipe_in_ctrl_i.first_cycle,
-                unit_out_valid[UNIT_LSU] & unit_out_ready[UNIT_LSU] & unit_out_instr_done[UNIT_LSU]
-            })
-                2'b01: lsu_instr_cnt_d = lsu_instr_cnt_q + 2'b01;
-                2'b10: lsu_instr_cnt_d = lsu_instr_cnt_q - 2'b01;
-                default: ;
-            endcase
-            lsu_empty = lsu_instr_cnt_q == '0;
-        end
-    end
 
     // store the currently active unit
     logic   active_unit_valid_q, active_unit_valid_d;
