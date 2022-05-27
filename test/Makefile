@@ -115,15 +115,15 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	                      grep -n pend_vreg_wr_map_o |                        \
 	                      awk -F ':' '{print $$1}' | head -n 1`;              \
 	    if [[ "$$pend_vreg_wr_col" =~ ^[0-9]+$$ ]]; then                      \
-	        hazards=`tail -n 1 sim_trace.csv |                                \
+	        pending=`tail -n 1 sim_trace.csv |                                \
 	                 awk -F ';' -v idx="$$pend_vreg_wr_col" '{print $$idx}'`; \
-	        if [ "$$hazards" != "00000000" ]; then                            \
+	        if [[ "$$pending" -ne 0 ]]; then                                  \
 	            printf "\033[0;33m[WARN]\033[0;0m $@ ";                       \
-	            printf "uncleared write hazard(s) (0x$${hazards})\n";         \
+	            printf "uncleared pending vreg write(s) (0x$${pending})\n";   \
 	        fi;                                                               \
 	    else                                                                  \
 	        printf "\033[0;33m[WARN]\033[0;0m $@ ";                           \
-	        printf "write hazards are not among traced signals\n";            \
+	        printf "write pending are not among traced signals\n";            \
 	    fi;                                                                   \
 	    rst_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' | grep -n rst_ni |  \
 	             awk -F ':' '{print $$1}' | head -n 1`;                       \
