@@ -72,7 +72,7 @@ $(VPROC_CONFIG_PKG):
 	echo "// - Vector register width: $(VREG_W) bits"                                       >>$@; \
 	echo "// - Vector pipelines:"                                                           >>$@; \
 	vport_rd_cnt=1;                                                                               \
-	vport_wr_cnt=0;                                                                               \
+	vport_wr_capacities="";                                                                       \
 	pipe_cnt=0;                                                                                   \
 	pipe_units="";                                                                                \
 	pipe_widths="";                                                                               \
@@ -92,6 +92,14 @@ $(VPROC_CONFIG_PKG):
 	        vport_cnt=$$(($$vport_cnt + 1));                                                      \
 	    fi;                                                                                       \
 	    vport_wr=0;                                                                               \
+	    remaining_cap=$$(($(VREG_W) - $$width));                                                  \
+	    for cap in $$(echo $$vport_wr_capacities); do                                             \
+	        if [ "$$cap" -ge "$$width" ]; then                                                    \
+	            remaining_cap=$$(($$cap - $$width));                                              \
+	            break;                                                                            \
+	        fi;                                                                                   \
+	        vport_wr=$$(($$vport_wr + 1));                                                        \
+	    done;                                                                                     \
 	    if [[ "$$pipe_units" == "" ]]; then                                                       \
 	        pipe_units="$${unit_mask}";                                                           \
 	        pipe_widths="$${width}";                                                              \
@@ -106,8 +114,12 @@ $(VPROC_CONFIG_PKG):
 	        pipe_vport_wr="$${pipe_vport_wr}, $${vport_wr}";                                      \
 	    fi;                                                                                       \
 	    vport_rd_cnt=$$(($$vport_rd_cnt + $$vport_cnt));                                          \
-	    if [ "$$vport_wr_cnt" -ge "$$vport_wr" ]; then                                            \
-	        vport_wr_cnt=$$(($$vport_wr + 1));                                                    \
+	    if [ "$$vport_wr" == `echo $${vport_wr_capacities} | wc -w` ]; then                       \
+	        vport_wr_capacities="$${vport_wr_capacities} $${remaining_cap}";                      \
+	    else                                                                                      \
+	        awk_word_idx=$$(($$vport_wr + 1));                                                    \
+	        vport_wr_capacities=`echo "$${vport_wr_capacities}" |                                 \
+	                             awk -v n=$$awk_word_idx -v r=$$remaining_cap '{$$n=r} 1'`;       \
 	    fi;                                                                                       \
 	    echo "//   * Pipeline $${pipe_cnt}: $${width} bits wide, contains $${unit_str}"     >>$@; \
 	    echo "//     Uses $${vport_cnt} $(VREG_W)-bit vreg read ports"                            \
@@ -118,6 +130,7 @@ $(VPROC_CONFIG_PKG):
 	pipe_vport_cnt="'{$${pipe_vport_cnt}}";                                                       \
 	pipe_vport_idx="'{$${pipe_vport_idx}}";                                                       \
 	pipe_vport_wr="'{$${pipe_vport_wr}}";                                                         \
+	vport_wr_cnt=`echo $${vport_wr_capacities} | wc -w`;                                          \
 	echo "// - Vector register file needs $${vport_rd_cnt} read ports and $${vport_wr_cnt}"       \
 	     "write ports"                                                                      >>$@; \
 	echo ""                                                                                 >>$@; \
