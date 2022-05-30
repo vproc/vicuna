@@ -19,7 +19,7 @@ module vproc_core import vproc_pkg::*; #(
         // Vector pipeline configuration
         parameter int unsigned           PIPE_CNT                 = vproc_config::PIPE_CNT,
         parameter bit [UNIT_CNT-1:0]     PIPE_UNITS    [PIPE_CNT] = vproc_config::PIPE_UNITS,
-        parameter int unsigned           PIPE_MAX_OP_W [PIPE_CNT] = vproc_config::PIPE_MAX_OP_W,
+        parameter int unsigned           PIPE_W        [PIPE_CNT] = vproc_config::PIPE_W,
         parameter int unsigned           PIPE_VPORT_CNT[PIPE_CNT] = vproc_config::PIPE_VPORT_CNT,
         parameter int unsigned           PIPE_VPORT_IDX[PIPE_CNT] = vproc_config::PIPE_VPORT_IDX,
         parameter int unsigned           PIPE_VPORT_WR [PIPE_CNT] = vproc_config::PIPE_VPORT_WR,
@@ -36,34 +36,34 @@ module vproc_core import vproc_pkg::*; #(
         parameter bit                    DONT_CARE_ZERO           = 1'b0, // init don't cares to 0
         parameter bit                    ASYNC_RESET              = 1'b0  // rst_ni is async
     )(
-        input  logic                 clk_i,
-        input  logic                 rst_ni,
+        input  logic                     clk_i,
+        input  logic                     rst_ni,
 
         // eXtension interface
-        vproc_xif.coproc_issue       xif_issue_if,
-        vproc_xif.coproc_commit      xif_commit_if,
-        vproc_xif.coproc_mem         xif_mem_if,
-        vproc_xif.coproc_mem_result  xif_memres_if,
-        vproc_xif.coproc_result      xif_result_if,
+        vproc_xif.coproc_issue           xif_issue_if,
+        vproc_xif.coproc_commit          xif_commit_if,
+        vproc_xif.coproc_mem             xif_mem_if,
+        vproc_xif.coproc_mem_result      xif_memres_if,
+        vproc_xif.coproc_result          xif_result_if,
 
-        output logic                 pending_load_o,
-        output logic                 pending_store_o,
+        output logic                     pending_load_o,
+        output logic                     pending_store_o,
 
         // CSR connections
-        output logic [31:0]          csr_vtype_o,
-        output logic [31:0]          csr_vl_o,
-        output logic [31:0]          csr_vlenb_o,
-        output logic [31:0]          csr_vstart_o,
-        input  logic [31:0]          csr_vstart_i,
-        input  logic                 csr_vstart_set_i,
-        output logic [1:0]           csr_vxrm_o,
-        input  logic [1:0]           csr_vxrm_i,
-        input  logic                 csr_vxrm_set_i,
-        output logic                 csr_vxsat_o,
-        input  logic                 csr_vxsat_i,
-        input  logic                 csr_vxsat_set_i,
+        output logic [31:0]              csr_vtype_o,
+        output logic [31:0]              csr_vl_o,
+        output logic [31:0]              csr_vlenb_o,
+        output logic [31:0]              csr_vstart_o,
+        input  logic [31:0]              csr_vstart_i,
+        input  logic                     csr_vstart_set_i,
+        output logic [1:0]               csr_vxrm_o,
+        input  logic [1:0]               csr_vxrm_i,
+        input  logic                     csr_vxrm_set_i,
+        output logic                     csr_vxsat_o,
+        input  logic                     csr_vxsat_i,
+        input  logic                     csr_vxsat_set_i,
 
-        output logic [31:0]          pend_vreg_wr_map_o
+        output logic [31:0]              pend_vreg_wr_map_o
     );
 
     if ((VREG_W & (VREG_W - 1)) != 0 || VREG_W < 64) begin
@@ -96,10 +96,10 @@ module vproc_core import vproc_pkg::*; #(
 
     generate
         for (genvar i = 0; i < PIPE_CNT; i++) begin
-            if (PIPE_UNITS[i][UNIT_LSU] & (PIPE_MAX_OP_W[i] != XIF_MEM_W)) begin
+            if (PIPE_UNITS[i][UNIT_LSU] & (PIPE_W[i] != XIF_MEM_W)) begin
                 $fatal(1, "The vector pipeline containing the VLSU must have a datapath width ",
                           "equal to the memory interface width.  However, pipeline %d ", i,
-                          "containing the VLSU has a width of %d bits ", PIPE_MAX_OP_W[i],
+                          "containing the VLSU has a width of %d bits ", PIPE_W[i],
                           "while the memory interface is %d bits wide.", XIF_MEM_W);
             end
             if ((PIPE_VPORT_IDX[i] >= VPORT_RD_CNT) |
@@ -291,7 +291,6 @@ module vproc_core import vproc_pkg::*; #(
     logic instr_valid, issue_id_used;
     assign instr_valid = xif_issue_if.issue_valid & ~issue_id_used;
 
-    logic   instr_illegal;
     op_unit instr_unit;
     op_mode instr_mode;
     vproc_decoder #(
@@ -306,7 +305,6 @@ module vproc_core import vproc_pkg::*; #(
         .lmul_i         ( lmul_q                       ),
         .vxrm_i         ( vxrm_q                       ),
         .vl_i           ( vl_q                         ),
-        .illegal_o      ( instr_illegal                ),
         .valid_o        ( dec_valid                    ),
         .vsew_o         ( dec_data_d.vsew              ),
         .emul_o         ( dec_data_d.emul              ),
@@ -965,7 +963,7 @@ module vproc_core import vproc_pkg::*; #(
 `endif
                 .VPORT_BUFFER             ( PIPE_VPORT_BUFFER          ),
                 .VPORT_V0                 ( 1'b1                       ),
-                .MAX_OP_W                 ( PIPE_MAX_OP_W[i]           ),
+                .MAX_OP_W                 ( PIPE_W[i]                  ),
                 .VLSU_QUEUE_SZ            ( VLSU_QUEUE_SZ              ),
                 .VLSU_FLAGS               ( VLSU_FLAGS                 ),
                 .MUL_TYPE                 ( MUL_TYPE                   ),

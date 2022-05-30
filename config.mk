@@ -136,7 +136,7 @@ $(VPROC_CONFIG_PKG):
 	echo "    parameter bit [UNIT_CNT-1:0] PIPE_UNITS [PIPE_CNT] = '{"                      >>$@; \
 	echo "        $$pipe_units"                                                             >>$@; \
 	echo "    };"                                                                           >>$@; \
-	echo "    parameter int unsigned PIPE_MAX_OP_W    [PIPE_CNT] = $$pipe_widths;"          >>$@; \
+	echo "    parameter int unsigned PIPE_W           [PIPE_CNT] = $$pipe_widths;"          >>$@; \
 	echo "    parameter int unsigned PIPE_VPORT_CNT   [PIPE_CNT] = $$pipe_vport_cnt;"       >>$@; \
 	echo "    parameter int unsigned PIPE_VPORT_IDX   [PIPE_CNT] = $$pipe_vport_idx;"       >>$@; \
 	echo "    parameter int unsigned PIPE_VPORT_WR    [PIPE_CNT] = $$pipe_vport_wr;"        >>$@; \
