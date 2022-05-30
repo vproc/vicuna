@@ -121,4 +121,5 @@ jobs:
         run: |
           export PATH=$PATH:/opt/verilator/bin:/opt/riscv-gcc/bin
           verilator --version
+          cp .github/test_configs.conf test/${{ matrix.unit }}/
           cd test && make ${{ matrix.unit }} CORE=${{ matrix.main_core }}
