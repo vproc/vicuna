@@ -30,6 +30,12 @@ ifeq ($(BOARD), xc7vx690tffg1157)
   PART     ?= xc7vx690tffg1157-3
   DIFF_CLK ?= 0
   CLK_PER  ?= 20.0
+else
+ifeq ($(BOARD), nexysa7)
+  PART     ?= xc7a100tcsg324-1
+  DIFF_CLK ?= 0
+  CLK_PER  ?= 10.0
+endif
 endif
 endif
 endif
