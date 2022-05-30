@@ -184,6 +184,10 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     localparam bit RES0_NARROW            = UNITS[UNIT_ALU];
     localparam bit RES0_ALLOW_ELEMWISE    = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
 
+    // miscellaneous pipeline config
+    localparam bit FIELD_COUNT_USED       = UNITS[UNIT_LSU];
+    localparam bit FIELD_OP               = UNITS[UNIT_LSU] ? 1 : 0;
+
 
     ///////////////////////////////////////////////////////////////////////////
     // CONVERT DECODER DATA TO INITIAL PIPELINE STATE
@@ -192,8 +196,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
 
     typedef struct packed {
         logic                            count_extra_phase; // start by counting an extra phase
-        logic        [ALT_COUNT_W  -1:0] alt_count_init;    // alternative counter init value
+        logic        [ALT_COUNT_W  -1:0] alt_count_init;    // alternative counter initial value
         count_inc_e                      count_inc;         // counter increment policy
+        logic                      [2:0] field_count_init;  // field counter initial value
         logic                            requires_flush;    // whether the instr requires flushing
         logic        [XIF_ID_W     -1:0] id;
         op_unit                          unit;
@@ -398,6 +403,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
             endcase
         end
 
+        state_init.field_count_init = unit_lsu ? pipe_in_data_i.mode.lsu.nfields : '0;
         state_init.requires_flush = unit_elem & elem_flush;
         state_init.id             = pipe_in_data_i.id;
         state_init.unit           = pipe_in_data_i.unit;
@@ -551,6 +557,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -615,6 +623,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -679,6 +689,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -743,6 +755,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -807,6 +821,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -871,6 +887,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -935,6 +953,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -999,6 +1019,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
@@ -1063,6 +1085,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
                 .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),

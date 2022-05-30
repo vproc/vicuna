@@ -242,17 +242,18 @@ module vproc_lsu import vproc_pkg::*; #(
             // unchanged in case the input is invalid (avoids corrupting the address).  Note that
             // for strided loads, the X register value holds the base address in the first cycle
             // and then switches to the increment value.
-            LSU_UNITSTRIDE: req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.first_cycle ?
+            LSU_UNITSTRIDE: req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.init_addr ?
                 pipe_in_ctrl_i.xval : req_addr_q + 32'(VMEM_W / 8)
             ) : req_addr_q;
-            LSU_STRIDED:    req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.first_cycle ?
+            LSU_STRIDED:    req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.init_addr ?
                 pipe_in_ctrl_i.xval : req_addr_q + pipe_in_ctrl_i.xval
             ) : req_addr_q;
             LSU_INDEXED: begin
+                // note: the index is multiplied by the element byte width and the field count
                 unique case (pipe_in_ctrl_i.mode.lsu.eew)
-                    VSEW_8:  req_addr_d = pipe_in_ctrl_i.xval + {24'b0, vs2_data[7 :0]};
-                    VSEW_16: req_addr_d = pipe_in_ctrl_i.xval + {16'b0, vs2_data[15:0]};
-                    VSEW_32: req_addr_d = pipe_in_ctrl_i.xval +         vs2_data[31:0] ;
+                    VSEW_8:  req_addr_d = pipe_in_ctrl_i.xval +  32'(vs2_data[7 :0]) * (32'(1) + 32'(pipe_in_ctrl_i.mode.lsu.nfields));
+                    VSEW_16: req_addr_d = pipe_in_ctrl_i.xval + {31'(vs2_data[15:0]) * (31'(1) + 31'(pipe_in_ctrl_i.mode.lsu.nfields)), 1'b0};
+                    VSEW_32: req_addr_d = pipe_in_ctrl_i.xval + {    vs2_data[29:0]  * (30'(1) + 30'(pipe_in_ctrl_i.mode.lsu.nfields)), 2'b0};
                     default: ;
                 endcase
             end
