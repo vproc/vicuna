@@ -49,16 +49,13 @@ all: verilator
 VPROC_CONFIG_PKG := $(PROJ_DIR)/vproc_config.sv
 include $(SIM_DIR)/../config.mk
 
-vivado: $(VPROC_CONFIG_PKG)
-	cd $(PROJ_DIR) && vivado -mode batch -source $(VIVADO_TCL)                \
-	    -tclargs $(SIM_DIR)/../ $(CORE_DIR) $(VPROC_CONFIG_PKG)               \
-	    "MEM_W=$(MEM_W) MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)           \
-	    VMEM_W=$(VMEM_W)                                                      \
-	    ICACHE_SZ=$(ICACHE_SZ) ICACHE_LINE_W=$(ICACHE_LINE_W)                 \
-	    DCACHE_SZ=$(DCACHE_SZ) DCACHE_LINE_W=$(DCACHE_LINE_W)"                \
-	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS_LIST)) $(TRACE_SIGS)
+verilator: $(PROJ_DIR)/obj_dir/Vvproc_top.mk
+	make -C $(PROJ_DIR)/obj_dir -f Vvproc_top.mk Vvproc_top;                  \
+	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST)) $(MEM_W)     \
+	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(abspath $(TRACE_FILE)) \
+	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
 
-verilator: $(VPROC_CONFIG_PKG)
+$(PROJ_DIR)/obj_dir/Vvproc_top.mk: $(VPROC_CONFIG_PKG)
 	cp $(SIM_DIR)/verilator_main.cpp $(PROJ_DIR)/
 	cd $(PROJ_DIR);                                                           \
 	options="";                                                               \
@@ -105,14 +102,16 @@ verilator: $(VPROC_CONFIG_PKG)
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
 	    --cc $$src vproc_pkg.sv $(VPROC_CONFIG_PKG) vproc_top.sv vproc_xif.sv \
 	    vproc_vregpack.sv vproc_vregunpack.sv --top-module vproc_top          \
-	    --clk clk_i $$options $$cflags --exe verilator_main.cpp;              \
-	if [ "$$?" != "0" ]; then                                                 \
-	    exit 1;                                                               \
-	fi;                                                                       \
-	make -C $(PROJ_DIR)/obj_dir -f Vvproc_top.mk Vvproc_top;                  \
-	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST)) $(MEM_W)     \
-	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(abspath $(TRACE_FILE)) \
-	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
+	    --clk clk_i $$options $$cflags --exe verilator_main.cpp
+
+vivado: $(VPROC_CONFIG_PKG)
+	cd $(PROJ_DIR) && vivado -mode batch -source $(VIVADO_TCL)                \
+	    -tclargs $(SIM_DIR)/../ $(CORE_DIR) $(VPROC_CONFIG_PKG)               \
+	    "MEM_W=$(MEM_W) MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)           \
+	    VMEM_W=$(VMEM_W)                                                      \
+	    ICACHE_SZ=$(ICACHE_SZ) ICACHE_LINE_W=$(ICACHE_LINE_W)                 \
+	    DCACHE_SZ=$(DCACHE_SZ) DCACHE_LINE_W=$(DCACHE_LINE_W)"                \
+	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS_LIST)) $(TRACE_SIGS)
 
 questa: $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR) && $(VSIM) -batch -do 'do $(QUESTA_TCL)                    \
