@@ -56,11 +56,7 @@ set_property -name "simulator_language" -value "Mixed" -objects $obj
 # add source files:
 set obj [get_filesets sources_1]
 set src_list {}
-if {[string first "xc7a100tcsg324-1" $part] != -1} {
-    lappend src_list "$vproc_dir/demo/rtl/small_demo_top.sv"
-} else {
-    lappend src_list "$vproc_dir/demo/rtl/demo_top.sv"
-}
+lappend src_list "$vproc_dir/demo/rtl/demo_top.sv"
 lappend src_list "$vproc_dir/demo/rtl/ram.sv"
 lappend src_list "$vproc_dir/demo/rtl/uart_rx.sv"
 lappend src_list "$vproc_dir/demo/rtl/uart_tx.sv"
