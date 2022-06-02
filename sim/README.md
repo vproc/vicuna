@@ -7,6 +7,6 @@ simulated vector processor.  Such a list of programs can be a simple text file
 with each line containing the file path of a `*.vmem` file specifying the
 memory initialization file of the respective programs.
 
-The environment variables `VREG_W`, `VMEM_W`, and `VMUL_W` can be used to
-specify the bit width of the vector registers, the memory interface of the
-vector core, and the multiplier datapath, respectively.
+The environment variables `VREG_W` and `VMEM_W` can be used to specify the bit
+width of the vector registers and the memory interface of the vector core,
+respectively.
