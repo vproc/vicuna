@@ -64,7 +64,7 @@ lint-verilator:
 
 .SECONDEXPANSION:
 $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S || ls %.S)))
-	@if [[ -d $@ ]]; then                                                     \
+	@if [ -d $@ ]; then                                                       \
 	    cd $@;                                                                \
 	else                                                                      \
 	    cd $(dir $@);                                                         \
@@ -87,7 +87,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	done;                                                                     \
 	retval=0;                                                                 \
 	while IFS= read -ra line; do                                              \
-	    if [[ "$$line" == "" ]] || [[ "$$line" == \#* ]]; then                \
+	    if [ -z "$$line" ] || [ "$${line:0:1}" == "#" ]; then                 \
 	        continue;                                                         \
 	    fi;                                                                   \
 	    printf "\033[0;34m[CONF]\033[0;0m $@ $$line\n";                       \
@@ -107,16 +107,16 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    pend_vreg_wr_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |          \
 	                      grep -n pend_vreg_wr_map_o |                        \
 	                      awk -F ':' '{print $$1}' | head -n 1`;              \
-	    if [[ "$$pend_vreg_wr_col" =~ ^[0-9]+$$ ]]; then                      \
+	    if [ -n "$$pend_vreg_wr_col" ]; then                                  \
 	        pending=`tail -n 1 sim_trace.csv |                                \
 	                 awk -F ';' -v idx="$$pend_vreg_wr_col" '{print $$idx}'`; \
-	        if [[ "$$pending" -ne 0 ]]; then                                  \
+	        if [ "$$pending" -ne 0 ]; then                                    \
 	            printf "\033[0;33m[WARN]\033[0;0m $@ ";                       \
 	            printf "uncleared pending vreg write(s) (0x$${pending})\n";   \
 	        fi;                                                               \
 	    else                                                                  \
 	        printf "\033[0;33m[WARN]\033[0;0m $@ ";                           \
-	        printf "write pending are not among traced signals\n";            \
+	        printf "pending vreg writes are not among traced signals\n";      \
 	    fi;                                                                   \
 	    rst_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' | grep -n rst_ni |  \
 	             awk -F ':' '{print $$1}' | head -n 1`;                       \
@@ -124,7 +124,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    t_end=();                                                             \
 	    expected=0;                                                           \
 	    while IFS= read -r t_reset; do                                        \
-	        if [[ $$expected != 0 ]] && [[ $$expected != $$t_reset ]]; then   \
+	        if [ $$expected != 0 ] && [ $$expected != $$t_reset ]; then     \
 	            t_start+=($$expected);                                        \
 	            t_end+=($$t_reset);                                           \
 	        fi;                                                               \
