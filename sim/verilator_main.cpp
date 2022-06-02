@@ -173,6 +173,9 @@ int main(int argc, char **argv) {
                 bool valid =  top->mem_addr_o < mem_sz;
                 int  addr  = (top->mem_addr_o % mem_sz) & ~(mem_w/8-1);
                 if (top->mem_req_o && top->mem_we_o && valid) {
+                    if (addr == 0x20000) {
+                        putc(top->mem_wdata_o & 0xFF, stdout);
+                    }
                     for (i = 0; i < mem_w / 8; i++) {
                         if ((top->mem_be_o & (1<<i))) {
                             mem[addr+i] = top->mem_wdata_o >> (i*8);
