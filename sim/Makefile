@@ -49,13 +49,22 @@ all: verilator
 VPROC_CONFIG_PKG := $(PROJ_DIR)/vproc_config.sv
 include $(SIM_DIR)/../config.mk
 
-verilator: $(PROJ_DIR)/obj_dir/Vvproc_top.mk
+verilator-version-check:
+	@version=`verilator --version | awk '{print $$2}'`;                       \
+	if [ `printf '4.210\n%s\n' "$$version" | sort -V | head -n1` != "4.210" ];\
+	then                                                                      \
+	    echo "ERROR: Verilator version 4.210 or newer is required."           \
+	         "You are currently using Verilator $${version}." >&2;            \
+	    exit 1;                                                               \
+	fi
+
+verilator: verilator-version-check $(PROJ_DIR)/obj_dir/Vvproc_top.mk
 	make -C $(PROJ_DIR)/obj_dir -f Vvproc_top.mk Vvproc_top;                  \
 	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST)) $(MEM_W)     \
 	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(abspath $(TRACE_FILE)) \
 	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
 
-$(PROJ_DIR)/obj_dir/Vvproc_top.mk: $(VPROC_CONFIG_PKG)
+$(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	cp $(SIM_DIR)/verilator_main.cpp $(PROJ_DIR)/
 	cd $(PROJ_DIR);                                                           \
 	options="";                                                               \
@@ -69,11 +78,6 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: $(VPROC_CONFIG_PKG)
 	fi;                                                                       \
 	if [[ "$(ENABLE_SVA)" != "" ]]; then                                      \
 	    options="$$options --assert -DVPROC_SVA";                             \
-	fi;                                                                       \
-	version=`verilator --version | awk '{print $$2}'`;                        \
-	if [ `printf '4.210\n%s\n' "$$version" | sort -V | head -n1` = "4.210" ]; \
-	then                                                                      \
-	    cflags="$$cflags -CFLAGS -DVERILATOR_4_210";                          \
 	fi;                                                                       \
 	core="";                                                                  \
 	inc="";                                                                   \
