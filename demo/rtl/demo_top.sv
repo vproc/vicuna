@@ -86,12 +86,9 @@ module demo_top #(
     end
 
     vproc_top #(
-        .VREG_W       ( 1024                        ),
+        .MEM_W        ( 32                          ),
         .VMEM_W       ( 32                          ),
-        .VMUL_W       ( 512                         ),
-        .VALU_W       ( 512                         ),
-        .VSLD_W       ( 512                         ),
-        .RAM_TYPE     ( vproc_pkg::RAM_XLNX_RAM32M  ),
+        .VREG_TYPE    ( vproc_pkg::VREG_XLNX_RAM32M ),
         .MUL_TYPE     ( vproc_pkg::MUL_XLNX_DSP48E1 )
     ) vproc (
         .clk_i        ( clk                         ),

@@ -7,17 +7,18 @@
 # Create Project and Run Simulation
 ################################################################################
 
-if {$argc < 5} {
-    puts "usage: sim.tcl VPROC_DIR CORE_DIR PARAMS LOG_FILE PROG_PATHS_LIST \[SYMBOLS ...\]"
+if {$argc < 6} {
+    puts "usage: sim.tcl VPROC_DIR CORE_DIR CONFIG_FILE PARAMS LOG_FILE PROG_PATHS_LIST \[SYMBOLS ...\]"
     exit 2
 }
 
 # get command line arguments
 set vproc_dir [lindex $argv 0]
 set core_dir  [lindex $argv 1]
-set params_var "[lindex $argv 2]"
-set log_file_path [lindex $argv 3]
-set prog_paths_var "PROG_PATHS_LIST=\"[lindex $argv 4]\""
+set config_file_path [lindex $argv 2]
+set params_var "[lindex $argv 3]"
+set log_file_path [lindex $argv 4]
+set prog_paths_var "PROG_PATHS_LIST=\"[lindex $argv 5]\""
 
 # create project
 set _xil_proj_name_ "vproc_sim"
@@ -54,12 +55,14 @@ set_property -name "simulator_language" -value "Mixed" -objects $obj
 set obj [get_filesets sources_1]
 set src_list {}
 lappend src_list "$vproc_dir/sim/vproc_tb.sv"
+lappend src_list "$vproc_dir/rtl/vproc_pkg.sv"
+lappend src_list "$config_file_path"
 foreach file {
-    vproc_top.sv vproc_pkg.sv vproc_xif.sv vproc_core.sv vproc_decoder.sv vproc_lsu.sv vproc_alu.sv
+    vproc_top.sv vproc_xif.sv vproc_core.sv vproc_decoder.sv vproc_lsu.sv vproc_alu.sv
     vproc_mul.sv vproc_mul_block.sv vproc_sld.sv vproc_elem.sv vproc_pending_wr.sv vproc_vregfile.sv
     vproc_vregpack.sv vproc_vregunpack.sv vproc_queue.sv vproc_cache.sv vproc_result.sv
-    vproc_pipeline.sv vproc_pipeline_wrapper.sv vproc_unit_wrapper.sv vproc_vreg_wr_mux.sv
-    vproc_dispatcher.sv
+    vproc_pipeline.sv vproc_pipeline_wrapper.sv vproc_unit_wrapper.sv vproc_unit_mux.sv
+    vproc_vreg_wr_mux.sv vproc_dispatcher.sv
 } {
     lappend src_list "$vproc_dir/rtl/$file"
 }
@@ -114,7 +117,7 @@ report_property -all [get_filesets sim_1]
 
 launch_simulation
 
-set log_signals [get_objects -r [lrange $argv 5 end]]
+set log_signals [get_objects -r [lrange $argv 6 end]]
 add_wave $log_signals
 
 set complete_signal "done"

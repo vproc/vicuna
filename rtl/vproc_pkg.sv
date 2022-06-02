@@ -9,10 +9,22 @@ package vproc_pkg;
 //`define VPROC_OP_REGS_UNION
 
 typedef enum {
-    RAM_GENERIC     = 0,
-    RAM_XLNX_RAM32M = 1,
-    RAM_ASIC        = 2
-} ram_type;
+    VREG_GENERIC     = 0,
+    VREG_XLNX_RAM32M = 1,
+    VREG_ASIC        = 2
+} vreg_type;
+
+parameter int unsigned VLSU_FLAGS_W = 1;
+typedef enum {
+    VLSU_ADDR_ALIGNED = 0   // base address is aligned to XIF_MEM_W
+} vlsu_flag;
+
+parameter int unsigned BUF_FLAGS_W = 3;
+typedef enum {
+    BUF_DEQUEUE    = 0,     // buffer instruction queue outputs
+    BUF_VREG_WR    = 1,
+    BUF_VREG_PEND  = 2      // buffer pending vreg reads
+} buf_flag;
 
 typedef enum {
     MUL_GENERIC      = 0,
@@ -76,6 +88,9 @@ typedef enum logic [2:0] {
     // pseudo-units (used for instructions that require no unit):
     UNIT_CFG
 } op_unit;
+
+// The number of different types of execution units (excludes pseudo-units)
+parameter int unsigned UNIT_CNT = 5;
 
 typedef enum logic [1:0] {
     COUNT_INC_1,

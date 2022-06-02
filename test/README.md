@@ -14,11 +14,18 @@ environment variable `CORE`.
 
 The default simulator used for the tests is
 [Verilator](https://www.veripool.org/verilator/).  This can be changed by
-setting the environment variable `SIMULATOR`.  Currently only Verilator, 
+setting the environment variable `SIMULATOR`.  Currently only Verilator,
 xsim (part of the
 [Xilinx Vivado](https://www.xilinx.com/products/design-tools/vivado.html)
 suite, set `SIMULATOR` to `vivado` to use it) and Questasim (set `SIMULATOR`
 to `questa` to use it) are supported.
+
+Note that due to missing features in earlier versions, the minimum version of
+Verilator that is required is version 4.210.  If your distribution only offers
+older versions, you need to compile Verilator from source.  See the
+[`sim/`](https://github.com/vproc/vicuna/tree/main/sim) subdirectory or the
+[Verilator website](https://verilator.org/guide/latest/install.html)
+for instructions on building Verilator.
 
 The default compiler used for the tests is GCC. This can be changed by
 setting the environment variable `COMPILER`. GCC and LLVM + Clang (set `COMPILER`

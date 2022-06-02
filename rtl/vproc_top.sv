@@ -4,18 +4,14 @@
 
 
 module vproc_top #(
-        parameter int unsigned        MEM_W         = 32,  // memory bus width in bits
-        parameter int unsigned        VREG_W        = 128, // vector register width in bits
-        parameter int unsigned        VMEM_W        = 32,  // vector memory interface width in bits
-        parameter int unsigned        VMUL_W        = 64,  // MUL unit operand width in bits
-        parameter int unsigned        VALU_W        = 64,  // ALU unit operand width in bits
-        parameter int unsigned        VSLD_W        = 64,  // SLD unit operand width in bits
-        parameter vproc_pkg::ram_type RAM_TYPE      = vproc_pkg::RAM_GENERIC,
-        parameter vproc_pkg::mul_type MUL_TYPE      = vproc_pkg::MUL_GENERIC,
-        parameter int unsigned        ICACHE_SZ     = 0,   // instruction cache size in bytes
-        parameter int unsigned        ICACHE_LINE_W = 128, // instruction cache line width in bits
-        parameter int unsigned        DCACHE_SZ     = 0,   // data cache size in bytes
-        parameter int unsigned        DCACHE_LINE_W = 512  // data cache line width in bits
+        parameter int unsigned         MEM_W         = 32,  // memory bus width in bits
+        parameter int unsigned         VMEM_W        = 32,  // vector memory interface width in bits
+        parameter vproc_pkg::vreg_type VREG_TYPE     = vproc_pkg::VREG_GENERIC,
+        parameter vproc_pkg::mul_type  MUL_TYPE      = vproc_pkg::MUL_GENERIC,
+        parameter int unsigned         ICACHE_SZ     = 0,   // instruction cache size in bytes
+        parameter int unsigned         ICACHE_LINE_W = 128, // instruction cache line width in bits
+        parameter int unsigned         DCACHE_SZ     = 0,   // data cache size in bytes
+        parameter int unsigned         DCACHE_LINE_W = 512  // data cache line width in bits
     )(
         input  logic               clk_i,
         input  logic               rst_ni,
@@ -381,7 +377,7 @@ module vproc_top #(
     assign vect_csr_rdata[3] = {29'b0, csr_vxrm_rd, csr_vxsat_rd};
     assign vect_csr_rdata[4] = csr_vl;
     assign vect_csr_rdata[5] = csr_vtype;
-    assign vect_csr_rdata[6] = VREG_W / 8;
+    assign vect_csr_rdata[6] = csr_vlenb;
     assign csr_vstart_wr     = vect_csr_wdata[0];
     assign csr_vstart_wren   = vect_csr_we[0];
     assign csr_vxsat_wr      = vect_csr_we[1] ? vect_csr_wdata[1][0]   : vect_csr_wdata[3][0];
@@ -400,43 +396,46 @@ module vproc_top #(
     logic [VMEM_W/8-1:0] vdata_be;
     logic [VMEM_W-1:0]   vdata_wdata;
 
+    localparam bit [vproc_pkg::VLSU_FLAGS_W-1:0] VLSU_FLAGS = USE_XIF_MEM ? '0 :
+                                                              (vproc_pkg::VLSU_FLAGS_W'(1) << vproc_pkg::VLSU_ADDR_ALIGNED);
+
+    localparam bit [vproc_pkg::BUF_FLAGS_W -1:0] BUF_FLAGS  = (vproc_pkg::BUF_FLAGS_W'(1) << vproc_pkg::BUF_DEQUEUE  ) |
+                                                              (vproc_pkg::BUF_FLAGS_W'(1) << vproc_pkg::BUF_VREG_PEND);
+
     vproc_core #(
-        .VREG_W           ( VREG_W             ),
-        .VMEM_W           ( VMEM_W             ),
-        .MUL_OP_W         ( VMUL_W             ),
-        .ALU_OP_W         ( VALU_W             ),
-        .SLD_OP_W         ( VSLD_W             ),
-        .XIF_ID_W         ( X_ID_WIDTH         ),
-        .RAM_TYPE         ( RAM_TYPE           ),
-        .MUL_TYPE         ( MUL_TYPE           ),
-        .ADDR_ALIGNED     ( ~USE_XIF_MEM       ),
-        .DONT_CARE_ZERO   ( 1'b0               ),
-        .ASYNC_RESET      ( 1'b0               )
+        .XIF_ID_W           ( X_ID_WIDTH         ),
+        .XIF_MEM_W          ( VMEM_W             ),
+        .VREG_TYPE          ( VREG_TYPE          ),
+        .MUL_TYPE           ( MUL_TYPE           ),
+        .VLSU_FLAGS         ( VLSU_FLAGS         ),
+        .BUF_FLAGS          ( BUF_FLAGS          ),
+        .DONT_CARE_ZERO     ( 1'b0               ),
+        .ASYNC_RESET        ( 1'b0               )
     ) v_core (
-        .clk_i            ( clk_i              ),
-        .rst_ni           ( sync_rst_n         ),
+        .clk_i              ( clk_i              ),
+        .rst_ni             ( sync_rst_n         ),
 
-        .xif_issue_if     ( vcore_xif          ),
-        .xif_commit_if    ( vcore_xif          ),
-        .xif_mem_if       ( vcore_xif          ),
-        .xif_memres_if    ( vcore_xif          ),
-        .xif_result_if    ( vcore_xif          ),
+        .xif_issue_if       ( vcore_xif          ),
+        .xif_commit_if      ( vcore_xif          ),
+        .xif_mem_if         ( vcore_xif          ),
+        .xif_memres_if      ( vcore_xif          ),
+        .xif_result_if      ( vcore_xif          ),
 
-        .pending_load_o   ( vect_pending_load  ),
-        .pending_store_o  ( vect_pending_store ),
+        .pending_load_o     ( vect_pending_load  ),
+        .pending_store_o    ( vect_pending_store ),
 
-        .csr_vtype_o      ( csr_vtype          ),
-        .csr_vl_o         ( csr_vl             ),
-        .csr_vlenb_o      ( csr_vlenb          ),
-        .csr_vstart_o     ( csr_vstart_rd      ),
-        .csr_vstart_i     ( csr_vstart_wr      ),
-        .csr_vstart_set_i ( csr_vstart_wren    ),
-        .csr_vxrm_o       ( csr_vxrm_rd        ),
-        .csr_vxrm_i       ( csr_vxrm_wr        ),
-        .csr_vxrm_set_i   ( csr_vxrm_wren      ),
-        .csr_vxsat_o      ( csr_vxsat_rd       ),
-        .csr_vxsat_i      ( csr_vxsat_wr       ),
-        .csr_vxsat_set_i  ( csr_vxsat_wren     ),
+        .csr_vtype_o        ( csr_vtype          ),
+        .csr_vl_o           ( csr_vl             ),
+        .csr_vlenb_o        ( csr_vlenb          ),
+        .csr_vstart_o       ( csr_vstart_rd      ),
+        .csr_vstart_i       ( csr_vstart_wr      ),
+        .csr_vstart_set_i   ( csr_vstart_wren    ),
+        .csr_vxrm_o         ( csr_vxrm_rd        ),
+        .csr_vxrm_i         ( csr_vxrm_wr        ),
+        .csr_vxrm_set_i     ( csr_vxrm_wren      ),
+        .csr_vxsat_o        ( csr_vxsat_rd       ),
+        .csr_vxsat_i        ( csr_vxsat_wr       ),
+        .csr_vxsat_set_i    ( csr_vxsat_wren     ),
 
         .pend_vreg_wr_map_o ( pend_vreg_wr_map_o )
     );

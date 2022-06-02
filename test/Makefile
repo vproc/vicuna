@@ -35,7 +35,7 @@ all: $(TESTS_ALL)
 
 # TODO find ways to check that:
 # - all parameters are initialized
-lint: lint-verible lint-verilator
+lint: lint-verible
 
 # Verible Linting Rules
 # change rule parameters
@@ -56,9 +56,9 @@ lint-verible:
 
 lint-verilator:
 	verilator -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSED -Wno-UNDRIVEN            \
-		-Wno-UNSIGNED -Wno-DECLFILENAME -Wno-USERFATAL -Wno-SYNCASYNCNET      \
-	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_top.sv vproc_xif.sv     \
-	    vproc_core.sv vproc_vregpack.sv vproc_vregunpack.sv                   \
+	    -Wno-UNSIGNED -Wno-DECLFILENAME -Wno-USERFATAL -Wno-SYNCASYNCNET      \
+	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_config.sv vproc_top.sv  \
+	    vproc_xif.sv vproc_core.sv vproc_vregpack.sv vproc_vregunpack.sv      \
 	    --top-module vproc_top --clk clk_i --lint-only
 
 
@@ -90,26 +90,33 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    if [[ "$$line" == "" ]] || [[ "$$line" == \#* ]]; then                \
 	        continue;                                                         \
 	    fi;                                                                   \
-	    echo "[CONFIG ] $@ $$line";                                           \
-	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) $$line               \
-	        PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR)                    \
+	    printf "\033[0;34m[CONF]\033[0;0m $@ $$line\n";                       \
+	    sim_dir=`mktemp -d`;                                                  \
+	    echo "[INFO] Writing temporary files to $${sim_dir}";                 \
+	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) PROJ_DIR=$$sim_dir   \
+	        $$line PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR) ENABLE_SVA=1\
 	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" >sim.log 2>&1;     \
 	    if [ "$$?" != "0" ]; then                                             \
-	        echo "[ ERROR ] $@ simulation failed; content of $@/sim.log:";    \
-	        cat sim.log;                                                      \
+	        printf "\033[0;31m[FAIL]\033[0;0m $@ simulation error; ";         \
+	        printf "last 10 lines of log file $@/sim.log:\n";                 \
+	        tail -n 10 sim.log;                                               \
+	        echo "";                                                          \
+	        echo "[INFO] View full log with: $$ less $(abspath $@/sim.log)";  \
 	        exit 1;                                                           \
 	    fi;                                                                   \
 	    pend_vreg_wr_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |          \
 	                      grep -n pend_vreg_wr_map_o |                        \
 	                      awk -F ':' '{print $$1}' | head -n 1`;              \
 	    if [[ "$$pend_vreg_wr_col" =~ ^[0-9]+$$ ]]; then                      \
-	        hazards=`tail -n 1 sim_trace.csv |                                \
+	        pending=`tail -n 1 sim_trace.csv |                                \
 	                 awk -F ';' -v idx="$$pend_vreg_wr_col" '{print $$idx}'`; \
-	        if [ "$$hazards" != "00000000" ]; then                            \
-	            echo "[WARNING] $@ uncleared write hazard(s) (0x$${hazards})";\
+	        if [[ "$$pending" -ne 0 ]]; then                                  \
+	            printf "\033[0;33m[WARN]\033[0;0m $@ ";                       \
+	            printf "uncleared pending vreg write(s) (0x$${pending})\n";   \
 	        fi;                                                               \
 	    else                                                                  \
-	        echo "[WARNING] $@ write hazards are not among traced signals";   \
+	        printf "\033[0;33m[WARN]\033[0;0m $@ ";                           \
+	        printf "write pending are not among traced signals\n";            \
 	    fi;                                                                   \
 	    rst_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' | grep -n rst_ni |  \
 	             awk -F ':' '{print $$1}' | head -n 1`;                       \
@@ -136,15 +143,24 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        memo="$${memi%.*}.dump.vmem";                                     \
 	        memdiff=`diff -u $$memref $$memo`;                                \
 	        if [ "$$?" != "0" ]; then                                         \
-	            printf '[ ERROR ] %-30s %s\n' $@/$$prog_name "$$perf_info";   \
+	            printf '\033[0;31m[FAIL]\033[0;0m %-30s %s\n' $@/$$prog_name  \
+	                "$$perf_info";                                            \
 	            echo "incorrect memory content; diff:";                       \
 	            echo "$$memdiff";                                             \
 	            retval=1;                                                     \
 	        else                                                              \
-	            printf '[SUCCESS] %-30s %s\n' $@/$$prog_name "$$perf_info";   \
+	            printf '\033[0;32m[PASS]\033[0;0m %-30s %s\n' $@/$$prog_name  \
+	                "$$perf_info";                                            \
 	        fi;                                                               \
 	        idx=$$(($$idx + 1));                                              \
 	    done;                                                                 \
+	    if [ "$(SIMULATOR)" == "vivado" ]; then                               \
+	        xpr_path="$${sim_dir}/vproc_sim/vproc_sim.xpr";                   \
+	        echo "[INFO] View waveform with: $$ vivado $${xpr_path}";         \
+	    elif [ "$(SIMULATOR)" == "questa" ]; then                             \
+	        wlf_path="$${sim_dir}/vsim.wlf";                                  \
+	        echo "[INFO] View waveform with: $$ vsim -view $${wlf_path}";     \
+	    fi;                                                                   \
 	done < test_configs.conf;                                                 \
 	exit $$retval
 
@@ -157,7 +173,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	make -f $(TEST_DIR)/../sw/Makefile PROG=$$prog OBJ="$$obj"                \
 	COMPILER=$(COMPILER) >$$log 2>&1;                                         \
 	if [ "$$?" != "0" ]; then                                                 \
-	    echo "[ ERROR ] $@ build failed; content of $$log:";                  \
+	    printf "\033[0;31m[FAIL]\033[0;0m $@ build error; log file $$log:\n"; \
 	    cat $$log;                                                            \
 	    exit 1;                                                               \
 	fi
