@@ -100,7 +100,7 @@ $(VPROC_CONFIG_PKG):
 	        fi;                                                                                   \
 	        vport_wr=$$(($$vport_wr + 1));                                                        \
 	    done;                                                                                     \
-	    if [[ "$$pipe_units" == "" ]]; then                                                       \
+	    if [ "$$pipe_units" == "" ]; then                                                         \
 	        pipe_units="$${unit_mask}";                                                           \
 	        pipe_widths="$${width}";                                                              \
 	        pipe_vport_cnt="$${vport_cnt}";                                                       \

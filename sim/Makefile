@@ -69,14 +69,14 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR);                                                           \
 	options="";                                                               \
 	cflags="";                                                                \
-	if [[ "$(TRACE_VCD)" != "" ]]; then                                       \
+	if [ "$(TRACE_VCD)" != "" ]; then                                         \
 	    options="--trace";                                                    \
 	    cflags="-CFLAGS -DTRACE_VCD";                                         \
-	elif [[ "$(TRACE_FST)" != "" ]]; then                                     \
+	elif [ "$(TRACE_FST)" != "" ]; then                                       \
 	    options="--trace-fst";                                                \
 	    cflags="-CFLAGS -DTRACE_FST";                                         \
 	fi;                                                                       \
-	if [[ "$(ENABLE_SVA)" != "" ]]; then                                      \
+	if [ "$(ENABLE_SVA)" != "" ]; then                                        \
 	    options="$$options --assert -DVPROC_SVA";                             \
 	fi;                                                                       \
 	core="";                                                                  \
