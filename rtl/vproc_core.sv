@@ -3,63 +3,172 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_core #(
-        parameter int unsigned        VREG_W         = 128,  // vector register width in bits
-        parameter int unsigned        VMEM_W         = 32,   // vector memory interface width in bits
-        parameter int unsigned        ALU_OP_W       = 64,   // ALU operand width in bits
-        parameter int unsigned        MUL_OP_W       = 64,   // MUL unit operand width in bits
-        parameter int unsigned        SLD_OP_W       = 64,   // SLD unit operand width in bits
-        parameter int unsigned        GATHER_OP_W    = 32,   // ELEM unit GATHER operand width in bits
-        parameter int unsigned        XIF_ID_W       = 3,    // width in bits of instruction IDs
-        parameter int unsigned        QUEUE_SZ       = 2,    // instruction queue size
-        parameter vproc_pkg::ram_type RAM_TYPE       = vproc_pkg::RAM_GENERIC,
-        parameter vproc_pkg::mul_type MUL_TYPE       = vproc_pkg::MUL_GENERIC,
-        parameter bit                 BUF_DEC        = 1'b1, // buffer decoder outputs
-        parameter bit                 BUF_DEQUEUE    = 1'b1, // buffer instruction queue outputs
-        parameter bit                 BUF_VREG_WR    = 1'b0,
-        parameter bit                 BUF_VREG_PEND  = 1'b1, // buffer pending vreg reads
-        parameter bit                 ADDR_ALIGNED   = 1'b1, // base address is aligned to VMEM_W
-        parameter bit                 DONT_CARE_ZERO = 1'b0, // initialize don't care values to zero
-        parameter bit                 ASYNC_RESET    = 1'b0  // set if rst_ni is an asynchronous reset
+module vproc_core import vproc_pkg::*; #(
+        // XIF interface configuration (must be provided when instantiating this module)
+        parameter int unsigned           XIF_ID_W                 = 0, // width of instruction IDs
+        parameter int unsigned           XIF_MEM_W                = 0, // memory interface width
+
+        // Vector register file configuration
+        parameter vreg_type              VREG_TYPE                = vproc_config::VREG_TYPE,
+        parameter int unsigned           VREG_W                   = vproc_config::VREG_W,
+        parameter int unsigned           VPORT_RD_CNT             = vproc_config::VPORT_RD_CNT,
+        parameter int unsigned           VPORT_RD_W[VPORT_RD_CNT] = vproc_config::VPORT_RD_W,
+        parameter int unsigned           VPORT_WR_CNT             = vproc_config::VPORT_WR_CNT,
+        parameter int unsigned           VPORT_WR_W[VPORT_WR_CNT] = vproc_config::VPORT_WR_W,
+
+        // Vector pipeline configuration
+        parameter int unsigned           PIPE_CNT                 = vproc_config::PIPE_CNT,
+        parameter bit [UNIT_CNT-1:0]     PIPE_UNITS    [PIPE_CNT] = vproc_config::PIPE_UNITS,
+        parameter int unsigned           PIPE_W        [PIPE_CNT] = vproc_config::PIPE_W,
+        parameter int unsigned           PIPE_VPORT_CNT[PIPE_CNT] = vproc_config::PIPE_VPORT_CNT,
+        parameter int unsigned           PIPE_VPORT_IDX[PIPE_CNT] = vproc_config::PIPE_VPORT_IDX,
+        parameter int unsigned           PIPE_VPORT_WR [PIPE_CNT] = vproc_config::PIPE_VPORT_WR,
+
+        // Unit-specific configuration
+        parameter int unsigned           VLSU_QUEUE_SZ            = vproc_config::VLSU_QUEUE_SZ,
+        parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS               = vproc_config::VLSU_FLAGS,
+        parameter mul_type               MUL_TYPE                 = vproc_config::MUL_TYPE,
+
+        // Miscellaneous configuration
+        parameter int unsigned           INSTR_QUEUE_SZ           = vproc_config::INSTR_QUEUE_SZ,
+        parameter bit [BUF_FLAGS_W-1:0]  BUF_FLAGS                = vproc_config::BUF_FLAGS,
+
+        parameter bit                    DONT_CARE_ZERO           = 1'b0, // init don't cares to 0
+        parameter bit                    ASYNC_RESET              = 1'b0  // rst_ni is async
     )(
-        input  logic                  clk_i,
-        input  logic                  rst_ni,
+        input  logic                     clk_i,
+        input  logic                     rst_ni,
 
         // eXtension interface
-        vproc_xif.coproc_issue        xif_issue_if,
-        vproc_xif.coproc_commit       xif_commit_if,
-        vproc_xif.coproc_mem          xif_mem_if,
-        vproc_xif.coproc_mem_result   xif_memres_if,
-        vproc_xif.coproc_result       xif_result_if,
+        vproc_xif.coproc_issue           xif_issue_if,
+        vproc_xif.coproc_commit          xif_commit_if,
+        vproc_xif.coproc_mem             xif_mem_if,
+        vproc_xif.coproc_mem_result      xif_memres_if,
+        vproc_xif.coproc_result          xif_result_if,
 
-        output logic                  pending_load_o,
-        output logic                  pending_store_o,
+        output logic                     pending_load_o,
+        output logic                     pending_store_o,
 
         // CSR connections
-        output logic [31:0]           csr_vtype_o,
-        output logic [31:0]           csr_vl_o,
-        output logic [31:0]           csr_vlenb_o,
-        output logic [31:0]           csr_vstart_o,
-        input  logic [31:0]           csr_vstart_i,
-        input  logic                  csr_vstart_set_i,
-        output logic [1:0]            csr_vxrm_o,
-        input  logic [1:0]            csr_vxrm_i,
-        input  logic                  csr_vxrm_set_i,
-        output logic                  csr_vxsat_o,
-        input  logic                  csr_vxsat_i,
-        input  logic                  csr_vxsat_set_i,
+        output logic [31:0]              csr_vtype_o,
+        output logic [31:0]              csr_vl_o,
+        output logic [31:0]              csr_vlenb_o,
+        output logic [31:0]              csr_vstart_o,
+        input  logic [31:0]              csr_vstart_i,
+        input  logic                     csr_vstart_set_i,
+        output logic [1:0]               csr_vxrm_o,
+        input  logic [1:0]               csr_vxrm_i,
+        input  logic                     csr_vxrm_set_i,
+        output logic                     csr_vxsat_o,
+        input  logic                     csr_vxsat_i,
+        input  logic                     csr_vxsat_set_i,
 
-        output logic [31:0]           pend_vreg_wr_map_o
+        output logic [31:0]              pend_vreg_wr_map_o
     );
-
-    import vproc_pkg::*;
 
     if ((VREG_W & (VREG_W - 1)) != 0 || VREG_W < 64) begin
         $fatal(1, "The vector register width VREG_W must be at least 64 and a power of two.  ",
                   "The current value of %d is invalid.", VREG_W);
     end
 
-    localparam int unsigned VMSK_W = VREG_W / 8;   // single register mask size
+    generate
+        for (genvar i = 0; i < VPORT_RD_CNT; i++) begin
+            if ((VPORT_RD_W[i] & (VPORT_RD_W[i] - 1)) != 0 || VPORT_RD_W[i] < 32) begin
+                $fatal(1, "Vector register read port %d is %d bits wide, ", i, VPORT_RD_W[i],
+                          "but a power of two between 32 and %d is required.", VREG_W);
+            end
+            if (VPORT_RD_W[i] > VREG_W) begin
+                $fatal(1, "Vector register read port %d is %d bits wide, ", i, VPORT_RD_W[i],
+                          "exceeds vector register width of %d bits.", VREG_W);
+            end
+        end
+        for (genvar i = 0; i < VPORT_WR_CNT; i++) begin
+            if ((VPORT_WR_W[i] & (VPORT_WR_W[i] - 1)) != 0 || VPORT_WR_W[i] < 32) begin
+                $fatal(1, "Vector register write port %d is %d bits wide, ", i, VPORT_WR_W[i],
+                          "but a power of two between 32 and %d is required.", VREG_W);
+            end
+            if (VPORT_WR_W[i] > VREG_W) begin
+                $fatal(1, "Vector register write port %d is %d bits wide, ", i, VPORT_WR_W[i],
+                          "exceeds vector register width of %d bits.", VREG_W);
+            end
+        end
+    endgenerate
+
+    generate
+        for (genvar i = 0; i < PIPE_CNT; i++) begin
+            if (PIPE_UNITS[i][UNIT_LSU] & (PIPE_W[i] != XIF_MEM_W)) begin
+                $fatal(1, "The vector pipeline containing the VLSU must have a datapath width ",
+                          "equal to the memory interface width.  However, pipeline %d ", i,
+                          "containing the VLSU has a width of %d bits ", PIPE_W[i],
+                          "while the memory interface is %d bits wide.", XIF_MEM_W);
+            end
+            if ((PIPE_VPORT_IDX[i] >= VPORT_RD_CNT) |
+                (PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] > VPORT_RD_CNT)
+            ) begin
+                $fatal(1, "Vector pipeline %d uses vector register read port %d through %d, ", i,
+                          PIPE_VPORT_IDX[i], PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] - 1,
+                          "but the valid range is 0 through %d.", VPORT_RD_CNT - 1);
+            end
+            for (genvar j = i + 1; j < PIPE_CNT; j++) begin
+                if (((PIPE_VPORT_IDX[i] < PIPE_VPORT_IDX[j]) &
+                    (PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] > PIPE_VPORT_IDX[j])) |
+                    ((PIPE_VPORT_IDX[i] >= PIPE_VPORT_IDX[j]) &
+                    (PIPE_VPORT_IDX[j] + PIPE_VPORT_CNT[j] > PIPE_VPORT_IDX[i]))
+                ) begin
+                    $fatal(1, "Vector register read ports of vector pipeline %d overlap ", i,
+                              "with the vector register read ports of vector pipeline %d ", j,
+                              "(pipeline %d uses ports %d through %d ", i,
+                              PIPE_VPORT_IDX[i], PIPE_VPORT_IDX[i] + PIPE_VPORT_CNT[i] - 1,
+                              "and pipeline %d uses ports %d through %d).", j,
+                              PIPE_VPORT_IDX[j], PIPE_VPORT_IDX[j] + PIPE_VPORT_CNT[j] - 1);
+                end
+            end
+        end
+    endgenerate
+
+    typedef int unsigned ASSIGN_VADDR_RD_W_RET_T[VPORT_RD_CNT];
+    typedef int unsigned ASSIGN_VADDR_WR_W_RET_T[VPORT_WR_CNT];
+    function static ASSIGN_VADDR_RD_W_RET_T ASSIGN_VADDR_RD_W();
+        for (int i = 0; i < VPORT_RD_CNT; i++) begin
+            ASSIGN_VADDR_RD_W[i] = 5 + $clog2(VREG_W / VPORT_RD_W[i]);
+        end
+    endfunction
+    function static ASSIGN_VADDR_WR_W_RET_T ASSIGN_VADDR_WR_W();
+        for (int i = 0; i < VPORT_WR_CNT; i++) begin
+            ASSIGN_VADDR_WR_W[i] = 5 + $clog2(VREG_W / VPORT_WR_W[i]);
+        end
+    endfunction
+
+    localparam int unsigned VADDR_RD_W[VPORT_RD_CNT] = ASSIGN_VADDR_RD_W();
+    localparam int unsigned VADDR_WR_W[VPORT_WR_CNT] = ASSIGN_VADDR_WR_W();
+
+    function static int unsigned MAX_VPORT_RD_SLICE(
+        int unsigned SRC[VPORT_RD_CNT], int unsigned OFFSET, int unsigned CNT
+    );
+        MAX_VPORT_RD_SLICE = 0;
+        for (int i = 0; i < CNT; i++) begin
+            if (SRC[i] > MAX_VPORT_RD_SLICE) begin
+                MAX_VPORT_RD_SLICE = SRC[OFFSET + i];
+            end
+        end
+    endfunction
+    function static int unsigned MAX_VPORT_WR_SLICE(
+        int unsigned SRC[VPORT_WR_CNT], int unsigned OFFSET, int unsigned CNT
+    );
+        MAX_VPORT_WR_SLICE = 0;
+        for (int i = 0; i < CNT; i++) begin
+            if (SRC[OFFSET + i] > MAX_VPORT_WR_SLICE) begin
+                MAX_VPORT_WR_SLICE = SRC[OFFSET + i];
+            end
+        end
+    endfunction
+
+    localparam int unsigned MAX_VPORT_RD_W = MAX_VPORT_RD_SLICE(VPORT_RD_W, 0, VPORT_RD_CNT);
+    localparam int unsigned MAX_VADDR_RD_W = MAX_VPORT_RD_SLICE(VADDR_RD_W, 0, VPORT_RD_CNT);
+    localparam int unsigned MAX_VPORT_WR_W = MAX_VPORT_WR_SLICE(VPORT_WR_W, 0, VPORT_WR_CNT);
+    localparam int unsigned MAX_VADDR_WR_W = MAX_VPORT_WR_SLICE(VADDR_WR_W, 0, VPORT_WR_CNT);
+    localparam int unsigned MAX_VPORT_W    = (MAX_VPORT_RD_W > MAX_VPORT_WR_W) ? MAX_VPORT_RD_W : MAX_VPORT_WR_W;
+    localparam int unsigned MAX_VADDR_W    = (MAX_VADDR_RD_W > MAX_VPORT_WR_W) ? MAX_VADDR_RD_W : MAX_VADDR_WR_W;
 
     // The current vector length (VL) actually counts bytes instead of elements.
     // Also, the vector lenght is actually one more element than what VL suggests;
@@ -76,17 +185,6 @@ module vproc_core #(
     logic async_rst_n, sync_rst_n;
     assign async_rst_n = ASYNC_RESET ? rst_ni : 1'b1  ;
     assign sync_rst_n  = ASYNC_RESET ? 1'b1   : rst_ni;
-
-
-    localparam int unsigned PIPE_CNT                  = 5;
-    localparam op_unit      UNIT           [PIPE_CNT] = '{UNIT_LSU, UNIT_ALU, UNIT_MUL, UNIT_SLD, UNIT_ELEM  };
-    localparam int unsigned VPORT_CNT      [PIPE_CNT] = '{1       , 1       , 2       , 1       , 1          };
-    localparam int unsigned VPORT_OFFSET   [PIPE_CNT] = '{1       , 2       , 3       , 5       , 6          };
-    localparam int unsigned MAX_OP_W       [PIPE_CNT] = '{VMEM_W  , ALU_OP_W, MUL_OP_W, SLD_OP_W, GATHER_OP_W};
-    localparam int unsigned MAX_WR_ATTEMPTS[PIPE_CNT] = '{1       , 2       , 1       , 2       , 3          };
-
-    // map pipelines to vector register write ports
-    localparam bit [1:0][PIPE_CNT-1:0] VPORT_WR_MAP = '{5'b10011, 5'b01100}; // LSU/ALU/ELEM & MUL/SLD
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -193,7 +291,6 @@ module vproc_core #(
     logic instr_valid, issue_id_used;
     assign instr_valid = xif_issue_if.issue_valid & ~issue_id_used;
 
-    logic   instr_illegal;
     op_unit instr_unit;
     op_mode instr_mode;
     vproc_decoder #(
@@ -208,7 +305,6 @@ module vproc_core #(
         .lmul_i         ( lmul_q                       ),
         .vxrm_i         ( vxrm_q                       ),
         .vl_i           ( vl_q                         ),
-        .illegal_o      ( instr_illegal                ),
         .valid_o        ( dec_valid                    ),
         .vsew_o         ( dec_data_d.vsew              ),
         .emul_o         ( dec_data_d.emul              ),
@@ -581,7 +677,7 @@ module vproc_core #(
     logic [31:0] queue_pending_wr_q, queue_pending_wr_d; // potential write hazards
     generate
         // add an extra pipeline stage to calculate the hazards
-        if (BUF_DEQUEUE) begin
+        if (BUF_FLAGS[BUF_DEQUEUE]) begin
             always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_queue_valid
                 if (~async_rst_n) begin
                     queue_valid_q <= 1'b0;
@@ -611,10 +707,10 @@ module vproc_core #(
     // instruction queue
     decoder_data queue_flags_any;
     generate
-        if (QUEUE_SZ > 0) begin
+        if (INSTR_QUEUE_SZ > 0) begin
             vproc_queue #(
                 .WIDTH        ( $bits(decoder_data)     ),
-                .DEPTH        ( QUEUE_SZ                )
+                .DEPTH        ( INSTR_QUEUE_SZ          )
             ) instr_queue (
                 .clk_i        ( clk_i                   ),
                 .async_rst_ni ( async_rst_n             ),
@@ -670,7 +766,7 @@ module vproc_core #(
     logic               [31:0] pend_vreg_wr_map;
     vproc_dispatcher #(
         .PIPE_CNT             ( PIPE_CNT                ),
-        .UNIT                 ( UNIT                    ),
+        .PIPE_UNITS           ( PIPE_UNITS              ),
         .MAX_VADDR_W          ( 5                       ),
         .DECODER_DATA_T       ( decoder_data            ),
         .DONT_CARE_ZERO       ( DONT_CARE_ZERO          )
@@ -695,18 +791,21 @@ module vproc_core #(
     // REGISTER FILE AND EXECUTION UNITS
 
     // register file:
-    logic [1:0]             vregfile_wr_en_q,   vregfile_wr_en_d;
-    logic [1:0][4:0]        vregfile_wr_addr_q, vregfile_wr_addr_d;
-    logic [1:0][VREG_W-1:0] vregfile_wr_data_q, vregfile_wr_data_d;
-    logic [1:0][VMSK_W-1:0] vregfile_wr_mask_q, vregfile_wr_mask_d;
-    logic [6:0][4:0]        vregfile_rd_addr;
-    logic [6:0][VREG_W-1:0] vregfile_rd_data;
+    logic [VPORT_WR_CNT-1:0]               vregfile_wr_en_q,   vregfile_wr_en_d;
+    logic [VPORT_WR_CNT-1:0][4:0]          vregfile_wr_addr_q, vregfile_wr_addr_d;
+    logic [VPORT_WR_CNT-1:0][VREG_W  -1:0] vregfile_wr_data_q, vregfile_wr_data_d;
+    logic [VPORT_WR_CNT-1:0][VREG_W/8-1:0] vregfile_wr_mask_q, vregfile_wr_mask_d;
+    logic [VPORT_RD_CNT-1:0][4:0]          vregfile_rd_addr;
+    logic [VPORT_RD_CNT-1:0][VREG_W  -1:0] vregfile_rd_data;
     vproc_vregfile #(
         .VREG_W       ( VREG_W             ),
-        .PORT_W       ( VREG_W             ),
-        .PORTS_RD     ( 7                  ),
-        .PORTS_WR     ( 2                  ),
-        .RAM_TYPE     ( RAM_TYPE           )
+        .MAX_PORT_W   ( MAX_VPORT_W        ),
+        .MAX_ADDR_W   ( MAX_VADDR_W        ),
+        .PORT_RD_CNT  ( VPORT_RD_CNT       ),
+        .PORT_RD_W    ( VPORT_RD_W         ),
+        .PORT_WR_CNT  ( VPORT_WR_CNT       ),
+        .PORT_WR_W    ( VPORT_WR_W         ),
+        .VREG_TYPE    ( VREG_TYPE          )
     ) vregfile (
         .clk_i        ( clk_i              ),
         .async_rst_ni ( async_rst_n        ),
@@ -724,9 +823,9 @@ module vproc_core #(
     assign vregfile_rd_addr[0] = 5'b0;
 
     generate
-        if (BUF_VREG_WR) begin
+        if (BUF_FLAGS[BUF_VREG_WR]) begin
             always_ff @(posedge clk_i) begin
-                for (int i = 0; i < 2; i++) begin
+                for (int i = 0; i < VPORT_WR_CNT; i++) begin
                     vregfile_wr_en_q  [i] <= vregfile_wr_en_d  [i];
                     vregfile_wr_addr_q[i] <= vregfile_wr_addr_d[i];
                     vregfile_wr_data_q[i] <= vregfile_wr_data_d[i];
@@ -735,7 +834,7 @@ module vproc_core #(
             end
         end else begin
             always_comb begin
-                for (int i = 0; i < 2; i++) begin
+                for (int i = 0; i < VPORT_WR_CNT; i++) begin
                     vregfile_wr_en_q  [i] = vregfile_wr_en_d  [i];
                     vregfile_wr_addr_q[i] = vregfile_wr_addr_d[i];
                     vregfile_wr_data_q[i] = vregfile_wr_data_d[i];
@@ -750,7 +849,7 @@ module vproc_core #(
     logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_by_q, pipe_vreg_pend_rd_by_d;
     logic [PIPE_CNT-1:0][31:0] pipe_vreg_pend_rd_to_q, pipe_vreg_pend_rd_to_d;
     generate
-        if (BUF_VREG_PEND) begin
+        if (BUF_FLAGS[BUF_VREG_PEND]) begin
             // Note: A vreg write cannot happen within the first two cycles of
             // an instruction, hence delaying the pending vreg reads signals by
             // two cycles should cause no issues. This adds two unnecessary
@@ -786,45 +885,65 @@ module vproc_core #(
     logic [PIPE_CNT-1:0][VREG_W/8-1:0] pipe_vreg_wr_be;
 
     logic                lsu_trans_complete_valid;
+    logic                lsu_trans_complete_ready;
     logic [XIF_ID_W-1:0] lsu_trans_complete_id;
     logic                lsu_trans_complete_exc;
     logic [5:0]          lsu_trans_complete_exccode;
 
     logic                elem_xreg_valid;
+    logic                elem_xreg_ready;
     logic [XIF_ID_W-1:0] elem_xreg_id;
     logic [4:0]          elem_xreg_addr;
     logic [31:0]         elem_xreg_data;
 
+    // TODO move below function together with the entire repeated writes logic into the vreg write mux module
+    function static int unsigned MAX_WR_ATTEMPTS(int unsigned PIPE_IDX);
+        MAX_WR_ATTEMPTS = 1;
+        for (int i = 0; i < PIPE_IDX; i++) begin
+            if (PIPE_VPORT_WR[i] == PIPE_VPORT_WR[PIPE_IDX]) begin
+                MAX_WR_ATTEMPTS += 1;
+            end
+        end
+    endfunction
+
     generate
         for (genvar i = 0; i < PIPE_CNT; i++) begin
-            localparam int unsigned VPORT_W[VPORT_CNT[i] + 1] = '{default: VREG_W};
-            localparam int unsigned VADDR_W[VPORT_CNT[i] + 1] = '{default: 5};
-            localparam bit [VPORT_CNT[i]:0] VPORT_ADDR_ZERO   = {1'b1, {VPORT_CNT[i]{1'b0}}};
-            localparam bit [VPORT_CNT[i]:0] VPORT_BUFFER      = {{VPORT_CNT[i]{1'b0}}, 1'b1};
+`ifndef VERILATOR
+            // Currently not possible in Verilator due to https://github.com/verilator/verilator/issues/3433
+            localparam int unsigned PIPE_VPORT_W[PIPE_VPORT_CNT[i]]  = VPORT_RD_W[PIPE_VPORT_IDX[i] +: PIPE_VPORT_CNT[i]];
+            localparam int unsigned PIPE_VADDR_W[PIPE_VPORT_CNT[i]]  = VADDR_RD_W[PIPE_VPORT_IDX[i] +: PIPE_VPORT_CNT[i]];
+`endif
+            localparam int unsigned PIPE_MAX_VPORT_W = MAX_VPORT_RD_SLICE(VPORT_RD_W, PIPE_VPORT_IDX[i], PIPE_VPORT_CNT[i]);
+            localparam int unsigned PIPE_MAX_VADDR_W = MAX_VPORT_RD_SLICE(VADDR_RD_W, PIPE_VPORT_IDX[i], PIPE_VPORT_CNT[i]);
 
-            logic [VPORT_CNT[i]:0][4       :0] vreg_rd_addr;
-            logic [VPORT_CNT[i]:0][VREG_W-1:0] vreg_rd_data;
+            localparam bit [PIPE_VPORT_CNT[i]-1:0] PIPE_VPORT_BUFFER = {{(PIPE_VPORT_CNT[i]-1){1'b0}}, 1'b1};
+
+            localparam int unsigned PIPE_MAX_WR_ATTEMPTS = MAX_WR_ATTEMPTS(i);
+
+            logic [PIPE_VPORT_CNT[i]-1:0][4       :0] vreg_rd_addr;
+            logic [PIPE_VPORT_CNT[i]-1:0][VREG_W-1:0] vreg_rd_data;
             always_comb begin
-                vregfile_rd_addr[VPORT_OFFSET[i]+VPORT_CNT[i]-1:VPORT_OFFSET[i]] = vreg_rd_addr[VPORT_CNT[i]-1:0];
-                for (int j = 0; j < VPORT_CNT[i]; j++) begin
-                    vreg_rd_data[j] = vregfile_rd_data[VPORT_OFFSET[i] + j];
+                vregfile_rd_addr[PIPE_VPORT_IDX[i]+PIPE_VPORT_CNT[i]-1:PIPE_VPORT_IDX[i]] = vreg_rd_addr[PIPE_VPORT_CNT[i]-1:0];
+                for (int j = 0; j < PIPE_VPORT_CNT[i]; j++) begin
+                    vreg_rd_data[j] = vregfile_rd_data[PIPE_VPORT_IDX[i] + j];
                 end
-                vreg_rd_data[VPORT_CNT[i]] = vreg_mask;
             end
 
             // LSU-related signals
             vproc_xif #(
-                .X_ID_WIDTH  ( XIF_ID_W ),
-                .X_MEM_WIDTH ( VMEM_W   )
+                .X_ID_WIDTH  ( XIF_ID_W  ),
+                .X_MEM_WIDTH ( XIF_MEM_W )
             ) pipe_xif ();
             logic                pending_load, pending_store;
             logic                trans_complete_valid;
+            logic                trans_complete_ready;
             logic [XIF_ID_W-1:0] trans_complete_id;
             logic                trans_complete_exc;
             logic [5:0]          trans_complete_exccode;
 
             // ELEM-related signals (for XREG writeback)
             logic                xreg_valid;
+            logic                xreg_ready;
             logic [XIF_ID_W-1:0] xreg_id;
             logic [4:0]          xreg_addr;
             logic [31:0]         xreg_data;
@@ -834,18 +953,27 @@ module vproc_core #(
                 .CFG_VL_W                 ( CFG_VL_W                   ),
                 .XIF_ID_W                 ( XIF_ID_W                   ),
                 .XIF_ID_CNT               ( XIF_ID_CNT                 ),
-                .UNIT                     ( UNIT[i]                    ),
-                .MAX_VPORT_W              ( VREG_W                     ),
-                .MAX_VADDR_W              ( 5                          ),
-                .VPORT_CNT                ( VPORT_CNT[i] + 1           ),
-                .VPORT_W                  ( VPORT_W                    ),
-                .VADDR_W                  ( VADDR_W                    ),
-                .VPORT_ADDR_ZERO          ( VPORT_ADDR_ZERO            ),
-                .VPORT_BUFFER             ( VPORT_BUFFER               ),
-                .MAX_OP_W                 ( MAX_OP_W[i]                ),
+                .UNITS                    ( PIPE_UNITS[i]              ),
+                .MAX_VPORT_W              ( PIPE_MAX_VPORT_W           ),
+                .MAX_VADDR_W              ( PIPE_MAX_VADDR_W           ),
+                .VPORT_CNT                ( PIPE_VPORT_CNT[i]          ),
+`ifdef VERILATOR
+                // Workaround for Verilator due to https://github.com/verilator/verilator/issues/3433
+                .VPORT_OFFSET             ( PIPE_VPORT_IDX[i]          ),
+                .VREGFILE_VPORT_CNT       ( VPORT_RD_CNT               ),
+                .VREGFILE_VPORT_W         ( VPORT_RD_W                 ),
+                .VREGFILE_VADDR_W         ( VADDR_RD_W                 ),
+`else
+                .VPORT_W                  ( PIPE_VPORT_W               ),
+                .VADDR_W                  ( PIPE_VADDR_W               ),
+`endif
+                .VPORT_BUFFER             ( PIPE_VPORT_BUFFER          ),
+                .VPORT_V0                 ( 1'b1                       ),
+                .MAX_OP_W                 ( PIPE_W[i]                  ),
+                .VLSU_QUEUE_SZ            ( VLSU_QUEUE_SZ              ),
+                .VLSU_FLAGS               ( VLSU_FLAGS                 ),
                 .MUL_TYPE                 ( MUL_TYPE                   ),
-                .ADDR_ALIGNED             ( ADDR_ALIGNED               ),
-                .MAX_WR_ATTEMPTS          ( MAX_WR_ATTEMPTS[i]         ),
+                .MAX_WR_ATTEMPTS          ( PIPE_MAX_WR_ATTEMPTS       ),
                 .DECODER_DATA_T           ( decoder_data               ),
                 .DONT_CARE_ZERO           ( DONT_CARE_ZERO             )
             ) pipe (
@@ -865,6 +993,7 @@ module vproc_core #(
                 .instr_done_id_o          ( instr_complete_id   [i]    ),
                 .vreg_rd_addr_o           ( vreg_rd_addr               ),
                 .vreg_rd_data_i           ( vreg_rd_data               ),
+                .vreg_rd_v0_i             ( vreg_mask                  ),
                 .vreg_wr_valid_o          ( pipe_vreg_wr_valid[i]      ),
                 .vreg_wr_ready_i          ( pipe_vreg_wr_ready[i]      ),
                 .vreg_wr_addr_o           ( pipe_vreg_wr_addr [i]      ),
@@ -875,15 +1004,17 @@ module vproc_core #(
                 .xif_mem_if               ( pipe_xif                   ),
                 .xif_memres_if            ( pipe_xif                   ),
                 .trans_complete_valid_o   ( trans_complete_valid       ),
+                .trans_complete_ready_i   ( trans_complete_ready       ),
                 .trans_complete_id_o      ( trans_complete_id          ),
                 .trans_complete_exc_o     ( trans_complete_exc         ),
                 .trans_complete_exccode_o ( trans_complete_exccode     ),
                 .xreg_valid_o             ( xreg_valid                 ),
+                .xreg_ready_i             ( xreg_ready                 ),
                 .xreg_id_o                ( xreg_id                    ),
                 .xreg_addr_o              ( xreg_addr                  ),
                 .xreg_data_o              ( xreg_data                  )
             );
-            if (UNIT[i] == UNIT_LSU) begin
+            if (PIPE_UNITS[i][UNIT_LSU]) begin
                 assign pending_load_lsu           = pending_load;
                 assign pending_store_lsu          = pending_store;
                 assign xif_mem_if.mem_valid       = pipe_xif.mem_valid;
@@ -905,12 +1036,14 @@ module vproc_core #(
                 assign pipe_xif.mem_result.err    = xif_memres_if.mem_result.err;
                 assign pipe_xif.mem_result.dbg    = xif_memres_if.mem_result.dbg;
                 assign lsu_trans_complete_valid   = trans_complete_valid;
+                assign trans_complete_ready       = lsu_trans_complete_ready;
                 assign lsu_trans_complete_id      = trans_complete_id;
                 assign lsu_trans_complete_exc     = trans_complete_exc;
                 assign lsu_trans_complete_exccode = trans_complete_exccode;
             end
-            if (UNIT[i] == UNIT_ELEM) begin
+            if (PIPE_UNITS[i][UNIT_ELEM]) begin
                 assign elem_xreg_valid = xreg_valid;
+                assign xreg_ready      = elem_xreg_ready;
                 assign elem_xreg_id    = xreg_id;
                 assign elem_xreg_addr  = xreg_addr;
                 assign elem_xreg_data  = xreg_data;
@@ -921,9 +1054,9 @@ module vproc_core #(
 
     vproc_vreg_wr_mux #(
         .VREG_W             ( VREG_W             ),
-        .VPORT_WR_CNT       ( 2                  ),
+        .VPORT_WR_CNT       ( VPORT_WR_CNT       ),
         .PIPE_CNT           ( PIPE_CNT           ),
-        .VPORT_WR_MAP       ( VPORT_WR_MAP       ),
+        .PIPE_VPORT_WR      ( PIPE_VPORT_WR      ),
         .STALL_PIPELINES    ( 1'b0               ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO     )
     ) vreg_wr_mux (
@@ -949,17 +1082,18 @@ module vproc_core #(
         .clk_i                     ( clk_i                      ),
         .async_rst_ni              ( async_rst_n                ),
         .sync_rst_ni               ( sync_rst_n                 ),
+        .result_empty_valid_i      ( result_empty_valid         ),
+        .result_empty_id_i         ( result_empty_id            ),
         .result_lsu_valid_i        ( lsu_trans_complete_valid   ),
+        .result_lsu_ready_o        ( lsu_trans_complete_ready   ),
         .result_lsu_id_i           ( lsu_trans_complete_id      ),
         .result_lsu_exc_i          ( lsu_trans_complete_exc     ),
         .result_lsu_exccode_i      ( lsu_trans_complete_exccode ),
         .result_xreg_valid_i       ( elem_xreg_valid            ),
+        .result_xreg_ready_o       ( elem_xreg_ready            ),
         .result_xreg_id_i          ( elem_xreg_id               ),
         .result_xreg_addr_i        ( elem_xreg_addr             ),
         .result_xreg_data_i        ( elem_xreg_data             ),
-        .result_empty_valid_i      ( result_empty_valid         ),
-        .result_empty_ready_o      (                            ),
-        .result_empty_id_i         ( result_empty_id            ),
         .result_csr_valid_i        ( result_csr_valid           ),
         .result_csr_ready_o        ( result_csr_ready           ),
         .result_csr_id_i           ( result_csr_id              ),

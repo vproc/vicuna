@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_lsu #(
+module vproc_lsu import vproc_pkg::*; #(
         parameter int unsigned        VMEM_W          = 32,   // width in bits of the vector memory interface
         parameter bit                 BUF_REQUEST     = 1'b1, // insert pipeline stage before issuing request
         parameter bit                 BUF_RDATA       = 1'b1, // insert pipeline stage after memory read
         parameter type                CTRL_T          = logic,
         parameter int unsigned        XIF_ID_W        = 3,    // width in bits of instruction IDs
         parameter int unsigned        XIF_ID_CNT      = 8,    // total count of instruction IDs
-        parameter bit                 ADDR_ALIGNED    = 1'b1, // base address is aligned to VMEM_W
+        parameter int unsigned           VLSU_QUEUE_SZ = 4,
+        parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS    = '0,
         parameter bit                 DONT_CARE_ZERO  = 1'b0  // initialize don't care values to zero
     )
     (
@@ -32,6 +33,7 @@ module vproc_lsu #(
         output logic [VMEM_W    -1:0] pipe_out_res_o,
         output logic [VMEM_W/8  -1:0] pipe_out_mask_o,
 
+        output logic                  lsu_empty_o,
         output logic                  pending_load_o,
         output logic                  pending_store_o,
 
@@ -39,10 +41,9 @@ module vproc_lsu #(
 
         input  logic [XIF_ID_CNT-1:0] instr_spec_i,
         input  logic [XIF_ID_CNT-1:0] instr_killed_i,
-        output logic                  instr_done_valid_o,
-        output logic [XIF_ID_W-1:0]   instr_done_id_o,
 
         output logic                  trans_complete_valid_o,
+        input  logic                  trans_complete_ready_i,
         output logic [XIF_ID_W-1:0]   trans_complete_id_o,
         output logic                  trans_complete_exc_o,
         output logic [5:0]            trans_complete_exccode_o,
@@ -50,8 +51,6 @@ module vproc_lsu #(
         vproc_xif.coproc_mem          xif_mem_if,
         vproc_xif.coproc_mem_result   xif_memres_if
     );
-
-    import vproc_pkg::*;
 
     // reduced LSU state for passing through the queue
     typedef struct packed {
@@ -64,11 +63,10 @@ module vproc_lsu #(
         logic [4:0]                  res_vaddr;
         logic                        res_store;
         logic                        res_shift;
+        logic                        suppressed;
         logic                        exc;
         logic [5:0]                  exccode;
     } lsu_state_red;
-
-    logic mem_result_valid; // XIF mem_result_valid guarded by LSU queue deq_valid_o
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -76,7 +74,7 @@ module vproc_lsu #(
 
     logic         state_req_ready,   lsu_queue_ready;
     logic         state_req_stall;
-    logic         state_req_valid_q, state_req_valid_d, state_rdata_valid_q;
+    logic         state_req_valid_q, state_req_valid_d, state_rdata_valid_q, state_rdata_valid_d;
     CTRL_T        state_req_q,       state_req_d;
     lsu_state_red                                       state_rdata_q,       state_rdata_d;
 
@@ -160,11 +158,11 @@ module vproc_lsu #(
                     state_rdata_valid_q <= 1'b0;
                 end
                 else begin
-                    state_rdata_valid_q <= mem_result_valid & ~state_rdata_d.mode.store;
+                    state_rdata_valid_q <= state_rdata_valid_d;
                 end
             end
             always_ff @(posedge clk_i) begin : vproc_lsu_stage_rdata
-                if (mem_result_valid) begin
+                if (state_rdata_valid_d) begin
                     state_rdata_q <= state_rdata_d;
                     rdata_buf_q   <= rdata_buf_d;
                     rdata_off_q   <= rdata_off_d;
@@ -175,7 +173,7 @@ module vproc_lsu #(
             end
         end else begin
             always_comb begin
-                state_rdata_valid_q = mem_result_valid & ~state_rdata_d.mode.store;
+                state_rdata_valid_q = state_rdata_valid_d;
                 state_rdata_q       = state_rdata_d;
                 rdata_buf_q         = rdata_buf_d;
                 rdata_off_q         = rdata_off_d;
@@ -194,8 +192,31 @@ module vproc_lsu #(
     // has to happen at the request stage, since later stalling is not possible
     assign state_req_stall = (~state_req_q.mode.lsu.store & state_req_q.res_store & vreg_pend_rd_i[state_req_q.res_vaddr]) | instr_spec_i[state_req_q.id] | ~lsu_queue_ready;
 
-    assign instr_done_valid_o = state_req_valid_q & state_req_q.last_cycle & xif_mem_if.mem_valid & xif_mem_if.mem_ready;
-    assign instr_done_id_o    = state_req_q.id;
+    // remember how many instr are currently in the LSU
+    logic [1:0] lsu_instr_cnt_q, lsu_instr_cnt_d;
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin
+        if (~async_rst_ni) begin
+            lsu_instr_cnt_q <= '0;
+        end
+        else if (~sync_rst_ni) begin
+            lsu_instr_cnt_q <= '0;
+        end
+        else begin
+            lsu_instr_cnt_q <= lsu_instr_cnt_d;
+        end
+    end
+    always_comb begin
+        lsu_instr_cnt_d = lsu_instr_cnt_q;
+        unique case ({
+            pipe_in_valid_i  & pipe_in_ready_o  & pipe_in_ctrl_i.first_cycle,
+            pipe_out_valid_o & pipe_out_ready_i & pipe_out_ctrl_o.last_cycle
+        })
+            2'b10: lsu_instr_cnt_d = lsu_instr_cnt_q + 2'b01;
+            2'b01: lsu_instr_cnt_d = lsu_instr_cnt_q - 2'b01;
+            default: ;
+        endcase
+    end
+    assign lsu_empty_o = lsu_instr_cnt_q == '0;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -221,17 +242,18 @@ module vproc_lsu #(
             // unchanged in case the input is invalid (avoids corrupting the address).  Note that
             // for strided loads, the X register value holds the base address in the first cycle
             // and then switches to the increment value.
-            LSU_UNITSTRIDE: req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.first_cycle ?
+            LSU_UNITSTRIDE: req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.init_addr ?
                 pipe_in_ctrl_i.xval : req_addr_q + 32'(VMEM_W / 8)
             ) : req_addr_q;
-            LSU_STRIDED:    req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.first_cycle ?
+            LSU_STRIDED:    req_addr_d = pipe_in_valid_i ? (pipe_in_ctrl_i.init_addr ?
                 pipe_in_ctrl_i.xval : req_addr_q + pipe_in_ctrl_i.xval
             ) : req_addr_q;
             LSU_INDEXED: begin
+                // note: the index is multiplied by the element byte width and the field count
                 unique case (pipe_in_ctrl_i.mode.lsu.eew)
-                    VSEW_8:  req_addr_d = pipe_in_ctrl_i.xval + {24'b0, vs2_data[7 :0]};
-                    VSEW_16: req_addr_d = pipe_in_ctrl_i.xval + {16'b0, vs2_data[15:0]};
-                    VSEW_32: req_addr_d = pipe_in_ctrl_i.xval +         vs2_data[31:0] ;
+                    VSEW_8:  req_addr_d = pipe_in_ctrl_i.xval +  32'(vs2_data[7 :0]) * (32'(1) + 32'(pipe_in_ctrl_i.mode.lsu.nfields));
+                    VSEW_16: req_addr_d = pipe_in_ctrl_i.xval + {31'(vs2_data[15:0]) * (31'(1) + 31'(pipe_in_ctrl_i.mode.lsu.nfields)), 1'b0};
+                    VSEW_32: req_addr_d = pipe_in_ctrl_i.xval + {    vs2_data[29:0]  * (30'(1) + 30'(pipe_in_ctrl_i.mode.lsu.nfields)), 2'b0};
                     default: ;
                 endcase
             end
@@ -272,7 +294,7 @@ module vproc_lsu #(
                 end
                 default: ;
             endcase
-            if (~ADDR_ALIGNED) begin
+            if (~VLSU_FLAGS[VLSU_ADDR_ALIGNED]) begin
                 wdata_buf_d = vs3_data[VMEM_W-1:0];
                 unique case (pipe_in_ctrl_i.mode.lsu.eew)
                     VSEW_8:  wmask_buf_d = {{VMEM_W/8-1{1'b0}},    wdata_stri_mask  };
@@ -284,10 +306,17 @@ module vproc_lsu #(
         end
     end
 
+    // suppress memory request if all data elements are invalid (have indices greater than VL)
+    // TODO: memory requests should probably also be suppressed if all elements are masked off, but
+    // that could be tricky because the LSU cannot accept a memory response transaction while
+    // dequeueing a suppressed request
+    logic req_suppress;
+    assign req_suppress = state_req_q.vl_part_0;
+
     // memory request (keep requesting next access while addressing is not complete)
-    assign xif_mem_if.mem_valid     = state_req_valid_q & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
+    assign xif_mem_if.mem_valid     = state_req_valid_q & ~req_suppress & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
     assign xif_mem_if.mem_req.id    = state_req_q.id;
-    assign xif_mem_if.mem_req.addr  = ADDR_ALIGNED ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
+    assign xif_mem_if.mem_req.addr  = VLSU_FLAGS[VLSU_ADDR_ALIGNED] ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
     assign xif_mem_if.mem_req.mode  = '0;
     assign xif_mem_if.mem_req.we    = state_req_q.mode.lsu.store;
     assign xif_mem_if.mem_req.be    = wmask_buf_q;
@@ -318,14 +347,16 @@ module vproc_lsu #(
         state_req_red.res_vaddr   = state_req_q.res_vaddr;
         state_req_red.res_store   = state_req_q.res_store;
         state_req_red.res_shift   = state_req_q.res_shift;
+        state_req_red.suppressed  = req_suppress;
         state_req_red.exc         = xif_mem_if.mem_resp.exc;
         state_req_red.exccode     = xif_mem_if.mem_resp.exccode;
     end
     logic         deq_valid; // LSU queue dequeue valid signal
+    logic         deq_ready;
     lsu_state_red deq_state;
     vproc_queue #(
         .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
-        .DEPTH        ( 4                                                             )
+        .DEPTH        ( VLSU_QUEUE_SZ                                                 )
     ) lsu_queue (
         .clk_i        ( clk_i                                                         ),
         .async_rst_ni ( async_rst_ni                                                  ),
@@ -333,22 +364,23 @@ module vproc_lsu #(
         .enq_ready_o  ( lsu_queue_ready                                               ),
         .enq_valid_i  ( state_req_valid_q & state_req_ready                           ),
         .enq_data_i   ( {req_addr_q[$clog2(VMEM_W/8)-1:0], vmsk_tmp_q, state_req_red} ),
-        .deq_ready_i  ( mem_result_valid | mem_err_d                                  ),
+        .deq_ready_i  ( deq_ready                                                     ),
         .deq_valid_o  ( deq_valid                                                     ),
         .deq_data_o   ( {rdata_off_d, rmask_buf_d, deq_state}                         ),
         .flags_any_o  (                                                               ),
         .flags_all_o  (                                                               )
     );
-    assign mem_result_valid = xif_memres_if.mem_result_valid & deq_valid;
+    assign deq_ready           = xif_memres_if.mem_result_valid | deq_state.suppressed | mem_err_d;
+    assign state_rdata_valid_d = deq_valid & deq_ready;
 
     // monitor the memory result for bus errors and the queue for exceptions
     always_comb begin
         mem_err_d     = mem_err_q;
         mem_exccode_d = mem_exccode_q;
-        if ((deq_valid & deq_state.first_cycle) | ~mem_err_q) begin
+        if (deq_valid & (deq_state.first_cycle | ~mem_err_q)) begin
             // reset the error flag in the first cycle, unless there is a bus
             // error or an exception occured during the request
-            mem_err_d     = deq_state.exc | (mem_result_valid & xif_memres_if.mem_result.err);
+            mem_err_d     = deq_state.exc | (xif_memres_if.mem_result_valid & xif_memres_if.mem_result.err);
             mem_exccode_d = deq_state.exc ? deq_state.exccode : (
                 // bus error translates to a load/store access fault exception
                 deq_state.mode.store ? 6'h07 : 6'h05
@@ -356,16 +388,31 @@ module vproc_lsu #(
         end
     end
 
-    // LSU result (indicates potential exceptions):
-    assign trans_complete_valid_o   = deq_valid & deq_state.last_cycle & (mem_result_valid | mem_err_d);
-    assign trans_complete_id_o      = deq_state.id;
-    assign trans_complete_exc_o     = mem_err_d;
-    assign trans_complete_exccode_o = mem_exccode_d;
+    // LSU transaction complete queue, result indicates potential exceptions
+    logic trans_complete_valid, trans_complete_ready;
+    assign trans_complete_valid = deq_valid & deq_ready & deq_state.last_cycle;
+    vproc_queue #(
+        .WIDTH        ( XIF_ID_W + 7                                                          ),
+        .DEPTH        ( 2                                                                     )
+    ) trans_complete_queue (
+        .clk_i        ( clk_i                                                                 ),
+        .async_rst_ni ( async_rst_ni                                                          ),
+        .sync_rst_ni  ( sync_rst_ni                                                           ),
+        .enq_ready_o  ( trans_complete_ready                                                  ),
+        .enq_valid_i  ( trans_complete_valid                                                  ),
+        .enq_data_i   ( {deq_state.id, mem_err_d, mem_exccode_d}                              ),
+        .deq_ready_i  ( trans_complete_ready_i                                                ),
+        .deq_valid_o  ( trans_complete_valid_o                                                ),
+        .deq_data_o   ( {trans_complete_id_o, trans_complete_exc_o, trans_complete_exccode_o} ),
+        .flags_any_o  (                                                                       ),
+        .flags_all_o  (                                                                       )
+    );
 
     // load data state
     always_comb begin
-        state_rdata_d     = deq_state;
-        state_rdata_d.exc = mem_err_d;
+        state_rdata_d            = deq_state;
+        state_rdata_d.exc        = mem_err_d;
+        state_rdata_d.res_store &= ~state_rdata_d.mode.store; // inhibit vreg store for vector store
     end
 
     // load data:
@@ -404,12 +451,16 @@ module vproc_lsu #(
                 VSEW_32: pipe_out_res_o[31:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32];
                 default: ;
             endcase
-            if (~ADDR_ALIGNED) begin
+            if (~VLSU_FLAGS[VLSU_ADDR_ALIGNED]) begin
                 pipe_out_res_o = rdata_buf_q;
             end
         end
         pipe_out_mask_o = (state_rdata_q.mode.stride == LSU_UNITSTRIDE) ? rdata_unit_vdmsk : {(VMEM_W/8){rdata_stri_vdmsk}};
     end
 
+
+`ifdef VPROC_SVA
+`include "vproc_lsu_sva.svh"
+`endif
 
 endmodule

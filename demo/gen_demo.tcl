@@ -7,19 +7,20 @@
 # Create Project
 ################################################################################
 
-if {$argc != 7} {
-    puts "usage: gen_demo.tcl VPROC-DIR CORE-DIR PART CONSTR-FILE RAM-FILE DIFF-CLK CLK-PER"
+if {$argc != 8} {
+    puts "usage: gen_demo.tcl VPROC-DIR CORE-DIR CONFIG_FILE PART CONSTR-FILE RAM-FILE DIFF-CLK CLK-PER"
     exit 2
 }
 
 # get command line arguments:
 set vproc_dir    [lindex $argv 0]
 set core_dir     [lindex $argv 1]
-set part         [lindex $argv 2]
-set constr_file  [lindex $argv 3]
-set ram_file_var "RAM_FPATH=\"[lindex $argv 4]\""
-set diff_clk_var "DIFF_CLK=[lindex $argv 5]"
-set clk_per_var  "SYSCLK_PER=[lindex $argv 6]"
+set config_file  [lindex $argv 2]
+set part         [lindex $argv 3]
+set constr_file  [lindex $argv 4]
+set ram_file_var "RAM_FPATH=\"[lindex $argv 5]\""
+set diff_clk_var "DIFF_CLK=[lindex $argv 6]"
+set clk_per_var  "SYSCLK_PER=[lindex $argv 7]"
 
 # create project:
 set _xil_proj_name_ "vicuna_demo"
@@ -59,11 +60,14 @@ lappend src_list "$vproc_dir/demo/rtl/demo_top.sv"
 lappend src_list "$vproc_dir/demo/rtl/ram.sv"
 lappend src_list "$vproc_dir/demo/rtl/uart_rx.sv"
 lappend src_list "$vproc_dir/demo/rtl/uart_tx.sv"
+lappend src_list "$vproc_dir/rtl/vproc_pkg.sv"
+lappend src_list "$config_file"
 foreach file {
-    vproc_top.sv vproc_pkg.sv vproc_xif.sv vproc_core.sv vproc_decoder.sv vproc_lsu.sv vproc_alu.sv
+    vproc_top.sv vproc_xif.sv vproc_core.sv vproc_decoder.sv vproc_lsu.sv vproc_alu.sv
     vproc_mul.sv vproc_mul_block.sv vproc_sld.sv vproc_elem.sv vproc_pending_wr.sv vproc_vregfile.sv
     vproc_vregpack.sv vproc_vregunpack.sv vproc_queue.sv vproc_result.sv vproc_pipeline.sv
-    vproc_pipeline_wrapper.sv vproc_unit_wrapper.sv vproc_vreg_wr_mux.sv vproc_dispatcher.sv
+    vproc_pipeline_wrapper.sv vproc_unit_wrapper.sv vproc_unit_mux.sv vproc_vreg_wr_mux.sv
+    vproc_dispatcher.sv
 } {
     lappend src_list "$vproc_dir/rtl/$file"
 }

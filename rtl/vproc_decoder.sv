@@ -18,9 +18,7 @@ module vproc_decoder #(
         input  vproc_pkg::cfg_vxrm      vxrm_i,       // current rounding mode
         input  logic [CFG_VL_W-1:0]     vl_i,         // current vector length
 
-        output logic                    illegal_o,    // 1 if instr_i is illegal, 0 otherwise
         output logic                    valid_o,
-
         output vproc_pkg::cfg_vsew      vsew_o,       // VSEW setting for this instruction
         output vproc_pkg::cfg_emul      emul_o,       // LMUL setting for this instruction
         output vproc_pkg::cfg_vxrm      vxrm_o,       // rounding mode for this instruction
@@ -28,7 +26,6 @@ module vproc_decoder #(
         output vproc_pkg::op_unit       unit_o,       //
         output vproc_pkg::op_mode       mode_o,
         output vproc_pkg::op_widenarrow widenarrow_o,
-
         output vproc_pkg::op_regs       rs1_o,        // source register rs1/vs1
         output vproc_pkg::op_regs       rs2_o,        // source register rs2/vs2
         output vproc_pkg::op_regd       rd_o          // destination register rd/vd
@@ -1689,7 +1686,6 @@ module vproc_decoder #(
     logic op_illegal;
     assign op_illegal = (unit_o != UNIT_CFG) & (vs1_invalid | vs2_invalid | vd_invalid | vtype_invalid | emul_invalid);
 
-    assign illegal_o = instr_valid_i & (instr_illegal | op_illegal);
     assign valid_o   = instr_valid_i & (~instr_illegal) & (~op_illegal);
 
 endmodule

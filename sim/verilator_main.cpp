@@ -21,14 +21,6 @@ typedef int VerilatedTrace_t;
 #endif
 #endif
 
-// Verilator 4.210 or newer inserts extra class for accessing signals
-#ifdef VERILATOR_4_210
-#include "Vvproc_top___024root.h"
-#define SIGNALS_ROOT top->rootp
-#else
-#define SIGNALS_ROOT top
-#endif
-
 static void log_cycle(Vvproc_top *top, VerilatedTrace_t *tfp, FILE *fcsv);
 
 int main(int argc, char **argv) {

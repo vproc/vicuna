@@ -3,31 +3,30 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_pipeline #(
+module vproc_pipeline import vproc_pkg::*; #(
         parameter int unsigned          VREG_W              = 128,  // width in bits of vector registers
         parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
         parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
         parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
-        parameter vproc_pkg::op_unit    UNIT                = vproc_pkg::UNIT_ALU,
+        parameter bit [UNIT_CNT-1:0]    UNITS               = '0,
         parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
         parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
         parameter int unsigned          VPORT_CNT           = 1,
         parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
         parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
-        parameter bit [VPORT_CNT-1:0]   VPORT_ADDR_ZERO     = '0,   // set addr to 0
         parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER        = '0,   // buffer port
         parameter int unsigned          MAX_OP_W            = 64,
         parameter int unsigned          OP_CNT              = 1,
         parameter int unsigned          OP_W    [OP_CNT   ] = '{0}, // op widths
         parameter int unsigned          OP_STAGE[OP_CNT   ] = '{0}, // op load stage
         parameter int unsigned          OP_SRC  [OP_CNT   ] = '{0}, // op port index
-        parameter bit [OP_CNT-1:0]      OP_ADDR_OFFSET_OP0  = '0,   // offset op addr
+        parameter int unsigned          OP_DYN_ADDR_SRC     = 0,    // dyn addr src idx
+        parameter bit [OP_CNT-1:0]      OP_DYN_ADDR         = '0,   // dynamic addr
         parameter bit [OP_CNT-1:0]      OP_MASK             = '0,   // op is a mask
         parameter bit [OP_CNT-1:0]      OP_XREG             = '0,   // op may be XREG
         parameter bit [OP_CNT-1:0]      OP_NARROW           = '0,   // op may be narrow
         parameter bit [OP_CNT-1:0]      OP_ALLOW_ELEMWISE   = '0,   // op may be 1 elem
         parameter bit [OP_CNT-1:0]      OP_ALWAYS_ELEMWISE  = '0,   // op is 1 elem
-        parameter bit [OP_CNT-1:0]      OP_HOLD_FLAG        = '0,   // allow hold of op
         parameter bit [OP_CNT-1:0]      OP_ALT_COUNTER      = '0,
         parameter bit [OP_CNT-1:0]      OP_ALWAYS_VREG      = '0,
         parameter int unsigned          UNPACK_STAGES       = 0,
@@ -35,14 +34,15 @@ module vproc_pipeline #(
         parameter int unsigned          RES_CNT             = 1,
         parameter int unsigned          RES_W   [RES_CNT  ] = '{0},
         parameter bit [RES_CNT-1:0]     RES_MASK            = '0,   // result is a mask
-        parameter bit [RES_CNT-1:0]     RES_XREG            = '0,   // result may be XREG
         parameter bit [RES_CNT-1:0]     RES_NARROW          = '0,   // result may be narrow
         parameter bit [RES_CNT-1:0]     RES_ALLOW_ELEMWISE  = '0,   // result may be 1 elem
         parameter bit [RES_CNT-1:0]     RES_ALWAYS_ELEMWISE = '0,   // result is 1 elem
         parameter bit [RES_CNT-1:0]     RES_ALWAYS_VREG     = '0,   // result is 1 elem
-        parameter bit                   MAY_FLUSH           = '0,
-        parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
-        parameter bit                   ADDR_ALIGNED        = 1'b1, // base address is aligned to VMEM_W
+        parameter bit                   FIELD_COUNT_USED    = 1'b0,
+        parameter int unsigned          FIELD_OP            = 0,    // op incremented for each field
+        parameter int unsigned           VLSU_QUEUE_SZ     = 4,
+        parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0,
+        parameter mul_type               MUL_TYPE          = MUL_GENERIC,
         parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
         parameter type                  INIT_STATE_T        = logic,
         parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
@@ -69,6 +69,7 @@ module vproc_pipeline #(
         // connections to register file
         output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
         input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
+        input  logic                [VREG_W     -1:0] vreg_rd_v0_i,         // vreg v0 read data
 
         output logic                    vreg_wr_valid_o,
         input  logic                    vreg_wr_ready_i,
@@ -83,17 +84,17 @@ module vproc_pipeline #(
         vproc_xif.coproc_mem_result     xif_memres_if,
 
         output logic                    trans_complete_valid_o,
+        input  logic                    trans_complete_ready_i,
         output logic [XIF_ID_W-1:0]     trans_complete_id_o,
         output logic                    trans_complete_exc_o,
         output logic [5:0]              trans_complete_exccode_o,
 
         output logic                    xreg_valid_o,
+        input  logic                    xreg_ready_i,
         output logic [XIF_ID_W-1:0]     xreg_id_o,
         output logic [4:0]              xreg_addr_o,
         output logic [31:0]             xreg_data_o
     );
-
-    import vproc_pkg::*;
 
     if ((MAX_OP_W & (MAX_OP_W - 1)) != 0 || MAX_OP_W < 32 || MAX_OP_W >= VREG_W) begin
         $fatal(1, "The vector pipeline operand width MAX_OP_W must be at least 32, less than ",
@@ -133,14 +134,18 @@ module vproc_pipeline #(
     } counter_t;
 
     typedef struct packed {
-        counter_t                        count;
-        counter_t                        alt_count;
+        counter_t                        count;          // main counter
+        counter_t                        alt_count;      // alternative counter (used by some ops)
         count_inc_e                      count_inc;      // counter increment policy
-        logic        [AUX_COUNTER_W-1:0] aux_count;
+        logic        [AUX_COUNTER_W-1:0] aux_count;      // auxiliary counter (for dyn addr ops)
+        logic                      [2:0] field_count;    // field counter (for segment loads/stores)
         logic                            first_cycle;
         logic                            last_cycle;
+        logic                            alt_last_cycle;
+        logic                            init_addr;      // initialize address (used by LSU)
         logic                            requires_flush;
         logic        [XIF_ID_W     -1:0] id;
+        op_unit                          unit;
         op_mode                          mode;
         cfg_vsew                         eew;            // effective element width
         cfg_emul                         emul;           // effective MUL factor
@@ -162,40 +167,42 @@ module vproc_pipeline #(
     ///////////////////////////////////////////////////////////////////////////
     // STATE LOGIC
 
-    logic        state_valid_q,  state_valid_d;
-    state_t      state_q,        state_d;
+    logic        state_valid_q,          state_valid_d;
+    logic        state_wait_alt_count_q, state_wait_alt_count_d; // wait for last cycle of alt_count
+    state_t      state_q,                state_d;
     logic        state_ready;
     always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_pipeline_state_valid
         if (~async_rst_ni) begin
-            state_valid_q <= 1'b0;
+            state_valid_q          <= 1'b0;
+            state_wait_alt_count_q <= 1'b0;
         end
         else if (~sync_rst_ni) begin
-            state_valid_q <= 1'b0;
+            state_valid_q          <= 1'b0;
+            state_wait_alt_count_q <= 1'b0;
         end else begin
-            state_valid_q <= state_valid_d;
+            state_valid_q          <= state_valid_d;
+            state_wait_alt_count_q <= state_wait_alt_count_d;
         end
     end
     always_ff @(posedge clk_i) begin : vproc_pipeline_state
         state_q <= state_d;
     end
 
-    logic state_stall, unpack_ready;
-    assign state_ready     = ~state_valid_q | (~state_stall & unpack_ready);
-    assign pipe_in_ready_o = state_ready & (~state_valid_q | (state_q.last_cycle &
-                             (~MAY_FLUSH | ~state_q.requires_flush)));
-
     // State update logic
     state_t            state_next;
-    counter_t          count_next_inc, alt_count_next_inc;
-    logic              last_cycle_next;
+    counter_t          count_next_inc,  alt_count_next_inc;
+    logic              last_cycle_next, alt_last_cycle_next, wait_alt_count_next;
     logic [OP_CNT-1:0] op_load_next, op_shift_next;
     always_comb begin
-        state_valid_d = state_valid_q;
-        state_d       = state_q;
+        state_valid_d          = state_valid_q;
+        state_wait_alt_count_d = state_wait_alt_count_q;
+        state_d                = state_q;
         if (state_ready) begin
-            state_d            = state_next;
-            state_d.last_cycle = last_cycle_next;
-            state_d.op_load    = op_load_next;
+            state_wait_alt_count_d = wait_alt_count_next;
+            state_d                = state_next;
+            state_d.last_cycle     = last_cycle_next;
+            state_d.alt_last_cycle = alt_last_cycle_next;
+            state_d.op_load        = op_load_next;
             for (int i = 0; i < OP_CNT; i++) begin
                 state_d.op_flags[i].shift = op_shift_next[i];
             end
@@ -206,13 +213,22 @@ module vproc_pipeline #(
             state_d.pend_vreg_wr = vreg_pend_wr_i;
         end
     end
+    assign wait_alt_count_next = (state_wait_alt_count_q | state_q.last_cycle) & (OP_ALT_COUNTER != 0) & ~state_q.alt_last_cycle;
+
+    logic state_stall, unpack_ready;
+    logic state_done;                // the current instruction is done, next can be accepted
+    assign state_ready     = ~state_valid_q | (~state_stall & unpack_ready);
+    assign state_done      = ((OP_ALT_COUNTER == 0) ? state_q.last_cycle : (
+        (state_q.last_cycle | state_wait_alt_count_q) & ~wait_alt_count_next
+    )) & (~FIELD_COUNT_USED | (state_q.field_count == '0));
+    assign pipe_in_ready_o = state_ready & (~state_valid_q | state_done);
 
     // Identify whether the auxiliary counter is used
     logic aux_count_used;
     always_comb begin
         aux_count_used = '0;
         for (int i = 0; i < OP_CNT; i++) begin
-            if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
+            if (OP_DYN_ADDR[i] & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
                 aux_count_used = 1'b1;
             end
         end
@@ -227,17 +243,20 @@ module vproc_pipeline #(
                 state_next.count.part.sign = '1;
                 state_next.count.part.mul  = '1;
             end
-            state_next.alt_count.val           = COUNTER_W'(pipe_in_state_i.alt_count_init);
+            state_next.alt_count.val           = {pipe_in_state_i.alt_count_init, {$clog2(MAX_OP_W/COUNTER_OP_W){1'b0}}};
             state_next.count_inc               = pipe_in_state_i.count_inc;
             state_next.aux_count = '1;
             for (int i = 0; i < OP_CNT; i++) begin
-                if (OP_ADDR_OFFSET_OP0[i] & (OP_ALWAYS_VREG[i] | pipe_in_state_i.op_flags[i].vreg)) begin
+                if (OP_DYN_ADDR[i] & (OP_ALWAYS_VREG[i] | pipe_in_state_i.op_flags[i].vreg)) begin
                     state_next.aux_count = '0;
                 end
             end
+            state_next.field_count             = pipe_in_state_i.field_count_init;
             state_next.first_cycle             = 1'b1;
+            state_next.init_addr               = 1'b1;
             state_next.requires_flush          = pipe_in_state_i.requires_flush;
             state_next.id                      = pipe_in_state_i.id;
+            state_next.unit                    = pipe_in_state_i.unit;
             state_next.mode                    = pipe_in_state_i.mode;
             state_next.eew                     = pipe_in_state_i.eew;
             state_next.emul                    = pipe_in_state_i.emul;
@@ -253,26 +272,44 @@ module vproc_pipeline #(
             state_next.res_vaddr               = pipe_in_state_i.res_vaddr;
         end else begin
             state_next.first_cycle = '0;
+            state_next.init_addr = '0;
             state_next.count     = count_next_inc;
             state_next.alt_count = alt_count_next_inc;
             if (aux_count_used) begin
                 state_next.aux_count = state_q.aux_count + AUX_COUNTER_W'(1);
             end
-            for (int i = 0; i < OP_CNT; i++) begin
-                if ((OP_ADDR_OFFSET_OP0 != '0) & ~OP_ADDR_OFFSET_OP0[i]) begin
-                    state_next.op_flags[i].hold = state_q.aux_count != '1;
-                end
+            if (FIELD_COUNT_USED & state_q.last_cycle & state_q.alt_last_cycle) begin
+                state_next.init_addr   = 1'b1;
+                state_next.count       = '0;
+                state_next.alt_count   = '0;
+                state_next.field_count = state_q.field_count - 3'b001;
+                state_next.xval        = DONT_CARE_ZERO ? '0 : 'x;
+                unique case (state_q.eew)
+                    VSEW_8:  state_next.xval = state_q.xval + 32'h1;
+                    VSEW_16: state_next.xval = state_q.xval + 32'h2;
+                    VSEW_32: state_next.xval = state_q.xval + 32'h4;
+                    default: ;
+                endcase
+                state_next.op_vaddr[FIELD_OP] = DONT_CARE_ZERO ? '0 : 'x;
+                unique case (state_q.emul)
+                    EMUL_1: state_next.op_vaddr[FIELD_OP] = state_q.op_vaddr[FIELD_OP] + 5'(1);
+                    EMUL_2: state_next.op_vaddr[FIELD_OP] = state_q.op_vaddr[FIELD_OP] + 5'(2);
+                    EMUL_4: state_next.op_vaddr[FIELD_OP] = state_q.op_vaddr[FIELD_OP] + 5'(4);
+                    // EMUL_8 is invalid since EMUL * NFIELDS <= 8 according to spec
+                    default: ;
+                endcase
+                state_next.res_vaddr = DONT_CARE_ZERO ? '0 : 'x;
+                unique case (state_q.emul)
+                    EMUL_1: state_next.res_vaddr = state_q.res_vaddr + 5'(1);
+                    EMUL_2: state_next.res_vaddr = state_q.res_vaddr + 5'(2);
+                    EMUL_4: state_next.res_vaddr = state_q.res_vaddr + 5'(4);
+                    // EMUL_8 is invalid since EMUL * NFIELDS <= 8 according to spec
+                    default: ;
+                endcase
             end
-
-            // flush pipeline if required
-            if (MAY_FLUSH & state_q.last_cycle) begin
-                state_next.count.val      = '0;
-                state_next.count.part.mul = '1;
-                state_next.first_cycle    = '0;
-                state_next.mode.elem.op   = ELEM_FLUSH;
-                state_next.requires_flush = '0;
-                for (int i = 0; i < OP_CNT; i++) begin
-                    state_next.op_flags[i].vreg = '0;
+            for (int i = 0; i < OP_CNT; i++) begin
+                if ((OP_DYN_ADDR != '0) & ~OP_DYN_ADDR[i]) begin
+                    state_next.op_flags[i].hold = state_q.aux_count != '1;
                 end
             end
         end
@@ -282,7 +319,7 @@ module vproc_pipeline #(
     always_comb begin
         count_next_inc     = state_q.count;
         alt_count_next_inc = state_q.alt_count.val;
-        if ((OP_ADDR_OFFSET_OP0 == '0) | (state_q.aux_count == '1)) begin
+        if ((OP_DYN_ADDR == '0) | (state_q.aux_count == '1)) begin
             unique case (state_q.count_inc)
                 COUNT_INC_1: begin
                     count_next_inc.val     = state_q.count.val     + COUNTER_W'(1);
@@ -307,27 +344,34 @@ module vproc_pipeline #(
 
     // Last cycle logic
     always_comb begin
-        last_cycle_next = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        last_cycle_next     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        alt_last_cycle_next = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         // first cycle is not last cycle unless EMUL is 1 and the counter has no low part
-        if (~state_valid_q | state_q.last_cycle) begin
+        if (~state_valid_q | state_done) begin
             // TODO take exceptions into account (OP_ALT_COUNTER != 0 and auxiliary counter)
-            last_cycle_next = (pipe_in_state_i.emul == EMUL_1) & (COUNTER_W == 4);
+            last_cycle_next     = (pipe_in_state_i.emul == EMUL_1) & (COUNTER_W == 4);
+            alt_last_cycle_next = (pipe_in_state_i.emul == EMUL_1) & (COUNTER_W == 4);
         end else begin
-            last_cycle_next = count_next_inc.val[COUNTER_W-5:$clog2(MAX_OP_W/COUNTER_OP_W)] == '1;
+            last_cycle_next     =     count_next_inc.val[COUNTER_W-5:$clog2(MAX_OP_W/COUNTER_OP_W)] == '1;
+            alt_last_cycle_next = alt_count_next_inc.val[COUNTER_W-5:$clog2(MAX_OP_W/COUNTER_OP_W)] == '1;
             // clear last cycle in case lower bits are not set for lower counter increments
             unique case (state_q.count_inc)
                 COUNT_INC_1: for (int i = 0; i < $clog2(MAX_OP_W/COUNTER_OP_W); i++) begin
-                    last_cycle_next &= count_next_inc.val[i];
+                    last_cycle_next     &=     count_next_inc.val[i];
+                    alt_last_cycle_next &= alt_count_next_inc.val[i];
                 end
                 COUNT_INC_2: for (int i = 1; i < $clog2(MAX_OP_W/COUNTER_OP_W); i++) begin
-                    last_cycle_next &= count_next_inc.val[i];
+                    last_cycle_next     &=     count_next_inc.val[i];
+                    alt_last_cycle_next &= alt_count_next_inc.val[i];
                 end
                 COUNT_INC_4: for (int i = 2; i < $clog2(MAX_OP_W/COUNTER_OP_W); i++) begin
-                    last_cycle_next &= count_next_inc.val[i];
+                    last_cycle_next     &=     count_next_inc.val[i];
+                    alt_last_cycle_next &= alt_count_next_inc.val[i];
                 end
                 default: ;
             endcase
-            // clear last cycle based on EMUL
+            // clear last cycle based on EMUL (note: the alt_last_cycle signal is not cleared here
+            // as that is only required to indicate completion of one vreg cycle)
             unique case (state_q.emul)
                 EMUL_2: last_cycle_next &= count_next_inc.part.mul[  0] == '1;
                 EMUL_4: last_cycle_next &= count_next_inc.part.mul[1:0] == '1;
@@ -355,19 +399,23 @@ module vproc_pipeline #(
         op_load_next  = '0;
         op_shift_next = '0;
         for (int i = 0; i < OP_CNT; i++) begin
-            if (OP_ADDR_OFFSET_OP0[i]) begin
+            if (OP_DYN_ADDR[i]) begin
                 if (state_next.aux_count == '0) begin
                     op_load_next[i] = OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg;
                 end
                 op_shift_next[i] = 1'b1;
             end
-            else if (~aux_count_used | (state_next.aux_count == '0)) begin
+            // Regular operands are only fetched if the auxiliary counter is either not used or is
+            // zero in the next cycle.  Note that aux_count_used may be incorrect if a new
+            // instruction is currently being loaded (i.e., pipe_in_ready_o is asserted), in which
+            // case the operands should be fetched regardless of the next auxilary counter value
+            // (which may be non-zero if the auxiliary counter is not used by the new instruction)
+            else if (~aux_count_used | (state_next.aux_count == '0) | pipe_in_ready_o) begin
                 if (~OP_MASK[i]) begin
                     if ((op_count[i].part.low == '0) &
                         (~OP_NARROW[i] | ~state_next.op_flags[i].narrow | ~op_count[i].part.mul[0])
                     ) begin
-                        op_load_next[i] = (OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg) &
-                                          (~MAY_FLUSH | ~last_cycle_next); // may need flushing
+                        op_load_next[i] = OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg;
 
                         // if the alternative counter is used for some operands the counter's
                         // sign and MUL part might be invalid for the current EMUL, in which
@@ -414,6 +462,10 @@ module vproc_pipeline #(
                 end
             end
         end
+        // do not load anything while waiting for the last cycle of the alt counter
+        if (wait_alt_count_next) begin
+            op_load_next = '0;
+        end
     end
 
     // Result store and shift signals
@@ -452,7 +504,7 @@ module vproc_pipeline #(
         for (int i = 0; i < OP_CNT; i++) begin
             op_load [i]       = state_q.op_load [i];
             op_flags[i].shift = state_q.op_flags[i].shift;
-            if (state_q.op_load[i] & ~OP_ADDR_OFFSET_OP0[i]) begin
+            if (state_q.op_load[i] & ~OP_DYN_ADDR[i]) begin
                 if (OP_NARROW[i] & state_q.op_flags[i].narrow) begin
                     op_vaddr[i][1:0] = state_q.op_vaddr[i][1:0] | (OP_ALT_COUNTER[i] ? state_q.alt_count.part.mul[2:1] : state_q.count.part.mul[2:1]);
                 end else begin
@@ -501,13 +553,13 @@ module vproc_pipeline #(
     end
     always_comb begin
         op_addr_offset_pend_reads = '0;
-        if (OP_ADDR_OFFSET_OP0 != '0) begin
+        if (OP_DYN_ADDR != '0) begin
             op_addr_offset_pend_reads = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_q.emul)
-                EMUL_1: op_addr_offset_pend_reads = 32'h01 <<  state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)];
-                EMUL_2: op_addr_offset_pend_reads = 32'h03 << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:1], 1'b0};
-                EMUL_4: op_addr_offset_pend_reads = 32'h0F << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:2], 2'b0};
-                EMUL_8: op_addr_offset_pend_reads = 32'hFF << {state_q.op_vaddr[$clog2(OP_ADDR_OFFSET_OP0)][4:3], 3'b0};
+                EMUL_1: op_addr_offset_pend_reads = 32'h01 <<  state_q.op_vaddr[$clog2(OP_DYN_ADDR)];
+                EMUL_2: op_addr_offset_pend_reads = 32'h03 << {state_q.op_vaddr[$clog2(OP_DYN_ADDR)][4:1], 1'b0};
+                EMUL_4: op_addr_offset_pend_reads = 32'h0F << {state_q.op_vaddr[$clog2(OP_DYN_ADDR)][4:2], 2'b0};
+                EMUL_8: op_addr_offset_pend_reads = 32'hFF << {state_q.op_vaddr[$clog2(OP_DYN_ADDR)][4:3], 3'b0};
                 default: ;
             endcase
         end
@@ -527,14 +579,14 @@ module vproc_pipeline #(
         for (genvar i = 0; i < OP_CNT; i++) begin
             always_comb begin
                 op_pend_reads[i] = '0;
-                if (OP_ADDR_OFFSET_OP0[i]) begin
+                if (OP_DYN_ADDR[i]) begin
                     if (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) begin
                         op_pend_reads[i] = op_addr_offset_pend_reads_q;
                     end
                 end
                 else if (OP_MASK[i]) begin
                     if ((OP_ALT_COUNTER != '0) & (OP_ALT_COUNTER[i] ? state_q.alt_count.part.sign : state_q.count.part.sign) & (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg)) begin
-                        op_pend_reads[i] = VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : (32'b1 << state_q.op_vaddr[i]);
+                        op_pend_reads[i] = (OP_SRC[i] >= VPORT_CNT) ? '0 : (32'b1 << state_q.op_vaddr[i]);
                     end
                 end
                 // TODO guard with VPORT_ADDR_ZERO[OP_SRC[i]]
@@ -575,16 +627,36 @@ module vproc_pipeline #(
             end
         end
     endgenerate
+
+    // add further vregs that are read if multiple fields are used (note that the operand
+    // address is incremented as the field count is decremented)
+    // TODO make this generic for some specified operand instead of always using operand 1
+    logic [31:0] op_fields_pend_reads;
+    always_comb begin
+        op_fields_pend_reads = '0;
+        if (OP_ALWAYS_VREG[FIELD_OP] | state_q.op_flags[FIELD_OP].vreg) begin
+            for (int i = 0; 3'(i) < state_q.field_count; i++) begin
+                unique case (state_q.emul)
+                    EMUL_1: op_fields_pend_reads |= (32'h1 <<  (i + 1)     ) <<  state_q.op_vaddr[FIELD_OP]            ;
+                    EMUL_2: op_fields_pend_reads |= (32'h3 << ((i + 1) * 2)) << {state_q.op_vaddr[FIELD_OP][4:1], 1'b0};
+                    EMUL_4: op_fields_pend_reads |= (32'hF << ((i + 1) * 4)) << {state_q.op_vaddr[FIELD_OP][4:2], 2'b0};
+                    // EMUL_8 cannot be used with multiple fields
+                    default: ;
+                endcase
+            end
+        end
+    end
+
     logic [31:0] op_pend_reads_all;
     always_comb begin
-        op_pend_reads_all = '0;
+        op_pend_reads_all = FIELD_COUNT_USED ? op_fields_pend_reads : '0;
         for (int i = 0; i < OP_CNT; i++) begin
             op_pend_reads_all |= op_pend_reads[i];
             if (op_load[i]) begin
-                if (OP_ADDR_OFFSET_OP0[i]) begin
+                if (OP_DYN_ADDR[i]) begin
                     op_pend_reads_all |= op_addr_offset_pend_reads;
                 end else begin
-                    op_pend_reads_all[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : op_vaddr[i]] = 1'b1;
+                    op_pend_reads_all[(OP_SRC[i] >= VPORT_CNT) ? '0 : op_vaddr[i]] = 1'b1;
                 end
             end
         end
@@ -603,10 +675,10 @@ module vproc_pipeline #(
     always_comb begin
         state_stall = '0;
         for (int i = 0; i < OP_CNT; i++) begin
-            if (OP_ADDR_OFFSET_OP0[i]) begin
+            if (OP_DYN_ADDR[i]) begin
                 state_stall |= op_load[i] & ((op_addr_offset_pend_reads & state_q.pend_vreg_wr) != '0);
             end else begin
-                state_stall |= op_load[i] & state_q.pend_vreg_wr[VPORT_ADDR_ZERO[OP_SRC[i]] ? '0 : op_vaddr[i]];
+                state_stall |= op_load[i] & state_q.pend_vreg_wr[(OP_SRC[i] >= VPORT_CNT) ? '0 : op_vaddr[i]];
             end
         end
     end
@@ -619,10 +691,12 @@ module vproc_pipeline #(
         logic [2:0]                    count_mul;
         logic                          first_cycle;
         logic                          last_cycle;
+        logic                          init_addr;       // initialize address (used by LSU)
         logic                          requires_flush;
         logic                          alt_count_valid; // alternative counter value is valid
         logic [AUX_COUNTER_W-1:0]      aux_count;
         logic [XIF_ID_W-1:0]           id;
+        op_unit                        unit;
         op_mode                        mode;
         cfg_vsew                       eew;             // effective element width
         cfg_emul                       emul;            // effective MUL factor
@@ -637,13 +711,19 @@ module vproc_pipeline #(
         logic                          res_store;
         logic                          res_shift;
         logic [4:0]                    res_vaddr;
+        logic                          pend_load;
+        logic                          pend_store;
     } ctrl_t;
 
+    logic  unpack_valid;
     ctrl_t unpack_ctrl;
     always_comb begin
+        unpack_valid                = state_valid_q & ~state_stall & ~state_wait_alt_count_q;
         unpack_ctrl.count_mul       = state_q.count.part.mul;
         unpack_ctrl.first_cycle     = state_q.first_cycle;
-        unpack_ctrl.last_cycle      = state_valid_q & state_q.last_cycle; // TODO remove state_valid_q
+        unpack_ctrl.last_cycle      = state_valid_q & state_q.last_cycle & // TODO remove state_valid_q
+                                      (~FIELD_COUNT_USED | (state_q.field_count == '0));
+        unpack_ctrl.init_addr       = state_q.init_addr;
         unpack_ctrl.requires_flush  = state_q.requires_flush;
         unpack_ctrl.alt_count_valid = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_q.emul)
@@ -655,26 +735,27 @@ module vproc_pipeline #(
         endcase
         unpack_ctrl.aux_count = state_q.aux_count;
         unpack_ctrl.id        = state_q.id;
+        unpack_ctrl.unit      = state_q.unit;
         unpack_ctrl.mode      = state_q.mode;
         unpack_ctrl.eew       = state_q.eew;
         unpack_ctrl.emul      = state_q.emul;
         unpack_ctrl.vxrm      = state_q.vxrm;
 
-        // TODO consider only the relevant counter bits for vl_part (i.e., for element-wise access,
-        // the lower counter bits should be ignored for EEW > 8; also, the stride bits should be
-        // ignored for LSU operation)
-        unpack_ctrl.vl_part      = (state_q.count.val[COUNTER_W-2:0] == state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
-        unpack_ctrl.vl_part_0    = (state_q.count.val[COUNTER_W-2:0] >  state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) |  state_q.vl_0;
-        unpack_ctrl.last_vl_part = (state_q.count.val[COUNTER_W-2:0] == state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) & ~state_q.vl_0;
-        if ((UNIT == UNIT_LSU) & (state_q.mode.lsu.stride == LSU_UNITSTRIDE)) begin
-            unpack_ctrl.vl_part      = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
-            unpack_ctrl.vl_part_0    = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] >  state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) |  state_q.vl_0;
-            unpack_ctrl.last_vl_part = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/8)] == state_q.vl[COUNTER_W-2:$clog2(MAX_OP_W/8)]) & ~state_q.vl_0;
+        // Determine the length of the current part of the vector based on the overall VL setting;
+        // considers only the relevant counter bits for vl_part; for element-wise operation only
+        // vl_part_0 (i.e., whether the length of the current part is 0) is relevant
+        unpack_ctrl.vl_part      = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/COUNTER_OP_W)] == state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) ?  state_q.vl[$clog2(MAX_OP_W/8)-1:0] : '1;
+        unpack_ctrl.vl_part_0    = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/COUNTER_OP_W)] >  state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) |  state_q.vl_0;
+        unpack_ctrl.last_vl_part = (state_q.count.val[COUNTER_W-2:$clog2(MAX_OP_W/COUNTER_OP_W)] == state_q.vl[CFG_VL_W-1:$clog2(MAX_OP_W/8)]) & ~state_q.vl_0;
+        if ((UNITS[UNIT_LSU ] & (state_q.unit == UNIT_LSU ) & (state_q.mode.lsu.stride != LSU_UNITSTRIDE)) |
+            (UNITS[UNIT_ELEM] & (state_q.unit == UNIT_ELEM))
+        ) begin
+            unpack_ctrl.vl_part_0 = (state_q.count.val[COUNTER_W-2:0] >  state_q.vl[CFG_VL_W-1:$clog2(COUNTER_OP_W/8)]) |  state_q.vl_0;
         end
         unpack_ctrl.vl_0 = state_q.vl_0;
 
         unpack_ctrl.xval = state_q.xval;
-        if ((UNIT == UNIT_LSU) & ~state_q.first_cycle) begin
+        if (UNITS[UNIT_LSU] & (state_q.unit == UNIT_LSU) & ~state_q.init_addr) begin
             unpack_ctrl.xval = DONT_CARE_ZERO ? '0 : 'x;
             unique case (state_q.mode.lsu.stride)
                 LSU_STRIDED: unpack_ctrl.xval = state_q.op_xval[0];
@@ -689,7 +770,7 @@ module vproc_pipeline #(
         unpack_ctrl.res_shift  = res_shift;
         unpack_ctrl.res_vaddr  = state_q.res_vaddr;
         for (int i = 0; i < RES_CNT; i++) begin
-            if ((UNIT != UNIT_ELEM) & ~RES_MASK[i] & (RES_ALWAYS_VREG[i] | state_q.res_vreg[i])) begin
+            if ((state_q.unit != UNIT_ELEM) & ~RES_MASK[i] & (RES_ALWAYS_VREG[i] | state_q.res_vreg[i])) begin
                 if (RES_NARROW[i] & state_q.res_narrow[i]) begin
                     unpack_ctrl.res_vaddr[1:0] = state_q.res_vaddr[1:0] | state_q.count.part.mul[2:1];
                 end else begin
@@ -697,26 +778,34 @@ module vproc_pipeline #(
                 end
             end
         end
+
+        // pending loads and stores flags for LSU
+        unpack_ctrl.pend_load  = UNITS[UNIT_LSU] & (state_q.unit == UNIT_LSU) & ~state_q.mode.lsu.store;
+        unpack_ctrl.pend_store = UNITS[UNIT_LSU] & (state_q.unit == UNIT_LSU) &  state_q.mode.lsu.store;
     end
 
 
     ///////////////////////////////////////////////////////////////////////////
     // LSU PENDING LOADS AND STORES SIGNALS
 
-    ctrl_t unpack_flags_all, unpack_flags_any;
+    ctrl_t unpack_ctrl_flags;
     logic  lsu_pending_load, lsu_pending_store;
-    assign pending_load_o  = (UNIT == UNIT_LSU) & (
-                                 (state_valid_q & ~state_q.mode.lsu.store) |
-                                 ~unpack_flags_all.mode.lsu.store | lsu_pending_load
+    assign pending_load_o  = UNITS[UNIT_LSU] & (
+                                 (state_valid_q & (state_q.unit == UNIT_LSU) & ~state_q.mode.lsu.store) |
+                                 unpack_ctrl_flags.pend_load  | lsu_pending_load
                              );
-    assign pending_store_o = (UNIT == UNIT_LSU) & (
-                                 (state_valid_q &  state_q.mode.lsu.store) |
-                                  unpack_flags_any.mode.lsu.store | lsu_pending_store
+    assign pending_store_o = UNITS[UNIT_LSU] & (
+                                 (state_valid_q & (state_q.unit == UNIT_LSU) &  state_q.mode.lsu.store) |
+                                 unpack_ctrl_flags.pend_store | lsu_pending_store
                              );
 
 
     ///////////////////////////////////////////////////////////////////////////
     // REGISTER READ/WRITE AND UNIT INSTANTIATION
+
+    // source operand of dynamic address requires hold
+    // TODO: does the mask operand (index -1) also require holding?
+    localparam bit [OP_CNT-1:0] OP_HOLD_FLAG = (OP_DYN_ADDR != '0) ? (OP_CNT'(1) << OP_DYN_ADDR_SRC) : '0;
 
     logic [VPORT_CNT-1:0][4:0]          unpack_vreg_addr;
     logic [VPORT_CNT-1:0][VREG_W  -1:0] unpack_vreg_data;
@@ -730,14 +819,15 @@ module vproc_pipeline #(
         .VPORT_CNT            ( VPORT_CNT                    ),
         .VPORT_W              ( VPORT_W                      ),
         .VADDR_W              ( VADDR_W                      ),
-        .VPORT_ADDR_ZERO      ( VPORT_ADDR_ZERO              ),
         .VPORT_BUFFER         ( VPORT_BUFFER                 ),
+        .VPORT_V0_W           ( VREG_W                       ),
         .MAX_OP_W             ( MAX_OP_W                     ),
         .OP_CNT               ( OP_CNT                       ),
         .OP_W                 ( OP_W                         ),
         .OP_STAGE             ( OP_STAGE                     ),
         .OP_SRC               ( OP_SRC                       ),
-        .OP_ADDR_OFFSET_OP0   ( OP_ADDR_OFFSET_OP0           ),
+        .OP_DYN_ADDR_SRC      ( OP_DYN_ADDR_SRC              ),
+        .OP_DYN_ADDR          ( OP_DYN_ADDR                  ),
         .OP_MASK              ( OP_MASK                      ),
         .OP_XREG              ( OP_XREG                      ),
         .OP_NARROW            ( OP_NARROW                    ),
@@ -754,7 +844,8 @@ module vproc_pipeline #(
         .sync_rst_ni          ( sync_rst_ni                  ),
         .vreg_rd_addr_o       ( vreg_rd_addr_o               ),
         .vreg_rd_data_i       ( vreg_rd_data_i               ),
-        .pipe_in_valid_i      ( state_valid_q & ~state_stall ),
+        .vreg_rd_v0_i         ( vreg_rd_v0_i                 ),
+        .pipe_in_valid_i      ( unpack_valid                 ),
         .pipe_in_ready_o      ( unpack_ready                 ),
         .pipe_in_ctrl_i       ( unpack_ctrl                  ),
         .pipe_in_eew_i        ( unpack_ctrl.eew              ),
@@ -768,8 +859,8 @@ module vproc_pipeline #(
         .pipe_out_op_data_o   ( unpack_out_ops               ),
         .pending_vreg_reads_o ( unpack_pend_rd               ),
         .stage_valid_any_o    (                              ),
-        .ctrl_flags_any_o     ( unpack_flags_any             ),
-        .ctrl_flags_all_o     ( unpack_flags_all             )
+        .ctrl_flags_any_o     ( unpack_ctrl_flags            ),
+        .ctrl_flags_all_o     (                              )
     );
 
     assign op_addr_offset_pend_reads_clear = unpack_out_valid & unpack_out_ctrl.last_cycle;
@@ -791,8 +882,8 @@ module vproc_pipeline #(
     logic                                   unit_out_pend_clear;
     logic      [1:0]                        unit_out_pend_clear_cnt;
     logic                                   unit_out_instr_done;
-    vproc_unit_wrapper #(
-        .UNIT                      ( UNIT                     ),
+    vproc_unit_mux #(
+        .UNITS                     ( UNITS                    ),
         .XIF_ID_W                  ( XIF_ID_W                 ),
         .XIF_ID_CNT                ( XIF_ID_CNT               ),
         .VREG_W                    ( VREG_W                   ),
@@ -800,13 +891,14 @@ module vproc_pipeline #(
         .MAX_OP_W                  ( MAX_OP_W                 ),
         .RES_CNT                   ( RES_CNT                  ),
         .MAX_RES_W                 ( MAX_RES_W                ),
+        .VLSU_QUEUE_SZ             ( VLSU_QUEUE_SZ            ),
+        .VLSU_FLAGS                ( VLSU_FLAGS               ),
         .MUL_TYPE                  ( MUL_TYPE                 ),
-        .ADDR_ALIGNED              ( ADDR_ALIGNED             ),
         .CTRL_T                    ( ctrl_t                   ),
         .COUNTER_T                 ( counter_t                ),
         .COUNTER_W                 ( COUNTER_W                ),
         .DONT_CARE_ZERO            ( DONT_CARE_ZERO           )
-    ) unit (
+    ) unit_mux (
         .clk_i                     ( clk_i                    ),
         .async_rst_ni              ( async_rst_ni             ),
         .sync_rst_ni               ( sync_rst_ni              ),
@@ -832,42 +924,32 @@ module vproc_pipeline #(
         .vreg_pend_rd_i            ( vreg_pend_rd_i           ),
         .instr_spec_i              ( instr_spec_i             ),
         .instr_killed_i            ( instr_killed_i           ),
-        .instr_done_valid_o        ( lsu_instr_done_valid     ),
-        .instr_done_id_o           ( lsu_instr_done_id        ),
         .xif_mem_if                ( xif_mem_if               ),
         .xif_memres_if             ( xif_memres_if            ),
         .trans_complete_valid_o    ( trans_complete_valid_o   ),
+        .trans_complete_ready_i    ( trans_complete_ready_i   ),
         .trans_complete_id_o       ( trans_complete_id_o      ),
         .trans_complete_exc_o      ( trans_complete_exc_o     ),
         .trans_complete_exccode_o  ( trans_complete_exccode_o ),
         .xreg_valid_o              ( xreg_valid_o             ),
+        .xreg_ready_i              ( xreg_ready_i             ),
         .xreg_id_o                 ( xreg_id_o                ),
         .xreg_addr_o               ( xreg_addr_o              ),
         .xreg_data_o               ( xreg_data_o              )
     );
 
 
-    logic [31          :0] pack_pending_vreg_reads;
-    logic [XIF_ID_CNT-1:0] pack_instr_spec;
-    logic [XIF_ID_CNT-1:0] pack_instr_killed;
-    logic                  pack_instr_done_valid;
-    logic [XIF_ID_W  -1:0] pack_instr_done_id;
-    assign pack_pending_vreg_reads = (UNIT != UNIT_LSU) ? vreg_pend_rd_i : '0;
-    assign pack_instr_spec         = (UNIT != UNIT_LSU) ? instr_spec_i   : '0;
-    assign pack_instr_killed       = (UNIT != UNIT_LSU) ? instr_killed_i : '0;
-    assign instr_done_valid_o      = (UNIT != UNIT_LSU) ? pack_instr_done_valid : lsu_instr_done_valid;
-    assign instr_done_id_o         = (UNIT != UNIT_LSU) ? pack_instr_done_id    : lsu_instr_done_id;
-
+    // TODO assert that vreg_pend_rd_i, instr_spec_i, and instr_killed_i do not affect LSU
+    // instructions (which cannot be stalled beyond the request stage)
     vproc_vregpack #(
         .VPORT_W                     ( VREG_W                  ),
         .VADDR_W                     ( 5                       ),
         .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS         ),
-        .VPORT_PEND_CLR_BULK         ( UNIT == UNIT_ELEM       ),
+        .VPORT_PEND_CLR_BULK         ( UNITS[UNIT_ELEM]        ),
         .MAX_RES_W                   ( MAX_RES_W               ),
         .RES_CNT                     ( RES_CNT                 ),
         .RES_W                       ( RES_W                   ),
         .RES_MASK                    ( RES_MASK                ),
-        .RES_XREG                    ( '0                      ),
         .RES_NARROW                  ( RES_NARROW              ),
         .RES_ALLOW_ELEMWISE          ( RES_ALLOW_ELEMWISE      ),
         .RES_ALWAYS_ELEMWISE         ( RES_ALWAYS_ELEMWISE     ),
@@ -897,12 +979,12 @@ module vproc_pipeline #(
         .vreg_wr_addr_o              ( vreg_wr_addr_o          ),
         .vreg_wr_be_o                ( vreg_wr_be_o            ),
         .vreg_wr_data_o              ( vreg_wr_data_o          ),
-        .pending_vreg_reads_i        ( pack_pending_vreg_reads ),
+        .pending_vreg_reads_i        ( vreg_pend_rd_i          ),
         .clear_pending_vreg_writes_o ( clear_wr_hazards_o      ),
-        .instr_spec_i                ( pack_instr_spec         ),
-        .instr_killed_i              ( pack_instr_killed       ),
-        .instr_done_valid_o          ( pack_instr_done_valid   ),
-        .instr_done_id_o             ( pack_instr_done_id      )
+        .instr_spec_i                ( instr_spec_i            ),
+        .instr_killed_i              ( instr_killed_i          ),
+        .instr_done_valid_o          ( instr_done_valid_o      ),
+        .instr_done_id_o             ( instr_done_id_o         )
     );
 
 
