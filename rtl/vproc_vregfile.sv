@@ -4,23 +4,26 @@
 
 
 module vproc_vregfile #(
-        parameter int unsigned                                 VREG_W   = 128,  // vector register width in bits
-        parameter int unsigned                                 PORT_W   = 128,  // port width in bits
-        parameter int unsigned                                 PORTS_RD = 0,    // number of read ports
-        parameter int unsigned                                 PORTS_WR = 0,    // number of write ports
-        parameter vproc_pkg::ram_type                          RAM_TYPE = vproc_pkg::RAM_GENERIC
+        parameter vproc_pkg::vreg_type                   VREG_TYPE              = vproc_pkg::VREG_GENERIC,
+        parameter int unsigned                           VREG_W                 = 128,  // vector register width in bits
+        parameter int unsigned                           MAX_PORT_W             = 128,  // max port width in bits
+        parameter int unsigned                           MAX_ADDR_W             = 128,  // max addr width in bits
+        parameter int unsigned                           PORT_RD_CNT            = 1,    // number of read ports
+        parameter int unsigned                           PORT_RD_W[PORT_RD_CNT] = '{0}, // read port widths
+        parameter int unsigned                           PORT_WR_CNT            = 1,    // number of write ports
+        parameter int unsigned                           PORT_WR_W[PORT_WR_CNT] = '{0}  // write port widths
     )(
-        input  logic                                           clk_i,
-        input  logic                                           async_rst_ni,
-        input  logic                                           sync_rst_ni,
+        input  logic                                     clk_i,
+        input  logic                                     async_rst_ni,
+        input  logic                                     sync_rst_ni,
 
-        input  logic [PORTS_WR-1:0][4+$clog2(VREG_W/PORT_W):0] wr_addr_i,
-        input  logic [PORTS_WR-1:0][PORT_W  -1:0]              wr_data_i,
-        input  logic [PORTS_WR-1:0][PORT_W/8-1:0]              wr_be_i,
-        input  logic [PORTS_WR-1:0]                            wr_we_i,
+        input  logic [PORT_WR_CNT-1:0][MAX_ADDR_W  -1:0] wr_addr_i,
+        input  logic [PORT_WR_CNT-1:0][MAX_PORT_W  -1:0] wr_data_i,
+        input  logic [PORT_WR_CNT-1:0][MAX_PORT_W/8-1:0] wr_be_i,
+        input  logic [PORT_WR_CNT-1:0]                   wr_we_i,
 
-        input  logic [PORTS_RD-1:0][4+$clog2(VREG_W/PORT_W):0] rd_addr_i,
-        output logic [PORTS_RD-1:0][PORT_W-1:0]                rd_data_o
+        input  logic [PORT_RD_CNT-1:0][MAX_ADDR_W  -1:0] rd_addr_i,
+        output logic [PORT_RD_CNT-1:0][MAX_PORT_W  -1:0] rd_data_o
     );
 
     ///////////////////////////////////////////////////////////////////////////
@@ -38,8 +41,8 @@ module vproc_vregfile #(
     // writes (each write port must read from all other columns to compose the
     // actual XORed write data).
     //
-    //  n = PORTS_RD (number of read ports)
-    //  m = PORTS_WR (number of write ports)
+    //  n = PORT_RD_CNT (number of read ports)
+    //  m = PORT_WR_CNT (number of write ports)
     //
     //              |      n read ports       | m-1 internal read ports |
     //
@@ -62,47 +65,47 @@ module vproc_vregfile #(
     // read port by removing the redundant diagonal where WPy == IPy.
     //
 
-    localparam int unsigned PORTS_RD_TOTAL = PORTS_RD + PORTS_WR - 1;
+    localparam int unsigned PORT_RD_CNT_TOTAL = PORT_RD_CNT + PORT_WR_CNT - 1;
     logic [31:0][VREG_W-1:0] ram_asic;
 
     // read address assignment
-    logic [PORTS_RD_TOTAL-1:0][PORTS_WR-1:0][4+$clog2(VREG_W/PORT_W):0] rd_addr;
+    logic [PORT_RD_CNT_TOTAL-1:0][PORT_WR_CNT-1:0][MAX_ADDR_W-1:0] rd_addr;
     always_comb begin
-        for (int i = 0; i < PORTS_RD; i++) begin
-            for (int j = 0; j < PORTS_WR; j++) begin
+        for (int i = 0; i < PORT_RD_CNT; i++) begin
+            for (int j = 0; j < PORT_WR_CNT; j++) begin
                 rd_addr[i][j] = rd_addr_i[i];
             end
         end
-        for (int i = 0; i < PORTS_WR - 1; i++) begin
-            for (int j = 0; j < PORTS_WR; j++) begin
-                rd_addr[PORTS_RD + i][j] = (i < j) ? wr_addr_i[i] : wr_addr_i[i+1];
+        for (int i = 0; i < PORT_WR_CNT - 1; i++) begin
+            for (int j = 0; j < PORT_WR_CNT; j++) begin
+                rd_addr[PORT_RD_CNT + i][j] = (i < j) ? wr_addr_i[i] : wr_addr_i[i+1];
             end
         end
     end
 
     // RAM instantiation
-    logic [PORTS_RD_TOTAL-1:0][PORTS_WR-1:0][PORT_W-1:0] rd_data;
+    logic [PORT_RD_CNT_TOTAL-1:0][PORT_WR_CNT-1:0][MAX_PORT_W-1:0] rd_data;
     generate
-        for (genvar gw = 0; gw < PORTS_WR; gw++) begin
+        for (genvar gw = 0; gw < PORT_WR_CNT; gw++) begin
 
             // compose write data
-            logic [PORT_W-1:0] wr_data;
+            logic [MAX_PORT_W-1:0] wr_data;
             always_comb begin
                 wr_data = wr_data_i[gw];
-                if (RAM_TYPE != vproc_pkg::RAM_ASIC) begin
-                    for (int i = 0; i < PORTS_WR - 1; i++) begin
-                        wr_data = wr_data ^ rd_data[PORTS_RD + gw - ((i < gw) ? 1 : 0)][i + ((i < gw) ? 0 : 1)];
+                if (VREG_TYPE != vproc_pkg::VREG_ASIC) begin
+                    for (int i = 0; i < PORT_WR_CNT - 1; i++) begin
+                        wr_data = wr_data ^ rd_data[PORT_RD_CNT + gw - ((i < gw) ? 1 : 0)][i + ((i < gw) ? 0 : 1)];
                     end
                 end
             end
 
-            case (RAM_TYPE)
+            case (VREG_TYPE)
 
-                vproc_pkg::RAM_GENERIC: begin
-                    for (genvar gr = 0; gr < PORTS_RD_TOTAL; gr++) begin
+                vproc_pkg::VREG_GENERIC: begin
+                    for (genvar gr = 0; gr < PORT_RD_CNT_TOTAL; gr++) begin
                         logic [VREG_W-1:0] ram[32];
                         always_ff @(posedge clk_i) begin
-                            for (int i = 0; i < PORT_W / 8; i++) begin
+                            for (int i = 0; i < MAX_PORT_W / 8; i++) begin
                                 if (wr_we_i[gw] & wr_be_i[gw][i]) begin
                                     ram[wr_addr_i[gw]][i*8 +: 8] <= wr_data[i*8 +: 8];
                                 end
@@ -112,13 +115,13 @@ module vproc_vregfile #(
                     end
                 end
 
-                vproc_pkg::RAM_XLNX_RAM32M: begin
+                vproc_pkg::VREG_XLNX_RAM32M: begin
                     // use Xilinx's 2-bit wide by 32-deep RAM32M primitive with
                     // one write port and three independent read ports
-                    for (genvar gr = 0; gr < (PORTS_RD_TOTAL + 2) / 3; gr++) begin
-                        for (genvar gm = 0; gm < PORT_W / 2; gm++) begin
-                            logic [4+$clog2(VREG_W/PORT_W):0] rd_addr_0, rd_addr_1, rd_addr_2;
-                            logic [                      1:0] rd_data_0, rd_data_1, rd_data_2;
+                    for (genvar gr = 0; gr < (PORT_RD_CNT_TOTAL + 2) / 3; gr++) begin
+                        for (genvar gm = 0; gm < MAX_PORT_W / 2; gm++) begin
+                            logic [MAX_ADDR_W-1:0] rd_addr_0, rd_addr_1, rd_addr_2;
+                            logic [           1:0] rd_data_0, rd_data_1, rd_data_2;
                             RAM32M xlnx_ram32m_inst (
                                 .DOA    ( rd_data_0                       ),
                                 .DOB    ( rd_data_1                       ),
@@ -137,13 +140,13 @@ module vproc_vregfile #(
                             );
                             assign rd_addr_0                    = rd_addr[gr*3][gw];
                             assign rd_data[gr*3][gw][2*gm +: 2] = rd_data_0;
-                            if (gr*3+1 < PORTS_RD_TOTAL) begin
+                            if (gr*3+1 < PORT_RD_CNT_TOTAL) begin
                                 assign rd_addr_1                      = rd_addr[gr*3+1][gw];
                                 assign rd_data[gr*3+1][gw][2*gm +: 2] = rd_data_1;
                             end else begin
                                 assign rd_addr_1                      = '0;
                             end
-                            if (gr*3+2 < PORTS_RD_TOTAL) begin
+                            if (gr*3+2 < PORT_RD_CNT_TOTAL) begin
                                 assign rd_addr_2                      = rd_addr[gr*3+2][gw];
                                 assign rd_data[gr*3+2][gw][2*gm +: 2] = rd_data_2;
                             end else begin
@@ -153,10 +156,10 @@ module vproc_vregfile #(
                     end
                 end
 
-                vproc_pkg::RAM_ASIC: begin
-                    for (genvar gr = 0; gr < PORTS_RD_TOTAL; gr++) begin
+                vproc_pkg::VREG_ASIC: begin
+                    for (genvar gr = 0; gr < PORT_RD_CNT_TOTAL; gr++) begin
                         always_ff @(posedge clk_i) begin
-                            for (int i = 0; i < PORT_W / 8; i++) begin
+                            for (int i = 0; i < MAX_PORT_W / 8; i++) begin
                                 if (wr_we_i[gw] & wr_be_i[gw][i]) begin
                                     ram_asic[wr_addr_i[gw]][i*8 +: 8] <= wr_data[i*8 +: 8];
                                 end
@@ -174,10 +177,10 @@ module vproc_vregfile #(
 
     // compose read data
     always_comb begin
-        for (int i = 0; i < PORTS_RD; i++) begin
+        for (int i = 0; i < PORT_RD_CNT; i++) begin
             rd_data_o[i] = rd_data[i][0];
-            for (int j = 1; j < PORTS_WR; j++) begin
-                if (RAM_TYPE != vproc_pkg::RAM_ASIC) begin
+            for (int j = 1; j < PORT_WR_CNT; j++) begin
+                if (VREG_TYPE != vproc_pkg::VREG_ASIC) begin
                     rd_data_o[i] = rd_data_o[i] ^ rd_data[i][j];
                 end else begin
                     rd_data_o[i] = ram_asic[rd_addr_i[i]];

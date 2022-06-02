@@ -72,8 +72,9 @@ contains utilities for generating programs that can be executed on Vicuna.
 
 The [`sim/`](https://github.com/vproc/vicuna/tree/main/sim) subdirectory
 contains scripts for simulating Vicuna with either
-[Verilator](https://www.veripool.org/verilator/) or xsim (the default simulator
-in [Vivado](https://www.xilinx.com/products/design-tools/vivado.html)).
+[Verilator](https://www.veripool.org/verilator/), xsim (the default simulator
+in [Vivado](https://www.xilinx.com/products/design-tools/vivado.html)), or
+Questasim.  For Verilator, version 4.210 or newer is required.
 
 
 ### Synthesis

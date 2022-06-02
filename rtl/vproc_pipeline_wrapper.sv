@@ -3,25 +3,34 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_pipeline_wrapper #(
-        parameter int unsigned          VREG_W              = 128,  // width in bits of vector registers
-        parameter int unsigned          CFG_VL_W            = 7,    // width of VL reg in bits (= log2(VREG_W))
-        parameter int unsigned          XIF_ID_W            = 3,    // width in bits of instruction IDs
-        parameter int unsigned          XIF_ID_CNT          = 8,    // total count of instruction IDs
-        parameter vproc_pkg::op_unit    UNIT                = vproc_pkg::UNIT_ALU,
-        parameter int unsigned          MAX_VPORT_W         = 128,  // max port width
-        parameter int unsigned          MAX_VADDR_W         = 5,    // max addr width
-        parameter int unsigned          VPORT_CNT           = 1,
-        parameter int unsigned          VPORT_W [VPORT_CNT] = '{0},
-        parameter int unsigned          VADDR_W [VPORT_CNT] = '{0},
-        parameter bit [VPORT_CNT-1:0]   VPORT_ADDR_ZERO     = '0,   // set addr to 0
-        parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER        = '0,   // buffer port
-        parameter int unsigned          MAX_OP_W            = 64,   // operand width in bits
-        parameter vproc_pkg::mul_type   MUL_TYPE            = vproc_pkg::MUL_GENERIC,
-        parameter bit                   ADDR_ALIGNED        = 1'b1, // base address is aligned to VMEM_W
-        parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
-        parameter type                  DECODER_DATA_T      = logic,
-        parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
+module vproc_pipeline_wrapper import vproc_pkg::*; #(
+        parameter int unsigned          VREG_W             = 128,  // width in bits of vector registers
+        parameter int unsigned          CFG_VL_W           = 7,    // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned          XIF_ID_W           = 3,    // width in bits of instruction IDs
+        parameter int unsigned          XIF_ID_CNT         = 8,    // total count of instruction IDs
+        parameter bit [UNIT_CNT-1:0]    UNITS              = '0,
+        parameter int unsigned          MAX_VPORT_W        = 128,  // max port width
+        parameter int unsigned          MAX_VADDR_W        = 5,    // max addr width
+        parameter int unsigned          VPORT_CNT          = 1,
+`ifdef VERILATOR
+        // Workaround for Verilator due to https://github.com/verilator/verilator/issues/3433
+        parameter int unsigned          VPORT_OFFSET       = 0,
+        parameter int unsigned          VREGFILE_VPORT_CNT = 1,
+        parameter int unsigned          VREGFILE_VPORT_W[VREGFILE_VPORT_CNT] = '{0},
+        parameter int unsigned          VREGFILE_VADDR_W[VREGFILE_VPORT_CNT] = '{0},
+`else
+        parameter int unsigned          VPORT_W[VPORT_CNT] = '{0},
+        parameter int unsigned          VADDR_W[VPORT_CNT] = '{0},
+`endif
+        parameter bit [VPORT_CNT-1:0]   VPORT_BUFFER       = '0,   // buffer port
+        parameter bit                   VPORT_V0           = '0,   // use dedicated v0 read port
+        parameter int unsigned          MAX_OP_W           = 64,   // operand width in bits
+        parameter int unsigned           VLSU_QUEUE_SZ     = 4,
+        parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0,
+        parameter mul_type               MUL_TYPE          = MUL_GENERIC,
+        parameter int unsigned          MAX_WR_ATTEMPTS    = 1,    // max required vregfile write attempts
+        parameter type                  DECODER_DATA_T     = logic,
+        parameter bit                   DONT_CARE_ZERO     = 1'b0  // initialize don't care values to zero
     )(
         input  logic                    clk_i,
         input  logic                    async_rst_ni,
@@ -44,6 +53,7 @@ module vproc_pipeline_wrapper #(
 
         output logic [VPORT_CNT-1:0][MAX_VADDR_W-1:0] vreg_rd_addr_o,       // vreg read address
         input  logic [VPORT_CNT-1:0][MAX_VPORT_W-1:0] vreg_rd_data_i,       // vreg read data
+        input  logic                [VREG_W     -1:0] vreg_rd_v0_i,         // vreg v0 read data
 
         output logic                    vreg_wr_valid_o,
         input  logic                    vreg_wr_ready_i,
@@ -58,56 +68,125 @@ module vproc_pipeline_wrapper #(
         vproc_xif.coproc_mem_result     xif_memres_if,
 
         output logic                    trans_complete_valid_o,
+        input  logic                    trans_complete_ready_i,
         output logic [XIF_ID_W-1:0]     trans_complete_id_o,
         output logic                    trans_complete_exc_o,
         output logic [5:0]              trans_complete_exccode_o,
 
         output logic                    xreg_valid_o,
+        input  logic                    xreg_ready_i,
         output logic [XIF_ID_W-1:0]     xreg_id_o,
         output logic [4:0]              xreg_addr_o,
         output logic [31:0]             xreg_data_o
     );
 
-    import vproc_pkg::*;
+`ifdef VERILATOR
+    // Workaround for Verilator due to https://github.com/verilator/verilator/issues/3433
+    typedef int unsigned VERILATOR_ARRAY_SLICE_T[VPORT_CNT];
+    function static VERILATOR_ARRAY_SLICE_T VERILATOR_ARRAY_SLICE(int unsigned SRC[VPORT_CNT]);
+        for (int i = 0; i < VPORT_CNT; i++) begin
+            VERILATOR_ARRAY_SLICE[i] = SRC[VPORT_OFFSET + i];
+        end
+    endfunction
+    localparam int unsigned VPORT_W[VPORT_CNT] = VERILATOR_ARRAY_SLICE(VREGFILE_VPORT_W);
+    localparam int unsigned VADDR_W[VPORT_CNT] = VERILATOR_ARRAY_SLICE(VREGFILE_VADDR_W);
+`endif
 
-    localparam int unsigned OP_CNT     = ((UNIT == UNIT_MUL) | (UNIT == UNIT_ELEM)) ? 4 : (
-                                          (UNIT == UNIT_SLD)                        ? 2 : 3);
+    // OPERAND DEFINITIONS
+    // The operand count depends on the units used within a pipeline.  Most units require two
+    // regular operands and a mask.  The SLD unit requires only one regular operand and a mask.
+    // The MUL requires a regular third operand and the ELEM unit requires an operand addressed
+    // by indices loaded by a previous operand.  These operands have following indices (negative
+    // indices must be added to the operand count):
+    //
+    //  | Idx | Type | Address  | Units using it | Comment                                       |
+    //  +-----+------+----------+----------------+-----------------------------------------------+
+    //  |  0  | data | vs2 (vd) |      all       | Only MUL may change address to vd             |
+    //  |  1  | data | vs1 (vd) | all except SLD | Only LSU uses vd as address instead of vs1    |
+    //  |  2  | data |  vd/vs2  |      MUL       | MUL may use either vd or vs2 as address       |
+    //  | -3  | data | dynamic  |     ELEM       | Index-based dynamic address within vreg group |
+    //  | -2  | mask |   vs2    |     ELEM       | Mask operand for some ELEM operations         |
+    //  | -1  | mask |    v0    |      all       | Mask operand for masked operations            |
 
-    // operand widths
-    localparam int unsigned DFLT_OP_W  = (UNIT == UNIT_ELEM) ? 32 : MAX_OP_W;    // default width
-    localparam int unsigned FIRST_OP_W = (UNIT == UNIT_LSU ) ? 32 : DFLT_OP_W;   // first operand
-    localparam int unsigned EXTRA_OP_W = MAX_OP_W;                               // extra operand
-    localparam int unsigned MASK_OP_W  = (UNIT == UNIT_ELEM) ? 1  : DFLT_OP_W/8; // v0 mask width
+    // Operand count:
+    // - default is 3 (indices 0, 1, and -1 from above table, required by almost all units)
+    // - MUL unit additionally requires index 2, raising the operand count to a minimum of 4
+    // - ELEM unit additionally requires indices -3 and -2, hence a minimum of 5 operands
+    // - if MUL and ELEM units are both present in same pipeline, then all 6 operands are required
+    // - in case a pipeline contains only the SLD unit the operand count is 2 (indices 0 and -1)
+    localparam int unsigned OP_CNT        = UNITS[UNIT_MUL] ? (
+                                                UNITS[UNIT_ELEM] ? 6 : 4
+                                            ) : (
+                                                UNITS[UNIT_ELEM] ? 5 : (
+                                                    (UNITS == (UNIT_CNT'(1) << UNIT_SLD)) ? 2 : 3
+                                                )
+                                            );
+
+    // Operand source ports and unpack stages
+    // TODO: figure out a proper way to deal with operands using the alternative counter (which are
+    // fetched out of sync with other operands and thus might collide with operands of a subsequent
+    // or preceeding instr that use the same vreg read port); the operands using the alt counter
+    // should be fetched at the latest possible stage, since the pipeline waits until the alt count
+    // completes its cycle before accepting the next instruction.
+    localparam int unsigned OP0_SRC   = 0;
+    localparam int unsigned OP1_SRC   = (VPORT_CNT >= (UNITS[UNIT_MUL] ? 3 : 2)) ? 1 : 0;
+    localparam int unsigned OP2_SRC   = VPORT_CNT - 1;
+    localparam int unsigned MIN_STAGE = 1; // first possible unpack stage
+    // start by fetching op 0, then op1, except for ELEM unit which needs to fetch op1 first since
+    // that is used as index for dynamic addressing in gather operations
+    localparam int unsigned OP0_STAGE = MIN_STAGE + (UNITS[UNIT_ELEM] ? (
+                                            // delay by an extra cycle to avoid collisions if op0
+                                            // and op1 share their source read port
+                                            ((OP0_SRC == OP1_SRC) & (MAX_OP_W * 2 >= VPORT_W[OP0_SRC])) ? 3 : 2
+                                        ) : 0);
+    localparam int unsigned OP1_STAGE = MIN_STAGE + (UNITS[UNIT_ELEM] ? 0 : 1);
+    // op2 is either fetched simultaneously with last operand being fetched (if using a different
+    // source read port) or one cycle earlier or later (earlier if possible, otherwise later)
+    localparam int unsigned OP2_STAGE = UNITS[UNIT_ELEM] ? (
+                                            (OP2_SRC == OP0_SRC) ? OP0_STAGE - 1 : OP0_STAGE
+                                        ) : (
+                                            (OP2_SRC == OP1_SRC) ? OP1_STAGE + 1 : OP1_STAGE
+                                        );
+
+    // Verify that shared read ports are sufficiently wide
+    if (UNITS[UNIT_MUL] & (OP0_SRC == OP1_SRC) & (OP0_SRC == OP2_SRC) & (MAX_OP_W * 2 >= VPORT_W[OP0_SRC])) begin
+        $fatal(1, "If operands 0, 1, and 2 share the same source read port, then the operand ",
+                  "width must not be larger than one quarter of the read port width (the current ",
+                  "read port width is %d bits, hence the operand width can be at most %d bits; ",
+                  VPORT_W[OP0_SRC], VPORT_W[OP0_SRC] / 4,
+                  "however, the specified operand width is %d bits).", MAX_OP_W);
+    end
+
+    // Number of stages for required for operand unpacking (maximum of operand stages + 1)
+    localparam int unsigned UNPACK_STAGES = 1 + ((OP0_STAGE > OP1_STAGE) ? (
+                                                 (OP0_STAGE > OP2_STAGE) ? OP0_STAGE : OP2_STAGE
+                                            ) : (
+                                                 (OP1_STAGE > OP2_STAGE) ? OP1_STAGE : OP2_STAGE
+                                            ));
 
     // operand flags
-    localparam bit EXTRA_OP_ADDR_OFFSET  = UNIT == UNIT_ELEM;
-    localparam bit SECOND_OP_MASK        = UNIT == UNIT_ELEM;
-    localparam bit FIRST_OP_XREG         = (UNIT == UNIT_MUL) | (UNIT == UNIT_ALU);
-    localparam bit FIRST_OP_NARROW       = (UNIT == UNIT_MUL) | (UNIT == UNIT_ALU) | (UNIT == UNIT_ELEM);
-    localparam bit SECOND_OP_NARROW      = (UNIT == UNIT_MUL) | (UNIT == UNIT_ALU);
-    localparam bit ALL_OP_ELEMWISE       = UNIT == UNIT_ELEM;
-    localparam bit FIRST_OP_ELEMWISE     = UNIT == UNIT_LSU;
-    localparam bit FIRST_OP_HOLD_FLAG    = UNIT == UNIT_ELEM;
-    localparam bit FIRST_OP_ALT_COUNTER  = UNIT == UNIT_SLD;
-    localparam bit FIRST_OP_ALWAYS_VREG  = UNIT == UNIT_SLD;
-    localparam bit SECOND_OP_ALWAYS_VREG = 1'b0; // UNIT == UNIT_SLD;
-    localparam bit EXTRA_OP_ALWAYS_VREG  = 1'b0; // UNIT == UNIT_SLD;
-
-    // number of stages for operand unpacking
-    localparam int unsigned UNPACK_STAGES = (UNIT == UNIT_SLD) ? 2 : ((UNIT == UNIT_ELEM) ? 4 : 3);
+    localparam bit OP_DYN_ADDR_OFFSET     = UNITS[UNIT_ELEM];   // operand with dynamic addr used
+    localparam bit OP_SECOND_MASK         = UNITS[UNIT_ELEM];   // second mask operand used
+    localparam bit OP0_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_ELEM];
+    localparam bit OP1_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU];
+    localparam bit OP1_XREG               = UNITS[UNIT_MUL] | UNITS[UNIT_ALU];
+    localparam bit OP0_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
+    localparam bit OP1_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
+    localparam bit OPMASK_ELEMWISE        = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
+    localparam bit OP0_ALT_COUNTER        = UNITS[UNIT_SLD];
 
     // result count and default width
-    localparam int unsigned RES_CNT   = (UNIT == UNIT_ALU ) ? 2  : 1;
-    localparam int unsigned MAX_RES_W = (UNIT == UNIT_ELEM) ? 32 : MAX_OP_W;
+    localparam int unsigned RES_CNT       = UNITS[UNIT_ALU] ? 2 : 1;
+    localparam int unsigned MAX_RES_W     = MAX_OP_W;
 
     // result flags
-    localparam bit FIRST_RES_ALWAYS_VREG     = (UNIT != UNIT_LSU) & (UNIT != UNIT_ELEM);
-    localparam bit FIRST_RES_NARROW          = UNIT == UNIT_ALU;
-    localparam bit FIRST_RES_ALLOW_ELEMWISE  = UNIT == UNIT_LSU;
-    localparam bit FIRST_RES_ALWAYS_ELEMWISE = UNIT == UNIT_ELEM;
+    localparam bit RES0_ALWAYS_VREG       = ~UNITS[UNIT_LSU] & ~UNITS[UNIT_ALU] & ~UNITS[UNIT_ELEM];
+    localparam bit RES0_NARROW            = UNITS[UNIT_ALU];
+    localparam bit RES0_ALLOW_ELEMWISE    = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
 
-    // other pipeline flags
-    localparam bit MAY_FLUSH = UNIT == UNIT_ELEM;   // the pipeline may require flushing
+    // miscellaneous pipeline config
+    localparam bit FIELD_COUNT_USED       = UNITS[UNIT_LSU];
+    localparam bit FIELD_OP               = UNITS[UNIT_LSU] ? 1 : 0;
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -117,10 +196,12 @@ module vproc_pipeline_wrapper #(
 
     typedef struct packed {
         logic                            count_extra_phase; // start by counting an extra phase
-        logic        [ALT_COUNT_W  -1:0] alt_count_init;    // alternative counter init value
+        logic        [ALT_COUNT_W  -1:0] alt_count_init;    // alternative counter initial value
         count_inc_e                      count_inc;         // counter increment policy
+        logic                      [2:0] field_count_init;  // field counter initial value
         logic                            requires_flush;    // whether the instr requires flushing
         logic        [XIF_ID_W     -1:0] id;
+        op_unit                          unit;
         op_mode                          mode;
         cfg_vsew                         eew;               // effective element width
         cfg_emul                         emul;              // effective MUL factor
@@ -136,37 +217,124 @@ module vproc_pipeline_wrapper #(
         logic                     [4 :0] res_vaddr;
     } state_t;
 
-    logic op_reduction;
+    // identify the unit of the supplied instruction
+    logic unit_lsu, unit_alu, unit_mul, unit_sld, unit_elem;
+    assign unit_lsu  = UNITS[UNIT_LSU ] & (pipe_in_data_i.unit == UNIT_LSU );
+    assign unit_alu  = UNITS[UNIT_ALU ] & (pipe_in_data_i.unit == UNIT_ALU );
+    assign unit_mul  = UNITS[UNIT_MUL ] & (pipe_in_data_i.unit == UNIT_MUL );
+    assign unit_sld  = UNITS[UNIT_SLD ] & (pipe_in_data_i.unit == UNIT_SLD );
+    assign unit_elem = UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM);
+
+    // identify the type of data that vs2 supplies for ELEM instructions
+    logic elem_flush, elem_vs2_data, elem_vs2_mask, elem_vs2_dyn_addr;
     always_comb begin
-        op_reduction = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        elem_flush        = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        elem_vs2_data     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        elem_vs2_mask     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        elem_vs2_dyn_addr = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (pipe_in_data_i.mode.elem.op)
-            ELEM_XMV:       op_reduction = 1'b0;
-            ELEM_VPOPC:     op_reduction = 1'b0;
-            ELEM_VFIRST:    op_reduction = 1'b0;
-            ELEM_VID:       op_reduction = 1'b0;
-            ELEM_VIOTA:     op_reduction = 1'b0;
-            ELEM_VRGATHER:  op_reduction = 1'b0;
-            ELEM_VCOMPRESS: op_reduction = 1'b0;
-            ELEM_FLUSH:     op_reduction = 1'b0;
-            ELEM_VREDSUM:   op_reduction = 1'b1;
-            ELEM_VREDAND:   op_reduction = 1'b1;
-            ELEM_VREDOR:    op_reduction = 1'b1;
-            ELEM_VREDXOR:   op_reduction = 1'b1;
-            ELEM_VREDMINU:  op_reduction = 1'b1;
-            ELEM_VREDMIN:   op_reduction = 1'b1;
-            ELEM_VREDMAXU:  op_reduction = 1'b1;
-            ELEM_VREDMAX:   op_reduction = 1'b1;
+            ELEM_XMV:       begin
+                elem_flush        = 1'b0;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VPOPC:     begin
+                elem_flush        = 1'b0;
+                elem_vs2_data     = 1'b0;
+                elem_vs2_mask     = 1'b1;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VFIRST:    begin
+                elem_flush        = 1'b0;
+                elem_vs2_data     = 1'b0;
+                elem_vs2_mask     = 1'b1;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VID:       begin
+                elem_flush        = 1'b0;
+                elem_vs2_data     = 1'b0;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VIOTA:     begin
+                elem_flush        = 1'b0;
+                elem_vs2_data     = 1'b0;
+                elem_vs2_mask     = 1'b1;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VRGATHER:  begin
+                elem_flush        = 1'b0;
+                elem_vs2_data     = 1'b0;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b1;
+            end
+            ELEM_VCOMPRESS: begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b0;
+                elem_vs2_mask     = 1'b1;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VREDSUM:   begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VREDAND:   begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VREDOR:    begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VREDXOR:   begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VREDMINU:  begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VREDMIN:   begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VREDMAXU:  begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
+            ELEM_VREDMAX:   begin
+                elem_flush        = 1'b1;
+                elem_vs2_data     = 1'b1;
+                elem_vs2_mask     = 1'b0;
+                elem_vs2_dyn_addr = 1'b0;
+            end
             default: ;
         endcase
     end
 
+    // set the initial pipeline state for the incoming instruction
     state_t state_init;
     always_comb begin
         state_init = state_t'('0);
 
-        state_init.count_extra_phase = (UNIT == UNIT_SLD) & (pipe_in_data_i.mode.sld.dir == SLD_DOWN);
+        state_init.count_extra_phase = unit_sld & (pipe_in_data_i.mode.sld.dir == SLD_DOWN);
         state_init.alt_count_init    = '0;
-        if (UNIT == UNIT_SLD) begin
+        if (unit_sld) begin
             state_init.alt_count_init = DONT_CARE_ZERO ? '0 : 'x;
             if (pipe_in_data_i.mode.sld.slide1) begin
                 if (pipe_in_data_i.mode.sld.dir == SLD_UP) begin
@@ -176,7 +344,7 @@ module vproc_pipeline_wrapper #(
                     unique case (pipe_in_data_i.vsew)
                         VSEW_8,
                         VSEW_16: state_init.alt_count_init = '0;
-                        VSEW_32: state_init.alt_count_init = {{ALT_COUNT_W-1{1'b0}}, MAX_OP_W == 32};
+                        VSEW_32: state_init.alt_count_init = (MAX_OP_W == 32) ? '1 : '0;
                         default: ;
                     endcase
                 end else begin
@@ -212,31 +380,41 @@ module vproc_pipeline_wrapper #(
             end
         end
 
-        state_init.count_inc = COUNT_INC_1;
-        //if ((OP_ALLOW_ELEMWISE != '0) | (OP_ALWAYS_ELEMWISE != '0)) begin
-        if ((UNIT == UNIT_LSU) | (UNIT == UNIT_ELEM)) begin
+        state_init.count_inc = COUNT_INC_MAX;
+        if (unit_lsu) begin
             state_init.count_inc = DONT_CARE_ZERO ? count_inc_e'('0) : count_inc_e'('x);
-            unique case ((UNIT == UNIT_LSU) ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew)
+            unique case (pipe_in_data_i.mode.lsu.eew)
+                VSEW_8:  state_init.count_inc = COUNT_INC_1;
+                VSEW_16: state_init.count_inc = COUNT_INC_2;
+                VSEW_32: state_init.count_inc = COUNT_INC_4;
+                default: ;
+            endcase
+            if (pipe_in_data_i.mode.lsu.stride == LSU_UNITSTRIDE) begin
+                state_init.count_inc = COUNT_INC_MAX;
+            end
+        end
+        if (unit_elem) begin
+            state_init.count_inc = DONT_CARE_ZERO ? count_inc_e'('0) : count_inc_e'('x);
+            unique case (pipe_in_data_i.vsew)
                 VSEW_8:  state_init.count_inc = COUNT_INC_1;
                 VSEW_16: state_init.count_inc = COUNT_INC_2;
                 VSEW_32: state_init.count_inc = COUNT_INC_4;
                 default: ;
             endcase
         end
-        if ((UNIT == UNIT_LSU) & (pipe_in_data_i.mode.lsu.stride == LSU_UNITSTRIDE)) begin
-            state_init.count_inc = COUNT_INC_MAX;
-        end
 
-        state_init.requires_flush = (UNIT == UNIT_ELEM) & ((pipe_in_data_i.mode.elem.op == ELEM_VCOMPRESS) | op_reduction);
+        state_init.field_count_init = unit_lsu ? pipe_in_data_i.mode.lsu.nfields : '0;
+        state_init.requires_flush = unit_elem & elem_flush;
         state_init.id             = pipe_in_data_i.id;
+        state_init.unit           = pipe_in_data_i.unit;
         state_init.mode           = pipe_in_data_i.mode;
         state_init.emul           = pipe_in_data_i.emul;
-        state_init.eew            = (UNIT == UNIT_LSU) ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew;
+        state_init.eew            = unit_lsu ? pipe_in_data_i.mode.lsu.eew : pipe_in_data_i.vsew;
         state_init.vxrm           = pipe_in_data_i.vxrm;
         state_init.vl             = pipe_in_data_i.vl;
         state_init.vl_0           = pipe_in_data_i.vl_0;
         state_init.xval           = pipe_in_data_i.rs1.r.xval;
-        if ((UNIT == UNIT_SLD) & ~pipe_in_data_i.mode.sld.slide1) begin
+        if (unit_sld & ~pipe_in_data_i.mode.sld.slide1) begin
             // convert element offset to byte offset for the relevant section of rs1 and negate
             // for down slides
             if (pipe_in_data_i.mode.sld.dir == SLD_UP) begin
@@ -256,58 +434,68 @@ module vproc_pipeline_wrapper #(
             end
         end
 
-        state_init.op_flags[0]        = unpack_flags'('0);
-        state_init.op_flags[1]        = unpack_flags'('0);
-        state_init.op_flags[OP_CNT-2] = unpack_flags'('0);
-        state_init.op_flags[OP_CNT-1] = unpack_flags'('0);
-        if ((UNIT == UNIT_LSU) | (UNIT == UNIT_SLD)) begin
-            state_init.op_flags[0].vreg   = pipe_in_data_i.rs2.vreg;
-            state_init.op_vaddr[0]        = pipe_in_data_i.rs2.r.vaddr;
-            state_init.op_xval [0]        = pipe_in_data_i.rs2.r.xval;
-            state_init.op_flags[1].vreg   = pipe_in_data_i.mode.lsu.store;
-            state_init.op_vaddr[1]        = pipe_in_data_i.rd.addr;
-        end else begin
-            state_init.op_flags[0].vreg   = ((UNIT == UNIT_ELEM) & ((pipe_in_data_i.mode.elem.op == ELEM_XMV) | op_reduction)) | pipe_in_data_i.rs1.vreg;
-            state_init.op_flags[0].narrow = pipe_in_data_i.widenarrow != OP_SINGLEWIDTH;
-            state_init.op_flags[0].sigext = ((UNIT == UNIT_ALU ) & pipe_in_data_i.mode.alu.sigext) |
-                                            ((UNIT == UNIT_MUL ) & pipe_in_data_i.mode.mul.op1_signed) |
-                                            ((UNIT == UNIT_ELEM) & pipe_in_data_i.mode.elem.sigext);
-            //state_init.op_vaddr[0]        = pipe_in_data_i.rs1.r.vaddr;
-            state_init.op_vaddr[0]        = ((UNIT == UNIT_ELEM) &
-                                            ((pipe_in_data_i.mode.elem.op == ELEM_XMV) | op_reduction)) ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rs1.r.vaddr;
-            state_init.op_xval [0]        = pipe_in_data_i.rs1.r.xval;
-            state_init.op_flags[1].vreg   = pipe_in_data_i.rs2.vreg;
-            state_init.op_flags[1].narrow = pipe_in_data_i.widenarrow == OP_WIDENING;
-            state_init.op_flags[1].sigext = ((UNIT == UNIT_ALU) & pipe_in_data_i.mode.alu.sigext) | ((UNIT == UNIT_MUL) & pipe_in_data_i.mode.mul.op2_signed);
-            //state_init.op_vaddr[1]        = pipe_in_data_i.rs2.r.vaddr;
-            state_init.op_vaddr[1]        = ((UNIT == UNIT_ELEM) & op_reduction) ? pipe_in_data_i.rs1.r.vaddr : pipe_in_data_i.rs2.r.vaddr;
-            if (UNIT == UNIT_MUL) begin
-                state_init.op_vaddr[1]             = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rd.addr : pipe_in_data_i.rs2.r.vaddr;
-                state_init.op_flags[OP_CNT-2].vreg = pipe_in_data_i.mode.mul.op == MUL_VMACC;
-                state_init.op_vaddr[OP_CNT-2]      = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rd.addr;
-            end
-            if (UNIT == UNIT_ELEM) begin
-                state_init.op_flags[1].vreg        = (((UNIT == UNIT_ELEM) & op_reduction) | pipe_in_data_i.rs2.vreg) & (pipe_in_data_i.mode.elem.op != ELEM_VRGATHER);
-                state_init.op_flags[OP_CNT-2].vreg = pipe_in_data_i.mode.elem.op == ELEM_VRGATHER;
-                state_init.op_vaddr[OP_CNT-2]      = pipe_in_data_i.rs2.r.vaddr;
-            end
+        for (int i = 0; i < OP_CNT; i++) begin
+            state_init.op_flags[i]    = unpack_flags'('0);
         end
-        unique case (UNIT)
-            UNIT_LSU:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.lsu.masked;
-            UNIT_ALU:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.alu.op_mask != ALU_MASK_NONE;
-            UNIT_MUL:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.mul.masked;
-            UNIT_SLD:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.sld.masked;
-            UNIT_ELEM: state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.elem.masked;
+
+        state_init.op_flags[0].vreg   = pipe_in_data_i.rs2.vreg;
+        state_init.op_flags[0].narrow = pipe_in_data_i.widenarrow == OP_WIDENING;
+        state_init.op_vaddr[0]        = pipe_in_data_i.rs2.r.vaddr;
+        state_init.op_xval [0]        = pipe_in_data_i.rs2.r.xval;
+
+        state_init.op_flags[1].vreg   = pipe_in_data_i.rs1.vreg;
+        state_init.op_flags[1].narrow = pipe_in_data_i.widenarrow != OP_SINGLEWIDTH;
+        state_init.op_vaddr[1]        = pipe_in_data_i.rs1.r.vaddr;
+        state_init.op_xval [1]        = pipe_in_data_i.rs1.r.xval;
+
+        state_init.op_flags[OP_CNT-1].vreg = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        unique case (1'b1)
+            unit_lsu:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.lsu.masked;
+            unit_alu:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.alu.op_mask != ALU_MASK_NONE;
+            unit_mul:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.mul.masked;
+            unit_sld:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.sld.masked;
+            unit_elem: state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.elem.masked;
             default: ;
         endcase
-        state_init.op_flags[OP_CNT-1].elemwise = (UNIT == UNIT_LSU) & (pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE);
 
-        state_init.res_vreg  [0] = (UNIT != UNIT_LSU) | ~pipe_in_data_i.mode.lsu.store;
-        state_init.res_narrow[0] = (UNIT == UNIT_ALU) ? (pipe_in_data_i.widenarrow == OP_NARROWING) : '0;
+        state_init.res_vreg  [0] = 1'b1;
+        state_init.res_narrow[0] = '0;
         state_init.res_vaddr     = pipe_in_data_i.rd.addr;
-        if (UNIT == UNIT_ALU) begin
-            state_init.res_vreg [0        ] = ~pipe_in_data_i.mode.alu.cmp;
-            state_init.res_vreg [RES_CNT-1] =  pipe_in_data_i.mode.alu.cmp;
+
+        if (unit_lsu) begin
+            state_init.op_flags[0       ].elemwise =  pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE;
+            state_init.op_flags[1       ].vreg     =  pipe_in_data_i.mode.lsu.store;
+            state_init.op_flags[1       ].elemwise =  pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE;
+            state_init.op_vaddr[1       ]          =  pipe_in_data_i.rd.addr;
+            state_init.op_flags[OP_CNT-1].elemwise =  pipe_in_data_i.mode.lsu.stride != LSU_UNITSTRIDE;
+            state_init.res_vreg[0       ]          = ~pipe_in_data_i.mode.lsu.store;
+        end
+        if (unit_alu) begin
+            state_init.op_flags  [0        ].sigext =  pipe_in_data_i.mode.alu.sigext;
+            state_init.op_flags  [1        ].sigext =  pipe_in_data_i.mode.alu.sigext;
+            state_init.res_vreg  [0        ]        = ~pipe_in_data_i.mode.alu.cmp;
+            state_init.res_narrow[0        ]        =  pipe_in_data_i.widenarrow == OP_NARROWING;
+            state_init.res_vreg  [RES_CNT-1]        =  pipe_in_data_i.mode.alu.cmp;
+        end
+        if (unit_mul) begin
+            state_init.op_vaddr[0]                          = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rd.addr : pipe_in_data_i.rs2.r.vaddr;
+            state_init.op_flags[0].sigext                   = pipe_in_data_i.mode.mul.op2_signed;
+            state_init.op_flags[1].sigext                   = pipe_in_data_i.mode.mul.op1_signed;
+            state_init.op_flags[(OP_CNT >= 3) ? 2 : 0].vreg = pipe_in_data_i.mode.mul.op == MUL_VMACC;
+            state_init.op_vaddr[(OP_CNT >= 3) ? 2 : 0]      = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rd.addr;
+        end
+        if (unit_elem) begin
+            state_init.op_flags[0                           ].vreg     = pipe_in_data_i.rs2.vreg & elem_vs2_data;
+            state_init.op_flags[0                           ].elemwise = 1'b1;
+            state_init.op_flags[0                           ].sigext   = pipe_in_data_i.mode.elem.sigext;
+            state_init.op_flags[1                           ].elemwise = 1'b1;
+            state_init.op_flags[1                           ].narrow   = 1'b0; // only op 0 can be narrow
+            state_init.op_flags[(OP_CNT >= 3) ? OP_CNT-3 : 0].vreg     = elem_vs2_dyn_addr;
+            state_init.op_vaddr[(OP_CNT >= 3) ? OP_CNT-3 : 0]          = pipe_in_data_i.rs2.r.vaddr;
+            state_init.op_flags[                OP_CNT-2    ].vreg     = pipe_in_data_i.rs2.vreg & elem_vs2_mask;
+            state_init.op_flags[                OP_CNT-2    ].elemwise = 1'b1;
+            state_init.op_vaddr[                OP_CNT-2    ]          = pipe_in_data_i.rs2.r.vaddr;
+            state_init.op_flags[                OP_CNT-1    ].elemwise = 1'b1;
         end
     end
 
@@ -317,68 +505,63 @@ module vproc_pipeline_wrapper #(
 
     generate
         if (OP_CNT == 2 && RES_CNT == 1) begin
-            localparam int unsigned OP_W           [2] = '{FIRST_OP_W, MASK_OP_W};
-            localparam int unsigned OP_STAGE       [2] = '{1, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [2] = '{0, VPORT_CNT-1};
-            localparam bit [1:0]    OP_ADDR_OFFSET_OP0 = '0;
+            localparam int unsigned OP_W           [2] = '{MAX_OP_W, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [2] = '{OP0_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [2] = '{OP0_SRC  , VPORT_CNT};
+            localparam bit [1:0]    OP_DYN_ADDR        = '0;
             localparam bit [1:0]    OP_MASK            = 2'b10;
-            localparam bit [1:0]    OP_XREG            = FIRST_OP_XREG   ? 2'b01 : '0;
-            localparam bit [1:0]    OP_NARROW          = FIRST_OP_NARROW ? 2'b01 : '0;
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [1:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 2'b10 : '0;
-            localparam bit [1:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {1'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [1:0]    OP_HOLD_FLAG       = FIRST_OP_HOLD_FLAG   ? 2'b01 : '0;
-            localparam bit [1:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 2'b01 : '0;
-            localparam bit [1:0]    OP_ALWAYS_VREG     = FIRST_OP_ALWAYS_VREG ? 2'b01 : '0;
+            localparam bit [1:0]    OP_XREG            = '0;
+            localparam bit [1:0]    OP_NARROW          = {1'b0, OP0_NARROW};
+            localparam bit [1:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [1:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [1:0]    OP_ALT_COUNTER     = {1'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [1] = '{MAX_RES_W};
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
             localparam bit [0:0]    RES_MASK            = '0;
-            localparam bit [0:0]    RES_XREG            = '0;
-            localparam bit [0:0]    RES_NARROW          = FIRST_RES_NARROW;
-            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = FIRST_RES_ALLOW_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_ELEMWISE = FIRST_RES_ALWAYS_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
                 .CFG_VL_W            ( CFG_VL_W            ),
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
-                .UNIT                ( UNIT                ),
+                .UNITS               ( UNITS               ),
                 .MAX_VPORT_W         ( MAX_VPORT_W         ),
                 .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
                 .OP_W                ( OP_W                ),
                 .OP_STAGE            ( OP_STAGE            ),
                 .OP_SRC              ( OP_SRC              ),
-                .OP_ADDR_OFFSET_OP0  ( OP_ADDR_OFFSET_OP0  ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
                 .OP_MASK             ( OP_MASK             ),
                 .OP_XREG             ( OP_XREG             ),
                 .OP_NARROW           ( OP_NARROW           ),
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
-                .OP_HOLD_FLAG        ( OP_HOLD_FLAG        ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -388,68 +571,63 @@ module vproc_pipeline_wrapper #(
             );
         end
         else if (OP_CNT == 3 && RES_CNT == 1) begin
-            localparam int unsigned OP_W           [3] = '{FIRST_OP_W, DFLT_OP_W, MASK_OP_W};
-            localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT-1};
-            localparam bit [2:0]    OP_ADDR_OFFSET_OP0 = '0;
-            localparam bit [2:0]    OP_MASK            = SECOND_OP_MASK ? 3'b110 : 3'b100;
-            localparam bit [2:0]    OP_XREG            = FIRST_OP_XREG  ? 3'b001 : '0;
-            localparam bit [2:0]    OP_NARROW          = {1'b0, SECOND_OP_NARROW, FIRST_OP_NARROW};
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [2:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 3'b110 : '0;
-            localparam bit [2:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {2'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [2:0]    OP_HOLD_FLAG       = FIRST_OP_HOLD_FLAG   ? 3'b001 : '0;
-            localparam bit [2:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 3'b001 : '0;
-            localparam bit [2:0]    OP_ALWAYS_VREG     = {1'b0, SECOND_OP_ALWAYS_VREG, FIRST_OP_ALWAYS_VREG};
+            localparam int unsigned OP_W           [3] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [3] = '{OP0_STAGE, OP1_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [3] = '{OP0_SRC  , OP1_SRC  , VPORT_CNT};
+            localparam bit [2:0]    OP_DYN_ADDR        = '0;
+            localparam bit [2:0]    OP_MASK            = 3'b100;
+            localparam bit [2:0]    OP_XREG            = {1'b0, OP1_XREG, 1'b0};
+            localparam bit [2:0]    OP_NARROW          = {1'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [2:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [2:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [2:0]    OP_ALT_COUNTER     = {2'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [1] = '{MAX_RES_W};
-            localparam bit [0:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
             localparam bit [0:0]    RES_MASK            = '0;
-            localparam bit [0:0]    RES_XREG            = '0;
-            localparam bit [0:0]    RES_NARROW          = FIRST_RES_NARROW;
-            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = FIRST_RES_ALLOW_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_ELEMWISE = FIRST_RES_ALWAYS_ELEMWISE;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
                 .CFG_VL_W            ( CFG_VL_W            ),
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
-                .UNIT                ( UNIT                ),
+                .UNITS               ( UNITS               ),
                 .MAX_VPORT_W         ( MAX_VPORT_W         ),
                 .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
                 .OP_W                ( OP_W                ),
                 .OP_STAGE            ( OP_STAGE            ),
                 .OP_SRC              ( OP_SRC              ),
-                .OP_ADDR_OFFSET_OP0  ( OP_ADDR_OFFSET_OP0  ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
                 .OP_MASK             ( OP_MASK             ),
                 .OP_XREG             ( OP_XREG             ),
                 .OP_NARROW           ( OP_NARROW           ),
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
-                .OP_HOLD_FLAG        ( OP_HOLD_FLAG        ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -459,68 +637,63 @@ module vproc_pipeline_wrapper #(
             );
         end
         else if (OP_CNT == 3 && RES_CNT == 2) begin
-            localparam int unsigned OP_W           [3] = '{FIRST_OP_W, DFLT_OP_W, MASK_OP_W};
-            localparam int unsigned OP_STAGE       [3] = '{1, 2, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [3] = '{0, 0, VPORT_CNT-1};
-            localparam bit [2:0]    OP_ADDR_OFFSET_OP0 = '0;
-            localparam bit [2:0]    OP_MASK            = SECOND_OP_MASK ? 3'b110 : 3'b100;
-            localparam bit [2:0]    OP_XREG            = FIRST_OP_XREG  ? 3'b001 : '0;
-            localparam bit [2:0]    OP_NARROW          = {1'b0, SECOND_OP_NARROW, FIRST_OP_NARROW};
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [2:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 3'b110 : '0;
-            localparam bit [2:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {2'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [2:0]    OP_HOLD_FLAG       = FIRST_OP_HOLD_FLAG   ? 3'b001 : '0;
-            localparam bit [2:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 3'b001 : '0;
-            localparam bit [2:0]    OP_ALWAYS_VREG     = {1'b0, SECOND_OP_ALWAYS_VREG, FIRST_OP_ALWAYS_VREG};
+            localparam int unsigned OP_W           [3] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [3] = '{OP0_STAGE, OP1_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [3] = '{OP0_SRC  , OP1_SRC  , VPORT_CNT};
+            localparam bit [2:0]    OP_DYN_ADDR        = '0;
+            localparam bit [2:0]    OP_MASK            = 3'b100;
+            localparam bit [2:0]    OP_XREG            = {1'b0, OP1_XREG, 1'b0};
+            localparam bit [2:0]    OP_NARROW          = {1'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [2:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [2:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [2:0]    OP_ALT_COUNTER     = {2'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [2] = '{MAX_RES_W, MAX_RES_W/8};
-            localparam bit [1:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [1:0]    RES_ALWAYS_VREG     = {1'b0, RES0_ALWAYS_VREG};
             localparam bit [1:0]    RES_MASK            = 2'b10;
-            localparam bit [1:0]    RES_XREG            = '0;
-            localparam bit [1:0]    RES_NARROW          = {1'b0, FIRST_RES_NARROW};
-            localparam bit [1:0]    RES_ALLOW_ELEMWISE  = {1'b0, FIRST_RES_ALLOW_ELEMWISE};
-            localparam bit [1:0]    RES_ALWAYS_ELEMWISE = {1'b0, FIRST_RES_ALWAYS_ELEMWISE};
+            localparam bit [1:0]    RES_NARROW          = {1'b0, RES0_NARROW};
+            localparam bit [1:0]    RES_ALLOW_ELEMWISE  = {1'b0, RES0_ALLOW_ELEMWISE};
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
                 .CFG_VL_W            ( CFG_VL_W            ),
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
-                .UNIT                ( UNIT                ),
+                .UNITS               ( UNITS               ),
                 .MAX_VPORT_W         ( MAX_VPORT_W         ),
                 .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
                 .OP_W                ( OP_W                ),
                 .OP_STAGE            ( OP_STAGE            ),
                 .OP_SRC              ( OP_SRC              ),
-                .OP_ADDR_OFFSET_OP0  ( OP_ADDR_OFFSET_OP0  ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
                 .OP_MASK             ( OP_MASK             ),
                 .OP_XREG             ( OP_XREG             ),
                 .OP_NARROW           ( OP_NARROW           ),
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
-                .OP_HOLD_FLAG        ( OP_HOLD_FLAG        ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -530,68 +703,63 @@ module vproc_pipeline_wrapper #(
             );
         end
         else if (OP_CNT == 4 && RES_CNT == 1) begin
-            localparam int unsigned OP_W           [4] = '{FIRST_OP_W, DFLT_OP_W, EXTRA_OP_W, MASK_OP_W};
-            localparam int unsigned OP_STAGE       [4] = '{1, 2, UNPACK_STAGES-1, UNPACK_STAGES-1};
-            localparam int unsigned OP_SRC         [4] = '{0, 0, VPORT_CNT-2, VPORT_CNT-1};
-            localparam bit [3:0]    OP_ADDR_OFFSET_OP0 = EXTRA_OP_ADDR_OFFSET ? 4'b0100 : '0;
-            localparam bit [3:0]    OP_MASK            = SECOND_OP_MASK ? 4'b1010 : 4'b1000;
-            localparam bit [3:0]    OP_XREG            = FIRST_OP_XREG  ? 4'b0001 : '0;
-            localparam bit [3:0]    OP_NARROW          = {2'b0, SECOND_OP_NARROW, FIRST_OP_NARROW};
-            // if the first operand is always element-wise, then all other operands are optionally
-            localparam bit [3:0]    OP_ALLOW_ELEMWISE  = FIRST_OP_ELEMWISE ? 4'b1110 : '0;
-            localparam bit [3:0]    OP_ALWAYS_ELEMWISE = ~ALL_OP_ELEMWISE  ? {3'b0, FIRST_OP_ELEMWISE} : '1;
-            localparam bit [3:0]    OP_HOLD_FLAG       = FIRST_OP_HOLD_FLAG   ? 4'b0001 : '0;
-            localparam bit [3:0]    OP_ALT_COUNTER     = FIRST_OP_ALT_COUNTER ? 4'b0001 : '0;
-            localparam bit [3:0]    OP_ALWAYS_VREG     = {1'b0, EXTRA_OP_ALWAYS_VREG, SECOND_OP_ALWAYS_VREG, FIRST_OP_ALWAYS_VREG};
+            localparam int unsigned OP_W           [4] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [4] = '{OP0_STAGE, OP1_STAGE, OP2_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [4] = '{OP0_SRC  , OP1_SRC  , OP2_SRC  , VPORT_CNT};
+            localparam bit [3:0]    OP_DYN_ADDR        = '0;
+            localparam bit [3:0]    OP_MASK            = 4'b1000;
+            localparam bit [3:0]    OP_XREG            = {2'b0, OP1_XREG, 1'b0};
+            localparam bit [3:0]    OP_NARROW          = {2'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [3:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, 1'b0, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [3:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [3:0]    OP_ALT_COUNTER     = {3'b0, OP0_ALT_COUNTER};
 
             localparam int unsigned RES_W           [1] = '{MAX_RES_W};
-            localparam bit [0:0]    RES_ALWAYS_VREG     = '0;
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
             localparam bit [0:0]    RES_MASK            = '0;
-            localparam bit [0:0]    RES_XREG            = '0;
-            localparam bit [0:0]    RES_NARROW          = FIRST_RES_NARROW;
-            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = FIRST_RES_ALLOW_ELEMWISE;
-            localparam bit [0:0]    RES_ALWAYS_ELEMWISE = FIRST_RES_ALWAYS_ELEMWISE;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
 
             vproc_pipeline #(
                 .VREG_W              ( VREG_W              ),
                 .CFG_VL_W            ( CFG_VL_W            ),
                 .XIF_ID_W            ( XIF_ID_W            ),
                 .XIF_ID_CNT          ( XIF_ID_CNT          ),
-                .UNIT                ( UNIT                ),
+                .UNITS               ( UNITS               ),
                 .MAX_VPORT_W         ( MAX_VPORT_W         ),
                 .MAX_VADDR_W         ( MAX_VADDR_W         ),
                 .VPORT_CNT           ( VPORT_CNT           ),
                 .VPORT_W             ( VPORT_W             ),
                 .VADDR_W             ( VADDR_W             ),
-                .VPORT_ADDR_ZERO     ( VPORT_ADDR_ZERO     ),
                 .VPORT_BUFFER        ( VPORT_BUFFER        ),
                 .MAX_OP_W            ( MAX_OP_W            ),
                 .OP_CNT              ( OP_CNT              ),
                 .OP_W                ( OP_W                ),
                 .OP_STAGE            ( OP_STAGE            ),
                 .OP_SRC              ( OP_SRC              ),
-                .OP_ADDR_OFFSET_OP0  ( OP_ADDR_OFFSET_OP0  ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
                 .OP_MASK             ( OP_MASK             ),
                 .OP_XREG             ( OP_XREG             ),
                 .OP_NARROW           ( OP_NARROW           ),
                 .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
                 .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
-                .OP_HOLD_FLAG        ( OP_HOLD_FLAG        ),
                 .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
-                .OP_ALWAYS_VREG      ( OP_ALWAYS_VREG      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
                 .UNPACK_STAGES       ( UNPACK_STAGES       ),
                 .MAX_RES_W           ( MAX_RES_W           ),
                 .RES_CNT             ( RES_CNT             ),
                 .RES_W               ( RES_W               ),
                 .RES_MASK            ( RES_MASK            ),
-                .RES_XREG            ( RES_XREG            ),
                 .RES_NARROW          ( RES_NARROW          ),
                 .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
-                .RES_ALWAYS_ELEMWISE ( RES_ALWAYS_ELEMWISE ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
                 .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
-                .MAY_FLUSH           ( MAY_FLUSH           ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .ADDR_ALIGNED        ( ADDR_ALIGNED        ),
                 .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
@@ -599,6 +767,340 @@ module vproc_pipeline_wrapper #(
                 .pipe_in_state_i     ( state_init          ),
                 .*
             );
+        end
+        else if (OP_CNT == 4 && RES_CNT == 2) begin
+            localparam int unsigned OP_W           [4] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [4] = '{OP0_STAGE, OP1_STAGE, OP2_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [4] = '{OP0_SRC  , OP1_SRC  , OP2_SRC  , VPORT_CNT};
+            localparam bit [3:0]    OP_DYN_ADDR        = '0;
+            localparam bit [3:0]    OP_MASK            = 4'b1000;
+            localparam bit [3:0]    OP_XREG            = {2'b0, OP1_XREG, 1'b0};
+            localparam bit [3:0]    OP_NARROW          = {2'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [3:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, 1'b0, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [3:0]    OP_ALWAYS_ELEMWISE = '0;
+            localparam bit [3:0]    OP_ALT_COUNTER     = {3'b0, OP0_ALT_COUNTER};
+
+            localparam int unsigned RES_W           [2] = '{MAX_RES_W, MAX_RES_W/8};
+            localparam bit [1:0]    RES_ALWAYS_VREG     = {1'b0, RES0_ALWAYS_VREG};
+            localparam bit [1:0]    RES_MASK            = 2'b10;
+            localparam bit [1:0]    RES_NARROW          = {1'b0, RES0_NARROW};
+            localparam bit [1:0]    RES_ALLOW_ELEMWISE  = {1'b0, RES0_ALLOW_ELEMWISE};
+
+            vproc_pipeline #(
+                .VREG_W              ( VREG_W              ),
+                .CFG_VL_W            ( CFG_VL_W            ),
+                .XIF_ID_W            ( XIF_ID_W            ),
+                .XIF_ID_CNT          ( XIF_ID_CNT          ),
+                .UNITS               ( UNITS               ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
+                .VPORT_CNT           ( VPORT_CNT           ),
+                .VPORT_W             ( VPORT_W             ),
+                .VADDR_W             ( VADDR_W             ),
+                .VPORT_BUFFER        ( VPORT_BUFFER        ),
+                .MAX_OP_W            ( MAX_OP_W            ),
+                .OP_CNT              ( OP_CNT              ),
+                .OP_W                ( OP_W                ),
+                .OP_STAGE            ( OP_STAGE            ),
+                .OP_SRC              ( OP_SRC              ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
+                .OP_MASK             ( OP_MASK             ),
+                .OP_XREG             ( OP_XREG             ),
+                .OP_NARROW           ( OP_NARROW           ),
+                .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
+                .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
+                .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
+                .UNPACK_STAGES       ( UNPACK_STAGES       ),
+                .MAX_RES_W           ( MAX_RES_W           ),
+                .RES_CNT             ( RES_CNT             ),
+                .RES_W               ( RES_W               ),
+                .RES_MASK            ( RES_MASK            ),
+                .RES_NARROW          ( RES_NARROW          ),
+                .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
+                .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
+                .MUL_TYPE            ( MUL_TYPE            ),
+                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
+                .INIT_STATE_T        ( state_t             ),
+                .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
+            ) pipeline (
+                .pipe_in_state_i     ( state_init          ),
+                .*
+            );
+        end
+        else if (OP_CNT == 5 && RES_CNT == 1) begin
+            localparam int unsigned OP_W           [5] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, 1, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [5] = '{OP0_STAGE, OP1_STAGE, OP0_STAGE, OP0_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [5] = '{OP0_SRC  , OP1_SRC  , OP0_SRC  , OP0_SRC  , VPORT_CNT};
+            localparam bit [4:0]    OP_DYN_ADDR        = OP_DYN_ADDR_OFFSET ? 5'b00100 : '0;
+            localparam bit [4:0]    OP_MASK            = OP_SECOND_MASK ? 5'b11000 : 5'b10000;
+            localparam bit [4:0]    OP_XREG            = {3'b0, OP1_XREG, 1'b0};
+            localparam bit [4:0]    OP_NARROW          = {3'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [4:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, 2'b0, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [4:0]    OP_ALWAYS_ELEMWISE = {1'b0, OP_SECOND_MASK, 3'b0};
+            localparam bit [4:0]    OP_ALT_COUNTER     = {4'b0, OP0_ALT_COUNTER};
+
+            localparam int unsigned RES_W           [1] = '{MAX_RES_W};
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
+            localparam bit [0:0]    RES_MASK            = '0;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
+
+            vproc_pipeline #(
+                .VREG_W              ( VREG_W              ),
+                .CFG_VL_W            ( CFG_VL_W            ),
+                .XIF_ID_W            ( XIF_ID_W            ),
+                .XIF_ID_CNT          ( XIF_ID_CNT          ),
+                .UNITS               ( UNITS               ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
+                .VPORT_CNT           ( VPORT_CNT           ),
+                .VPORT_W             ( VPORT_W             ),
+                .VADDR_W             ( VADDR_W             ),
+                .VPORT_BUFFER        ( VPORT_BUFFER        ),
+                .MAX_OP_W            ( MAX_OP_W            ),
+                .OP_CNT              ( OP_CNT              ),
+                .OP_W                ( OP_W                ),
+                .OP_STAGE            ( OP_STAGE            ),
+                .OP_SRC              ( OP_SRC              ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
+                .OP_MASK             ( OP_MASK             ),
+                .OP_XREG             ( OP_XREG             ),
+                .OP_NARROW           ( OP_NARROW           ),
+                .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
+                .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
+                .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
+                .UNPACK_STAGES       ( UNPACK_STAGES       ),
+                .MAX_RES_W           ( MAX_RES_W           ),
+                .RES_CNT             ( RES_CNT             ),
+                .RES_W               ( RES_W               ),
+                .RES_MASK            ( RES_MASK            ),
+                .RES_NARROW          ( RES_NARROW          ),
+                .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
+                .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
+                .MUL_TYPE            ( MUL_TYPE            ),
+                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
+                .INIT_STATE_T        ( state_t             ),
+                .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
+            ) pipeline (
+                .pipe_in_state_i     ( state_init          ),
+                .*
+            );
+        end
+        else if (OP_CNT == 5 && RES_CNT == 2) begin
+            localparam int unsigned OP_W           [5] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, 1, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [5] = '{OP0_STAGE, OP1_STAGE, OP0_STAGE, OP0_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [5] = '{OP0_SRC  , OP1_SRC  , OP0_SRC  , OP0_SRC  , VPORT_CNT};
+            localparam bit [4:0]    OP_DYN_ADDR        = OP_DYN_ADDR_OFFSET ? 5'b00100 : '0;
+            localparam bit [4:0]    OP_MASK            = OP_SECOND_MASK ? 5'b11000 : 5'b10000;
+            localparam bit [4:0]    OP_XREG            = {3'b0, OP1_XREG, 1'b0};
+            localparam bit [4:0]    OP_NARROW          = {3'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [4:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, 2'b0, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [4:0]    OP_ALWAYS_ELEMWISE = {1'b0, OP_SECOND_MASK, 3'b0};
+            localparam bit [4:0]    OP_ALT_COUNTER     = {4'b0, OP0_ALT_COUNTER};
+
+            localparam int unsigned RES_W           [2] = '{MAX_RES_W, MAX_RES_W/8};
+            localparam bit [1:0]    RES_ALWAYS_VREG     = {1'b0, RES0_ALWAYS_VREG};
+            localparam bit [1:0]    RES_MASK            = 2'b10;
+            localparam bit [1:0]    RES_NARROW          = {1'b0, RES0_NARROW};
+            localparam bit [1:0]    RES_ALLOW_ELEMWISE  = {1'b0, RES0_ALLOW_ELEMWISE};
+
+            vproc_pipeline #(
+                .VREG_W              ( VREG_W              ),
+                .CFG_VL_W            ( CFG_VL_W            ),
+                .XIF_ID_W            ( XIF_ID_W            ),
+                .XIF_ID_CNT          ( XIF_ID_CNT          ),
+                .UNITS               ( UNITS               ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
+                .VPORT_CNT           ( VPORT_CNT           ),
+                .VPORT_W             ( VPORT_W             ),
+                .VADDR_W             ( VADDR_W             ),
+                .VPORT_BUFFER        ( VPORT_BUFFER        ),
+                .MAX_OP_W            ( MAX_OP_W            ),
+                .OP_CNT              ( OP_CNT              ),
+                .OP_W                ( OP_W                ),
+                .OP_STAGE            ( OP_STAGE            ),
+                .OP_SRC              ( OP_SRC              ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
+                .OP_MASK             ( OP_MASK             ),
+                .OP_XREG             ( OP_XREG             ),
+                .OP_NARROW           ( OP_NARROW           ),
+                .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
+                .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
+                .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
+                .UNPACK_STAGES       ( UNPACK_STAGES       ),
+                .MAX_RES_W           ( MAX_RES_W           ),
+                .RES_CNT             ( RES_CNT             ),
+                .RES_W               ( RES_W               ),
+                .RES_MASK            ( RES_MASK            ),
+                .RES_NARROW          ( RES_NARROW          ),
+                .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
+                .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
+                .MUL_TYPE            ( MUL_TYPE            ),
+                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
+                .INIT_STATE_T        ( state_t             ),
+                .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
+            ) pipeline (
+                .pipe_in_state_i     ( state_init          ),
+                .*
+            );
+        end
+        else if (OP_CNT == 6 && RES_CNT == 1) begin
+            localparam int unsigned OP_W           [6] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, MAX_OP_W, 1, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [6] = '{OP0_STAGE, OP1_STAGE, OP2_STAGE, OP0_STAGE, OP0_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [6] = '{OP0_SRC  , OP1_SRC  , OP2_SRC  , OP0_SRC  , OP0_SRC  , VPORT_CNT};
+            localparam bit [5:0]    OP_DYN_ADDR        = OP_DYN_ADDR_OFFSET ? 6'b001000 : '0;
+            localparam bit [5:0]    OP_MASK            = OP_SECOND_MASK ? 6'b110000 : 6'b100000;
+            localparam bit [5:0]    OP_XREG            = {4'b0, OP1_XREG, 1'b0};
+            localparam bit [5:0]    OP_NARROW          = {4'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [5:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, 3'b0, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [5:0]    OP_ALWAYS_ELEMWISE = {1'b0, OP_SECOND_MASK, 4'b0};
+            localparam bit [5:0]    OP_ALT_COUNTER     = {5'b0, OP0_ALT_COUNTER};
+
+            localparam int unsigned RES_W           [1] = '{MAX_RES_W};
+            localparam bit [0:0]    RES_ALWAYS_VREG     = RES0_ALWAYS_VREG;
+            localparam bit [0:0]    RES_MASK            = '0;
+            localparam bit [0:0]    RES_NARROW          = RES0_NARROW;
+            localparam bit [0:0]    RES_ALLOW_ELEMWISE  = RES0_ALLOW_ELEMWISE;
+
+            vproc_pipeline #(
+                .VREG_W              ( VREG_W              ),
+                .CFG_VL_W            ( CFG_VL_W            ),
+                .XIF_ID_W            ( XIF_ID_W            ),
+                .XIF_ID_CNT          ( XIF_ID_CNT          ),
+                .UNITS               ( UNITS               ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
+                .VPORT_CNT           ( VPORT_CNT           ),
+                .VPORT_W             ( VPORT_W             ),
+                .VADDR_W             ( VADDR_W             ),
+                .VPORT_BUFFER        ( VPORT_BUFFER        ),
+                .MAX_OP_W            ( MAX_OP_W            ),
+                .OP_CNT              ( OP_CNT              ),
+                .OP_W                ( OP_W                ),
+                .OP_STAGE            ( OP_STAGE            ),
+                .OP_SRC              ( OP_SRC              ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
+                .OP_MASK             ( OP_MASK             ),
+                .OP_XREG             ( OP_XREG             ),
+                .OP_NARROW           ( OP_NARROW           ),
+                .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
+                .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
+                .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
+                .UNPACK_STAGES       ( UNPACK_STAGES       ),
+                .MAX_RES_W           ( MAX_RES_W           ),
+                .RES_CNT             ( RES_CNT             ),
+                .RES_W               ( RES_W               ),
+                .RES_MASK            ( RES_MASK            ),
+                .RES_NARROW          ( RES_NARROW          ),
+                .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
+                .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
+                .MUL_TYPE            ( MUL_TYPE            ),
+                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
+                .INIT_STATE_T        ( state_t             ),
+                .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
+            ) pipeline (
+                .pipe_in_state_i     ( state_init          ),
+                .*
+            );
+        end
+        else if (OP_CNT == 6 && RES_CNT == 2) begin
+            localparam int unsigned OP_W           [6] = '{MAX_OP_W, MAX_OP_W, MAX_OP_W, MAX_OP_W, 1, MAX_OP_W/8};
+            localparam int unsigned OP_STAGE       [6] = '{OP0_STAGE, OP1_STAGE, OP2_STAGE, OP0_STAGE, OP0_STAGE, UNPACK_STAGES-1};
+            localparam int unsigned OP_SRC         [6] = '{OP0_SRC  , OP1_SRC  , OP2_SRC  , OP0_SRC  , OP0_SRC  , VPORT_CNT};
+            localparam bit [5:0]    OP_DYN_ADDR        = OP_DYN_ADDR_OFFSET ? 6'b001000 : '0;
+            localparam bit [5:0]    OP_MASK            = OP_SECOND_MASK ? 6'b110000 : 6'b100000;
+            localparam bit [5:0]    OP_XREG            = {4'b0, OP1_XREG, 1'b0};
+            localparam bit [5:0]    OP_NARROW          = {4'b0, OP1_NARROW, OP0_NARROW};
+            localparam bit [5:0]    OP_ALLOW_ELEMWISE  = {OPMASK_ELEMWISE, 3'b0, OP1_ELEMWISE, OP0_ELEMWISE};
+            localparam bit [5:0]    OP_ALWAYS_ELEMWISE = {1'b0, OP_SECOND_MASK, 4'b0};
+            localparam bit [5:0]    OP_ALT_COUNTER     = {5'b0, OP0_ALT_COUNTER};
+
+            localparam int unsigned RES_W           [2] = '{MAX_RES_W, MAX_RES_W/8};
+            localparam bit [1:0]    RES_ALWAYS_VREG     = {1'b0, RES0_ALWAYS_VREG};
+            localparam bit [1:0]    RES_MASK            = 2'b10;
+            localparam bit [1:0]    RES_NARROW          = {1'b0, RES0_NARROW};
+            localparam bit [1:0]    RES_ALLOW_ELEMWISE  = {1'b0, RES0_ALLOW_ELEMWISE};
+
+            vproc_pipeline #(
+                .VREG_W              ( VREG_W              ),
+                .CFG_VL_W            ( CFG_VL_W            ),
+                .XIF_ID_W            ( XIF_ID_W            ),
+                .XIF_ID_CNT          ( XIF_ID_CNT          ),
+                .UNITS               ( UNITS               ),
+                .MAX_VPORT_W         ( MAX_VPORT_W         ),
+                .MAX_VADDR_W         ( MAX_VADDR_W         ),
+                .VPORT_CNT           ( VPORT_CNT           ),
+                .VPORT_W             ( VPORT_W             ),
+                .VADDR_W             ( VADDR_W             ),
+                .VPORT_BUFFER        ( VPORT_BUFFER        ),
+                .MAX_OP_W            ( MAX_OP_W            ),
+                .OP_CNT              ( OP_CNT              ),
+                .OP_W                ( OP_W                ),
+                .OP_STAGE            ( OP_STAGE            ),
+                .OP_SRC              ( OP_SRC              ),
+                .OP_DYN_ADDR_SRC     ( 1                   ),
+                .OP_DYN_ADDR         ( OP_DYN_ADDR         ),
+                .OP_MASK             ( OP_MASK             ),
+                .OP_XREG             ( OP_XREG             ),
+                .OP_NARROW           ( OP_NARROW           ),
+                .OP_ALLOW_ELEMWISE   ( OP_ALLOW_ELEMWISE   ),
+                .OP_ALWAYS_ELEMWISE  ( OP_ALWAYS_ELEMWISE  ),
+                .OP_ALT_COUNTER      ( OP_ALT_COUNTER      ),
+                .OP_ALWAYS_VREG      ( '0                  ),
+                .UNPACK_STAGES       ( UNPACK_STAGES       ),
+                .MAX_RES_W           ( MAX_RES_W           ),
+                .RES_CNT             ( RES_CNT             ),
+                .RES_W               ( RES_W               ),
+                .RES_MASK            ( RES_MASK            ),
+                .RES_NARROW          ( RES_NARROW          ),
+                .RES_ALLOW_ELEMWISE  ( RES_ALLOW_ELEMWISE  ),
+                .RES_ALWAYS_ELEMWISE ( '0                  ),
+                .RES_ALWAYS_VREG     ( RES_ALWAYS_VREG     ),
+                .FIELD_COUNT_USED    ( FIELD_COUNT_USED    ),
+                .FIELD_OP            ( FIELD_OP            ),
+                .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
+                .VLSU_FLAGS          ( VLSU_FLAGS          ),
+                .MUL_TYPE            ( MUL_TYPE            ),
+                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
+                .INIT_STATE_T        ( state_t             ),
+                .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
+            ) pipeline (
+                .pipe_in_state_i     ( state_init          ),
+                .*
+            );
+        end
+        else begin
+            $fatal(1, "A pipeline with %d operands and %d results is not supported.",
+                   OP_CNT, RES_CNT);
         end
     endgenerate
 
