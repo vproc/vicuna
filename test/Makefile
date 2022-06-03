@@ -35,7 +35,7 @@ all: $(TESTS_ALL)
 
 # TODO find ways to check that:
 # - all parameters are initialized
-lint: lint-verible
+lint: lint-verible lint-verilator
 
 # Verible Linting Rules
 # change rule parameters
@@ -55,9 +55,11 @@ lint-verible:
 	    `ls $(TEST_DIR)/../rtl/*.sv | grep -v vproc_pkg.sv`
 
 lint-verilator:
+	config_file=`mktemp -d | awk '{print $$1"/vproc_config.sv"}'`;            \
+	make -f $(TEST_DIR)/../config.mk "VPROC_CONFIG_PKG=$${config_file}";      \
 	verilator -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSED -Wno-UNDRIVEN            \
 	    -Wno-UNSIGNED -Wno-DECLFILENAME -Wno-USERFATAL -Wno-SYNCASYNCNET      \
-	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv vproc_config.sv vproc_top.sv  \
+	    -I$(TEST_DIR)/../rtl/ --cc vproc_pkg.sv $${config_file} vproc_top.sv  \
 	    vproc_xif.sv vproc_core.sv vproc_vregpack.sv vproc_vregunpack.sv      \
 	    --top-module vproc_top --clk clk_i --lint-only
 

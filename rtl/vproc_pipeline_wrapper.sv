@@ -186,7 +186,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
 
     // miscellaneous pipeline config
     localparam bit FIELD_COUNT_USED       = UNITS[UNIT_LSU];
-    localparam bit FIELD_OP               = UNITS[UNIT_LSU] ? 1 : 0;
+    localparam int unsigned FIELD_OP      = UNITS[UNIT_LSU] ? 1 : 0;
 
 
     ///////////////////////////////////////////////////////////////////////////
