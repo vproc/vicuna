@@ -100,7 +100,7 @@ $(VPROC_CONFIG_PKG):
 	        fi;                                                                                   \
 	        vport_wr=$$(($$vport_wr + 1));                                                        \
 	    done;                                                                                     \
-	    if [ "$$pipe_units" == "" ]; then                                                         \
+	    if [ -z "$$pipe_units" ]; then                                                            \
 	        pipe_units="$${unit_mask}";                                                           \
 	        pipe_widths="$${width}";                                                              \
 	        pipe_vport_cnt="$${vport_cnt}";                                                       \
@@ -114,7 +114,7 @@ $(VPROC_CONFIG_PKG):
 	        pipe_vport_wr="$${pipe_vport_wr}, $${vport_wr}";                                      \
 	    fi;                                                                                       \
 	    vport_rd_cnt=$$(($$vport_rd_cnt + $$vport_cnt));                                          \
-	    if [ "$$vport_wr" == `echo $${vport_wr_capacities} | wc -w` ]; then                       \
+	    if [ "$$vport_wr" = `echo $${vport_wr_capacities} | wc -w` ]; then                        \
 	        vport_wr_capacities="$${vport_wr_capacities} $${remaining_cap}";                      \
 	    else                                                                                      \
 	        awk_word_idx=$$(($$vport_wr + 1));                                                    \

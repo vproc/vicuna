@@ -89,7 +89,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	done;                                                                     \
 	retval=0;                                                                 \
 	while IFS= read -ra line; do                                              \
-	    if [ -z "$$line" ] || [ "$${line:0:1}" == "#" ]; then                 \
+	    if [ -z "$$line" ] || [ "$${line:0:1}" = "#" ]; then                  \
 	        continue;                                                         \
 	    fi;                                                                   \
 	    printf "\033[0;34m[CONF]\033[0;0m $@ $$line\n";                       \
@@ -98,7 +98,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) PROJ_DIR=$$sim_dir   \
 	        $$line PROG_PATHS_LIST=progs.txt CORE_DIR=$(CORE_DIR) ENABLE_SVA=1\
 	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" >sim.log 2>&1;     \
-	    if [ "$$?" != "0" ]; then                                             \
+	    if [ $$? -ne 0 ]; then                                                \
 	        printf "\033[0;31m[FAIL]\033[0;0m $@ simulation error; ";         \
 	        printf "last 10 lines of log file $@/sim.log:\n";                 \
 	        tail -n 10 sim.log;                                               \
@@ -126,7 +126,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    t_end=();                                                             \
 	    expected=0;                                                           \
 	    while IFS= read -r t_reset; do                                        \
-	        if [ $$expected != 0 ] && [ $$expected != $$t_reset ]; then     \
+	        if [ $$expected != 0 ] && [ $$expected != $$t_reset ]; then       \
 	            t_start+=($$expected);                                        \
 	            t_end+=($$t_reset);                                           \
 	        fi;                                                               \
@@ -144,7 +144,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        memref="$${memi%.*}.ref.vmem";                                    \
 	        memo="$${memi%.*}.dump.vmem";                                     \
 	        memdiff=`diff -u $$memref $$memo`;                                \
-	        if [ "$$?" != "0" ]; then                                         \
+	        if [ $$? -ne 0 ]; then                                            \
 	            printf '\033[0;31m[FAIL]\033[0;0m %-30s %s\n' $@/$$prog_name  \
 	                "$$perf_info";                                            \
 	            echo "incorrect memory content; diff:";                       \
@@ -156,10 +156,10 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        fi;                                                               \
 	        idx=$$(($$idx + 1));                                              \
 	    done;                                                                 \
-	    if [ "$(SIMULATOR)" == "vivado" ]; then                               \
+	    if [ "$(SIMULATOR)" = "vivado" ]; then                                \
 	        xpr_path="$${sim_dir}/vproc_sim/vproc_sim.xpr";                   \
 	        echo "[INFO] View waveform with: $$ vivado $${xpr_path}";         \
-	    elif [ "$(SIMULATOR)" == "questa" ]; then                             \
+	    elif [ "$(SIMULATOR)" = "questa" ]; then                              \
 	        wlf_path="$${sim_dir}/vsim.wlf";                                  \
 	        echo "[INFO] View waveform with: $$ vsim -view $${wlf_path}";     \
 	    fi;                                                                   \
@@ -174,7 +174,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	log="$${prog}_build.log";                                                 \
 	make -f $(TEST_DIR)/../sw/Makefile PROG=$$prog OBJ="$$obj"                \
 	COMPILER=$(COMPILER) >$$log 2>&1;                                         \
-	if [ "$$?" != "0" ]; then                                                 \
+	if [ $$? -ne 0 ]; then                                                    \
 	    printf "\033[0;31m[FAIL]\033[0;0m $@ build error; log file $$log:\n"; \
 	    cat $$log;                                                            \
 	    exit 1;                                                               \
