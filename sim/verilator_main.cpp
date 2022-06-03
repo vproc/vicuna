@@ -170,21 +170,40 @@ int main(int argc, char **argv) {
             int end_cnt = 0;
             while (end_cnt < extra_cycles) {
                 // read memory request
-                bool valid =  top->mem_addr_o < mem_sz;
-                int  addr  = (top->mem_addr_o % mem_sz) & ~(mem_w/8-1);
-                if (top->mem_req_o && top->mem_we_o && valid) {
-                    for (i = 0; i < mem_w / 8; i++) {
-                        if ((top->mem_be_o & (1<<i))) {
-                            mem[addr+i] = top->mem_wdata_o >> (i*8);
+                bool     valid = top->mem_addr_o < mem_sz;
+                unsigned addr  = top->mem_addr_o & ~(mem_w/8-1);
+                mem_rdata_queue[0] = 0;
+                if (valid) {
+                    // write/read memory content if the address is in the valid range
+                    if (top->mem_req_o && top->mem_we_o) {
+                        for (i = 0; i < mem_w / 8; i++) {
+                            if ((top->mem_be_o & (1<<i))) {
+                                mem[addr+i] = top->mem_wdata_o >> (i*8);
+                            }
                         }
+                    }
+                    for (i = 0; i < mem_w / 8; i++) {
+                        mem_rdata_queue[0] |= ((int64_t)mem[addr+i]) << (i*8);
+                    }
+                }
+                else if (top->mem_req_o) {
+                    // test for memory-mapped registers in case of a request for an invalid addr
+                    switch (addr) {
+                        case 0xFF000000u: // UART data register
+                            valid              = true;
+                            mem_rdata_queue[0] = -1;   // always reads as -1, i.e. no data received
+                            if (top->mem_we_o) {
+                                putc(top->mem_wdata_o & 0xFF, stdout);
+                            }
+                            break;
+                        case 0xFF000004u: // UART status register
+                            valid              = true;
+                            mem_rdata_queue[0] = 0;    // always ready to transmit
+                            break;
                     }
                 }
                 mem_rvalid_queue[0] = top->mem_req_o;
                 mem_err_queue   [0] = !valid;
-                mem_rdata_queue [0] = 0;
-                for (i = 0; i < mem_w / 8; i++) {
-                    mem_rdata_queue[0] |= ((int64_t)mem[addr+i]) << (i*8);
-                }
 
                 // rising clock edge
                 top->clk_i = 1;
