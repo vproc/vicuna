@@ -20,7 +20,7 @@ jobs:
         if: steps.cache-verilator.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install git perl python3 make autoconf g++ flex bison ccache libgoogle-perftools-dev numactl perl-doc libfl2 libfl-dev zlib1g zlib1g-dev
+          sudo apt-get install git perl python3 g++ flex bison ccache libfl2 libfl-dev zlib1g zlib1g-dev
           git clone https://github.com/verilator/verilator
           unset VERILATOR_ROOT
           cd verilator
@@ -48,9 +48,13 @@ jobs:
           path: /opt/verilator
           key: ubuntu-22_04-verilator-4_210
 
-      - name: Install verible and lint
+      - name: Install packages
         run: |
           sudo apt-get update
+          sudo apt-get install git perl python3 g++ ccache libfl2 libfl-dev zlib1g zlib1g-dev
+
+      - name: Install verible and lint
+        run: |
           curl -sSL https://api.github.com/repos/chipsalliance/verible/releases/latest | grep browser_download_url | grep Ubuntu-20.04 | cut -d '"' -f 4 | wget -qi -
           mkdir verible
           tar -xf verible*.tar.gz -C verible --strip-components=1
@@ -84,6 +88,7 @@ jobs:
       - name: Install packages
         run: |
           sudo apt-get update
+          sudo apt-get install git perl python3 g++ ccache libfl2 libfl-dev zlib1g zlib1g-dev
           sudo apt-get install srecord g++ ccache llvm-toolchain-14
 
       - name: Run tests
