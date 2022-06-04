@@ -93,7 +93,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install git perl python3 g++ ccache libfl2 libfl-dev zlib1g zlib1g-dev
-          sudo apt-get install srecord g++ ccache llvm-toolchain-14
+          sudo apt-get install srecord llvm-14 clang-14
 
       - name: Run tests
         run: |
