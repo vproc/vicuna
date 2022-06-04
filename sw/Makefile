@@ -8,7 +8,7 @@
 
 SW_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-COMPILER ?= gcc
+COMPILER ?= llvm
 ifeq ($(COMPILER),gcc)
     RISCV_CC            := riscv32-unknown-elf-gcc
     RISCV_DUMP          := riscv32-unknown-elf-objdump
@@ -16,7 +16,18 @@ ifeq ($(COMPILER),gcc)
     ARCH                := rv32imv
     LD_SCRIPT           := $(SW_DIR)/link.ld
 else ifeq ($(COMPILER),llvm)
-    RISCV_CC            := clang
+    # Pick the first clang executable in $PATH with version >= 14, or the
+    # default clang if there is no clang >= 14; the individual steps are:
+    #  - find all files containing 'clang*' in all directories in $PATH
+    #  - use sed to select all those that match 'clang-[0-9]+'
+    #  - use awk to select all those that end with a number >= 14
+    #  - append 'clang' to that list in case there is no clang >= 14
+    #  - select the first executable from that list
+    RISCV_CC            := $(shell find `echo $$PATH | sed 's/:/ /g'`         \
+                             -maxdepth 1 -name 'clang*' |                     \
+                             sed -n '/clang-[0-9][0-9]*$$/p' |                \
+                             awk -F"-" '$$NF>=14' | (cat && echo clang) |     \
+                             head -n 1) --target=riscv32
     RISCV_DUMP          := llvm-objdump
     RISCV_OBCP          := llvm-objcopy
     ARCH                := rv32imzve32x
