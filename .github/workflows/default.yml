@@ -48,6 +48,10 @@ jobs:
           path: /opt/verilator
           key: ubuntu-22_04-verilator-4_210
 
+      - name: Abort if no cache
+        if: steps.cache-verilator.outputs.cache-hit != 'true'
+        run: exit 1
+
       - name: Install packages
         run: |
           sudo apt-get update
@@ -82,7 +86,7 @@ jobs:
           key: ubuntu-22_04-verilator-4_210
 
       - name: Abort if no cache
-        if: steps.cache-riscv-gcc.outputs.cache-hit != 'true'
+        if: steps.cache-verilator.outputs.cache-hit != 'true'
         run: exit 1
 
       - name: Install packages
