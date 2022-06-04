@@ -94,6 +94,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install git perl python3 g++ ccache libfl2 libfl-dev zlib1g zlib1g-dev
           sudo apt-get install srecord llvm-14 clang-14
+          sudo ln -sf /usr/bin/llvm-objdump-14 /usr/bin/llvm-objdump
+          sudo ln -sf /usr/bin/llvm-objcopy-14 /usr/bin/llvm-objcopy
 
       - name: Run tests
         run: |
