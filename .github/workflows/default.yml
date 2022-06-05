@@ -101,18 +101,22 @@ jobs:
         run: |
           export PATH=$PATH:/opt/verilator/bin:/opt/riscv-gcc/bin
           verilator --version
+          retval=0
           while IFS= read -ra line; do
             if [ -z "$line" ] || [ "${line:0:1}" = "#" ]; then
               continue
             fi
             echo "$line" > test/${{ matrix.unit }}/test_configs.conf
             vcd=`echo "trace_${line}.vcd" | sed 's/  */_/g ; s/=/-/g'`
-            echo "vcd file: ${vcd}"
             make -C test ${{ matrix.unit }} CORE=${{ matrix.main_core }} TRACE_VCD=$vcd
+            if [ $$? -ne 0 ]; then
+              retval=1
+            fi
           done < .github/test_configs.conf
-          ls -l test/${{ matrix.unit }}/
+          exit $retval
 
       - name: Archive VCD trace files
+        if: failed()
         uses: actions/upload-artifact@v3
         with:
           name: vcd-trace-files
