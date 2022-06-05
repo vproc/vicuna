@@ -21,6 +21,9 @@ typedef int VerilatedTrace_t;
 #endif
 #endif
 
+// Simulation is aborted if mem_req_o has not changed for the following number of cycles
+#define ABORT_CYCLES    100000
+
 static void log_cycle(Vvproc_top *top, VerilatedTrace_t *tfp, FILE *fcsv);
 
 int main(int argc, char **argv) {
@@ -167,8 +170,9 @@ int main(int argc, char **argv) {
             top->rst_ni = 1;
             top->eval();
 
-            int end_cnt = 0;
-            while (end_cnt < extra_cycles) {
+            int end_cnt    = 0, // count number of cycles after address 0 was requested
+                abort_cnt  = 0; // count number of cycles since mem_req_o last toggled
+            while (end_cnt < extra_cycles && abort_cnt < ABORT_CYCLES) {
                 // read memory request
                 bool     valid = top->mem_addr_o < mem_sz;
                 unsigned addr  = top->mem_addr_o & ~(mem_w/8-1);
@@ -205,6 +209,8 @@ int main(int argc, char **argv) {
                 mem_rvalid_queue[0] = top->mem_req_o;
                 mem_err_queue   [0] = !valid;
 
+                int mem_req_o_tmp = top->mem_req_o;
+
                 // rising clock edge
                 top->clk_i = 1;
                 top->eval();
@@ -230,6 +236,7 @@ int main(int argc, char **argv) {
                 if (end_cnt > 0 || (top->mem_req_o == 1 && top->mem_addr_o == 0)) {
                     end_cnt++;
                 }
+                abort_cnt = (top->mem_req_o == mem_req_o_tmp) ? abort_cnt + 1 : 0;
             }
         }
 
