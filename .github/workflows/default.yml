@@ -116,7 +116,7 @@ jobs:
           exit $retval
 
       - name: Archive VCD trace files
-        if: failed()
+        if: failure()
         uses: actions/upload-artifact@v3
         with:
           name: vcd-trace-files
