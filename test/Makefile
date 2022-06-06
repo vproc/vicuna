@@ -97,10 +97,16 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" >sim.log 2>&1;     \
 	    if [ $$? -ne 0 ]; then                                                \
 	        printf "\033[0;31m[FAIL]\033[0;0m $@ simulation error; ";         \
-	        printf "last 10 lines of log file $@/sim.log:\n";                 \
-	        tail -n 10 sim.log;                                               \
-	        echo "";                                                          \
-	        echo "[INFO] View full log with: $$ less $(abspath $@/sim.log)";  \
+	        if [ -z "$(FULL_LOG)" ] || [ "$(FULL_LOG)" = "0" ]; then          \
+	            printf "last 10 lines of log file $@/sim.log:\n";             \
+	            tail -n 10 sim.log;                                           \
+	            echo "";                                                      \
+	            echo "[INFO] View full log with:"                             \
+	                 "$$ less $(abspath $@/sim.log)";                         \
+	        else                                                              \
+	            printf "content of log file $@/sim.log:\n";                   \
+	            cat sim.log;                                                  \
+	        fi;                                                               \
 	        exit 1;                                                           \
 	    fi;                                                                   \
 	    pend_vreg_wr_col=`head -n 1 sim_trace.csv | sed 's/;/\n/g' |          \
@@ -123,7 +129,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    t_end=();                                                             \
 	    expected=0;                                                           \
 	    while IFS= read -r t_reset; do                                        \
-	        if [ $$expected != 0 ] && [ $$expected != $$t_reset ]; then       \
+	        if [ $$expected -ne 0 ] && [ $$expected -ne $$t_reset ]; then     \
 	            t_start+=($$expected);                                        \
 	            t_end+=($$t_reset);                                           \
 	        fi;                                                               \
