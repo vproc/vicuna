@@ -1,7 +1,7 @@
 # Simulation directory
 
 The files in this directory allow to simulate the vector processor.  Simulation
-is done with the help of `make`.   The environment variable `PROG_PATHS_LIST`
+is done with the help of `make`.   The environment variable `PROG_PATHS`
 can be used to specify a series of programs that should be executed on the
 simulated vector processor.  Such a list of programs can be a simple text file
 with each line containing the file path of a `*.vmem` file specifying the
