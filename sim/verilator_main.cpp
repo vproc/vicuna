@@ -95,13 +95,24 @@ int main(int argc, char **argv) {
     char *line = NULL, *prog_path = NULL, *ref_path = NULL, *dump_path = NULL;
     size_t line_sz = 0;
     while (getline(&line, &line_sz, fprogs) > 0) {
+        // allocate sufficient storage space for the four paths (length of the
+        // line, or at least 32 bytes)
+        if (line_sz < 32) {
+            line_sz = 32;
+        }
         prog_path = (char *)realloc(prog_path, line_sz);
         ref_path  = (char *)realloc(ref_path,  line_sz);
         dump_path = (char *)realloc(dump_path, line_sz);
+        strcpy(ref_path,  "/dev/null");
+        strcpy(dump_path, "/dev/null");
 
-        int ref_start, ref_end, dump_start, dump_end, items;
+        int ref_start  = 0,
+            ref_end    = 0,
+            dump_start = 0,
+            dump_end   = 0,
+            items;
         items = sscanf(line, "%s %s %x %x %s %x %x", prog_path, ref_path, &ref_start, &ref_end, dump_path, &dump_start, &dump_end);
-        if (items != 7) {
+        if (items == 0 || items == EOF) {
             continue;
         }
 
@@ -109,7 +120,7 @@ int main(int argc, char **argv) {
         {
             FILE *ftmp = fopen(prog_path, "r");
             if (ftmp == NULL) {
-                fprintf(stderr, "ERROR: opening `%s': %s\n", prog_path, strerror(errno));
+                fprintf(stderr, "WARNING: skipping `%s': %s\n", prog_path, strerror(errno));
                 continue;
             }
             memset(mem, 0, mem_sz);

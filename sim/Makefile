@@ -25,8 +25,8 @@ PROJ_DIR     ?= $(PROJ_DIR_TMP)
 # main core directory (Ibex by default)
 CORE_DIR ?= $(SIM_DIR)/../ibex/
 
-# memory files
-PROG_PATHS_LIST ?= progs.csv
+# memory initialization files
+PROG_PATHS ?= progs.txt
 
 # trace file
 TRACE_FILE ?= sim_trace.csv
@@ -60,7 +60,7 @@ verilator-version-check:
 
 verilator: verilator-version-check $(PROJ_DIR)/obj_dir/Vvproc_top.mk
 	make -C $(PROJ_DIR)/obj_dir -f Vvproc_top.mk Vvproc_top;                  \
-	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS_LIST)) $(MEM_W)     \
+	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS)) $(MEM_W)          \
 	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(abspath $(TRACE_FILE)) \
 	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
 
@@ -115,11 +115,11 @@ vivado: $(VPROC_CONFIG_PKG)
 	    VMEM_W=$(VMEM_W)                                                      \
 	    ICACHE_SZ=$(ICACHE_SZ) ICACHE_LINE_W=$(ICACHE_LINE_W)                 \
 	    DCACHE_SZ=$(DCACHE_SZ) DCACHE_LINE_W=$(DCACHE_LINE_W)"                \
-	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS_LIST)) $(TRACE_SIGS)
+	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS)) $(TRACE_SIGS)
 
 questa: $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR) && $(VSIM) -batch -do 'do $(QUESTA_TCL)                    \
 	    $(SIM_DIR).. $(CORE_DIR) $(VPROC_CONFIG_PKG)                          \
 	    "$(VMEM_W) $(MEM_W) $(MEM_SZ) $(MEM_LATENCY)                          \
 	    $(ICACHE_SZ) $(ICACHE_LINE_W) $(DCACHE_SZ) $(DCACHE_LINE_W)"          \
-	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS_LIST)) "$(TRACE_SIGS)"'
+	    $(abspath $(TRACE_FILE)) $(abspath $(PROG_PATHS)) "$(TRACE_SIGS)"'

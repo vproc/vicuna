@@ -112,8 +112,17 @@ module vproc_tb #(
             rst = 1'b1;
 
             $fgets(line, fd1);
+
+            ref_path   = "/dev/null";
+            ref_start  = 0;
+            ref_end    = 0;
+            dump_path  = "/dev/null";
+            dump_start = 0;
+            dump_end   = 0;
             cnt = $sscanf(line, "%s %s %x %x %s %x %x", prog_path, ref_path, ref_start, ref_end, dump_path, dump_start, dump_end);
-            if (cnt != 7) begin
+
+            // continue with next line in case of an empty line (cnt == 0) or an EOF (cnt == -1)
+            if (cnt < 1) begin
                 continue;
             end
 
