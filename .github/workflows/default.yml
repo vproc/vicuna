@@ -98,6 +98,7 @@ jobs:
           sudo ln -sf /usr/bin/llvm-objcopy-14 /usr/bin/llvm-objcopy
 
       - name: Run tests
+        shell: bash {0} # disable fail-fast behavior
         run: |
           export PATH=$PATH:/opt/verilator/bin:/opt/riscv-gcc/bin
           verilator --version
@@ -109,7 +110,7 @@ jobs:
             echo "$line" > test/${{ matrix.unit }}/test_configs.conf
             vcd=`echo "trace_${line}.vcd" | sed 's/  */_/g ; s/=/-/g'`
             make -C test ${{ matrix.unit }} CORE=${{ matrix.main_core }} TRACE_VCD=$vcd
-            if [ $$? -ne 0 ]; then
+            if [ $? -ne 0 ]; then
               retval=1
             fi
           done < .github/test_configs.conf
