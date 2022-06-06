@@ -70,14 +70,18 @@ module vproc_unit_mux import vproc_pkg::*; #(
 
     logic [UNIT_CNT-1:0] unit_in_valid;
     logic [UNIT_CNT-1:0] unit_in_ready;
+    logic                unit_queue_enq_valid;
+    logic                unit_queue_enq_ready;
     always_comb begin
         unit_in_valid   = '0;
-        pipe_in_ready_o = 1'b1; // unit mux is ready when current input is invalid
+        pipe_in_ready_o = unit_queue_enq_ready;
         if (pipe_in_valid_i) begin
-            unit_in_valid[pipe_in_ctrl_i.unit] = 1'b1;
-            pipe_in_ready_o                    = unit_in_ready[pipe_in_ctrl_i.unit];
+            unit_in_valid[pipe_in_ctrl_i.unit]  = unit_queue_enq_ready;
+            pipe_in_ready_o                    &= unit_in_ready[pipe_in_ctrl_i.unit];
         end
     end
+    assign unit_queue_enq_valid = pipe_in_valid_i & unit_in_ready[pipe_in_ctrl_i.unit] &
+                                  pipe_in_ctrl_i.first_cycle;
 
     logic      [UNIT_CNT-1:0]                             unit_out_valid;
     logic      [UNIT_CNT-1:0]                             unit_out_ready;
@@ -93,7 +97,6 @@ module vproc_unit_mux import vproc_pkg::*; #(
     logic      [UNIT_CNT-1:0][1:0]                        unit_out_pend_clear_cnt;
     logic      [UNIT_CNT-1:0]                             unit_out_instr_done;
 
-    logic lsu_empty;
     generate
         for (genvar i = 0; i < UNIT_CNT; i++) begin
             if (UNITS[i]) begin
@@ -102,7 +105,6 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     .X_ID_WIDTH  ( XIF_ID_W ),
                     .X_MEM_WIDTH ( MAX_OP_W )
                 ) unit_xif ();
-                logic                unit_lsu_empty;
                 logic                pending_load;
                 logic                pending_store;
                 logic                trans_complete_valid;
@@ -155,7 +157,6 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     .pipe_out_pend_clear_o     ( unit_out_pend_clear    [i] ),
                     .pipe_out_pend_clear_cnt_o ( unit_out_pend_clear_cnt[i] ),
                     .pipe_out_instr_done_o     ( unit_out_instr_done    [i] ),
-                    .lsu_empty_o               ( unit_lsu_empty             ),
                     .pending_load_o            ( pending_load               ),
                     .pending_store_o           ( pending_store              ),
                     .vreg_pend_rd_i            ( vreg_pend_rd_i             ),
@@ -176,7 +177,6 @@ module vproc_unit_mux import vproc_pkg::*; #(
                 );
 
                 if (op_unit'(i) == UNIT_LSU) begin
-                    assign lsu_empty                 = unit_lsu_empty;
                     assign pending_load_o            = pending_load;
                     assign pending_store_o           = pending_store;
                     assign xif_mem_if.mem_valid      = unit_xif.mem_valid;
@@ -210,65 +210,32 @@ module vproc_unit_mux import vproc_pkg::*; #(
         end
     endgenerate
 
-    // store the currently active unit
-    logic   active_unit_valid_q, active_unit_valid_d;
-    op_unit active_unit_q,       active_unit_d;
-    always_ff @(posedge clk_i or negedge async_rst_ni) begin
-        if (~async_rst_ni) begin
-            active_unit_valid_q <= 1'b0;
-        end
-        else if (~sync_rst_ni) begin
-            active_unit_valid_q <= 1'b0;
-        end
-        else begin
-            active_unit_valid_q <= active_unit_valid_d;
-        end
-    end
-    always_ff @(posedge clk_i) begin : vproc_queue_data
-        active_unit_q <= active_unit_d;
-    end
-    logic   out_unit_valid;
-    op_unit out_unit;
-    always_comb begin
-        active_unit_valid_d = active_unit_valid_q;
-        active_unit_d       = active_unit_q;
-        out_unit_valid      = '0;
-        out_unit            = DONT_CARE_ZERO ? op_unit'('0) : op_unit'('x);
-        unit_out_ready      = {UNIT_CNT{pipe_out_ready_i}};
-        if (active_unit_valid_q) begin
-            active_unit_valid_d = ~unit_out_instr_done[active_unit_q];
-            out_unit_valid      = 1'b1;
-            out_unit            = active_unit_q;
-            // disable ready signal for all units that are not currently active
-            unit_out_ready      = UNIT_CNT'(pipe_out_ready_i) << active_unit_q;
-        end else begin
-            // if the LSU is not empty it immediatly becomes active (since the
-            // LSU cannot stall and data will eventually arrive)
-            if (UNITS[UNIT_LSU] & ~lsu_empty) begin
-                active_unit_valid_d = ~unit_out_instr_done[UNIT_LSU];
-                active_unit_d       = UNIT_LSU;
-                out_unit_valid      = 1'b1;
-                out_unit            = UNIT_LSU;
-                // disable ready signal for all other units
-                unit_out_ready      = UNIT_CNT'(pipe_out_ready_i) << UNIT_LSU;
-            end else begin
-                // select first unit with valid data as next active unit
-                for (int i = 0; i < UNIT_CNT; i++) begin
-                    if (UNITS[i] & unit_out_valid[i]) begin
-                        active_unit_valid_d = ~unit_out_instr_done[i];
-                        active_unit_d       = op_unit'(i);
-                        out_unit_valid      = 1'b1;
-                        out_unit            = op_unit'(i);
-                        // disable ready signal for remaining units
-                        for (int j = i + 1; j < UNIT_CNT; j++) begin
-                            unit_out_ready[j] = 1'b0;
-                        end
-                        break;
-                    end
-                end
-            end
-        end
-    end
+    // Get the next valid unit from the unit queue (ensures that instructions
+    // enter and exit the unit multiplexer in order; note that instructions
+    // must remain in order to avoid data dependency issues, where one instr
+    // would wait for data from another instr, while simultaneously denying
+    // that other instr access to the output pipe).
+    logic   unit_queue_deq_valid;
+    op_unit unit_queue_deq_unit;
+    vproc_queue #(
+        .WIDTH        ( $bits(op_unit)                                              ),
+        .DEPTH        ( 4                                                           )
+    ) unit_queue (
+        .clk_i        ( clk_i                                                       ),
+        .async_rst_ni ( async_rst_ni                                                ),
+        .sync_rst_ni  ( sync_rst_ni                                                 ),
+        .enq_ready_o  ( unit_queue_enq_ready                                        ),
+        .enq_valid_i  ( unit_queue_enq_valid                                        ),
+        .enq_data_i   ( pipe_in_ctrl_i.unit                                         ),
+        .deq_ready_i  ( pipe_out_valid_o & pipe_out_ready_i & pipe_out_instr_done_o ),
+        .deq_valid_o  ( unit_queue_deq_valid                                        ),
+        .deq_data_o   ( unit_queue_deq_unit                                         ),
+        .flags_any_o  (                                                             ),
+        .flags_all_o  (                                                             )
+    );
+    assign unit_out_ready = {
+        {(UNIT_CNT-1){1'b0}}, unit_queue_deq_valid & pipe_out_ready_i
+    } << unit_queue_deq_unit;
 
     // Output logic
     always_comb begin
@@ -285,7 +252,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
         pipe_out_pend_clear_cnt_o =          DONT_CARE_ZERO ?             '0  :             'x   ;
         pipe_out_instr_done_o     =          DONT_CARE_ZERO ?             '0  :             'x   ;
         for (int i = 0; i < UNIT_CNT; i++) begin
-            if (UNITS[i] & out_unit_valid & (op_unit'(i) == out_unit)) begin
+            if (UNITS[i] & unit_queue_deq_valid & (op_unit'(i) == unit_queue_deq_unit)) begin
                 pipe_out_valid_o          = unit_out_valid         [i];
                 pipe_out_instr_id_o       = unit_out_instr_id      [i];
                 pipe_out_eew_o            = unit_out_eew           [i];

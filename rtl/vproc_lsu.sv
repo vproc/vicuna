@@ -33,7 +33,6 @@ module vproc_lsu import vproc_pkg::*; #(
         output logic [VMEM_W    -1:0] pipe_out_res_o,
         output logic [VMEM_W/8  -1:0] pipe_out_mask_o,
 
-        output logic                  lsu_empty_o,
         output logic                  pending_load_o,
         output logic                  pending_store_o,
 
@@ -191,32 +190,6 @@ module vproc_lsu import vproc_pkg::*; #(
     // complete and while the instruction is speculative; for the LSU stalling
     // has to happen at the request stage, since later stalling is not possible
     assign state_req_stall = (~state_req_q.mode.lsu.store & state_req_q.res_store & vreg_pend_rd_i[state_req_q.res_vaddr]) | instr_spec_i[state_req_q.id] | ~lsu_queue_ready;
-
-    // remember how many instr are currently in the LSU
-    logic [1:0] lsu_instr_cnt_q, lsu_instr_cnt_d;
-    always_ff @(posedge clk_i or negedge async_rst_ni) begin
-        if (~async_rst_ni) begin
-            lsu_instr_cnt_q <= '0;
-        end
-        else if (~sync_rst_ni) begin
-            lsu_instr_cnt_q <= '0;
-        end
-        else begin
-            lsu_instr_cnt_q <= lsu_instr_cnt_d;
-        end
-    end
-    always_comb begin
-        lsu_instr_cnt_d = lsu_instr_cnt_q;
-        unique case ({
-            pipe_in_valid_i  & pipe_in_ready_o  & pipe_in_ctrl_i.first_cycle,
-            pipe_out_valid_o & pipe_out_ready_i & pipe_out_ctrl_o.last_cycle
-        })
-            2'b10: lsu_instr_cnt_d = lsu_instr_cnt_q + 2'b01;
-            2'b01: lsu_instr_cnt_d = lsu_instr_cnt_q - 2'b01;
-            default: ;
-        endcase
-    end
-    assign lsu_empty_o = lsu_instr_cnt_q == '0;
 
 
     ///////////////////////////////////////////////////////////////////////////

@@ -33,11 +33,3 @@
     ) else begin
         $error("transaction complete queue is full");
     end
-
-    // Assert that the instruction counter does not overflow
-    assert property (
-        @(posedge clk_i)
-        (lsu_instr_cnt_q == '1) |-> (lsu_instr_cnt_d != '0)
-    ) else begin
-        $error("instruction counter overflowed");
-    end
