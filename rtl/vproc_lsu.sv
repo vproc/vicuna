@@ -329,7 +329,8 @@ module vproc_lsu import vproc_pkg::*; #(
     lsu_state_red deq_state;
     vproc_queue #(
         .WIDTH        ( $clog2(VMEM_W/8) + VMEM_W/8 + $bits(lsu_state_red)            ),
-        .DEPTH        ( VLSU_QUEUE_SZ                                                 )
+        .DEPTH        ( VLSU_QUEUE_SZ                                                 ),
+        .FLOW         ( 1'b1                                                          )
     ) lsu_queue (
         .clk_i        ( clk_i                                                         ),
         .async_rst_ni ( async_rst_ni                                                  ),
