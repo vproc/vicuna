@@ -22,7 +22,7 @@ typedef int VerilatedTrace_t;
 #endif
 
 // Simulation is aborted if mem_req_o has not changed for the following number of cycles
-#define ABORT_CYCLES    100000
+#define ABORT_CYCLES    10000
 
 static void log_cycle(Vvproc_top *top, VerilatedTrace_t *tfp, FILE *fcsv);
 
