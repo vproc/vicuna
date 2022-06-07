@@ -215,8 +215,9 @@ module vproc_unit_mux import vproc_pkg::*; #(
     // must remain in order to avoid data dependency issues, where one instr
     // would wait for data from another instr, while simultaneously denying
     // that other instr access to the output pipe).
-    logic   unit_queue_deq_valid;
-    op_unit unit_queue_deq_unit;
+    logic                      unit_queue_deq_valid;
+    logic [$bits(op_unit)-1:0] unit_queue_deq_unit_vector;
+    op_unit                    unit_queue_deq_unit;
     vproc_queue #(
         .WIDTH        ( $bits(op_unit)                                              ),
         .DEPTH        ( 4                                                           )
@@ -229,11 +230,12 @@ module vproc_unit_mux import vproc_pkg::*; #(
         .enq_data_i   ( pipe_in_ctrl_i.unit                                         ),
         .deq_ready_i  ( pipe_out_valid_o & pipe_out_ready_i & pipe_out_instr_done_o ),
         .deq_valid_o  ( unit_queue_deq_valid                                        ),
-        .deq_data_o   ( unit_queue_deq_unit                                         ),
+        .deq_data_o   ( unit_queue_deq_unit_vector                                  ),
         .flags_any_o  (                                                             ),
         .flags_all_o  (                                                             )
     );
-    assign unit_out_ready = {
+    assign unit_queue_deq_unit = op_unit'(unit_queue_deq_unit_vector);
+    assign unit_out_ready      = {
         {(UNIT_CNT-1){1'b0}}, unit_queue_deq_valid & pipe_out_ready_i
     } << unit_queue_deq_unit;
 
