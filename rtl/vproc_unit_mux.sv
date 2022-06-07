@@ -73,15 +73,16 @@ module vproc_unit_mux import vproc_pkg::*; #(
     logic                unit_queue_enq_valid;
     logic                unit_queue_enq_ready;
     always_comb begin
-        unit_in_valid   = '0;
-        pipe_in_ready_o = unit_queue_enq_ready;
+        unit_in_valid        = '0;
+        unit_queue_enq_valid = '0;
+        pipe_in_ready_o      = unit_queue_enq_ready;
         if (pipe_in_valid_i) begin
             unit_in_valid[pipe_in_ctrl_i.unit]  = unit_queue_enq_ready;
+            unit_queue_enq_valid                = unit_in_ready[pipe_in_ctrl_i.unit] &
+                                                  pipe_in_ctrl_i.first_cycle;
             pipe_in_ready_o                    &= unit_in_ready[pipe_in_ctrl_i.unit];
         end
     end
-    assign unit_queue_enq_valid = pipe_in_valid_i & unit_in_ready[pipe_in_ctrl_i.unit] &
-                                  pipe_in_ctrl_i.first_cycle;
 
     logic      [UNIT_CNT-1:0]                             unit_out_valid;
     logic      [UNIT_CNT-1:0]                             unit_out_ready;
