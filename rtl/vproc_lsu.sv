@@ -344,7 +344,13 @@ module vproc_lsu import vproc_pkg::*; #(
         .flags_any_o  (                                                               ),
         .flags_all_o  (                                                               )
     );
-    assign deq_ready           = xif_memres_if.mem_result_valid | deq_state.suppressed | mem_err_d;
+
+    // XIF mem_result_valid is asserted and the memory result's instruction ID matches
+    logic xif_mem_result_id_valid;
+    assign xif_mem_result_id_valid = xif_memres_if.mem_result_valid &
+                                    (xif_memres_if.mem_result.id == deq_state.id);
+
+    assign deq_ready           = xif_mem_result_id_valid | deq_state.suppressed | mem_err_d;
     assign state_rdata_valid_d = deq_valid & deq_ready;
 
     // monitor the memory result for bus errors and the queue for exceptions
@@ -354,7 +360,7 @@ module vproc_lsu import vproc_pkg::*; #(
         if (deq_valid & (deq_state.first_cycle | ~mem_err_q)) begin
             // reset the error flag in the first cycle, unless there is a bus
             // error or an exception occured during the request
-            mem_err_d     = deq_state.exc | (xif_memres_if.mem_result_valid & xif_memres_if.mem_result.err);
+            mem_err_d     = deq_state.exc | (xif_mem_result_id_valid & xif_memres_if.mem_result.err);
             mem_exccode_d = deq_state.exc ? deq_state.exccode : (
                 // bus error translates to a load/store access fault exception
                 deq_state.mode.store ? 6'h07 : 6'h05

@@ -395,6 +395,8 @@ module vproc_top #(
     logic                vdata_we;
     logic [VMEM_W/8-1:0] vdata_be;
     logic [VMEM_W-1:0]   vdata_wdata;
+    logic [X_ID_WIDTH-1:0] vdata_req_id;
+    logic [X_ID_WIDTH-1:0] vdata_res_id;
 
     localparam bit [vproc_pkg::VLSU_FLAGS_W-1:0] VLSU_FLAGS = USE_XIF_MEM ? '0 :
                                                               (vproc_pkg::VLSU_FLAGS_W'(1) << vproc_pkg::VLSU_ADDR_ALIGNED);
@@ -447,6 +449,7 @@ module vproc_top #(
         assign vdata_we                   = '0;
         assign vdata_be                   = '0;
         assign vdata_wdata                = '0;
+        assign vdata_req_id               = '0;
     end else begin
         assign vdata_req                  = vcore_xif.mem_valid;
         assign vcore_xif.mem_ready        = vdata_gnt;
@@ -454,11 +457,12 @@ module vproc_top #(
         assign vdata_we                   = vcore_xif.mem_req.we;
         assign vdata_be                   = vcore_xif.mem_req.be;
         assign vdata_wdata                = vcore_xif.mem_req.wdata;
+        assign vdata_req_id               = vcore_xif.mem_req.id;
         assign vcore_xif.mem_resp.exc     = '0;
         assign vcore_xif.mem_resp.exccode = '0;
         assign vcore_xif.mem_resp.dbg     = '0;
         assign vcore_xif.mem_result_valid = vdata_rvalid;
-        assign vcore_xif.mem_result.id    = '0; // TODO supply instruction ID
+        assign vcore_xif.mem_result.id    = vdata_res_id;
         assign vcore_xif.mem_result.rdata = vdata_rdata;
         assign vcore_xif.mem_result.err   = vdata_err;
         assign vcore_xif.mem_result.dbg   = '0;
@@ -477,6 +481,7 @@ module vproc_top #(
     logic [VMEM_W  -1:0] data_rdata;
     logic                sdata_waiting, vdata_waiting;
     logic [31:0]         sdata_wait_addr;
+    logic [X_ID_WIDTH-1:0] vdata_wait_id;
     assign sdata_hold = ~USE_XIF_MEM & (vdata_req | vect_pending_store | (vect_pending_load & sdata_we));
     always_comb begin
         data_req   = vdata_req | (sdata_req & ~sdata_hold);
@@ -501,6 +506,7 @@ module vproc_top #(
             sdata_waiting   <= 1'b0;
             vdata_waiting   <= 1'b0;
             sdata_wait_addr <= '0;
+            vdata_wait_id   <= '0;
         end else begin
             if (sdata_gnt) begin
                 sdata_waiting   <= 1'b1;
@@ -511,6 +517,7 @@ module vproc_top #(
             end
             if (vdata_gnt) begin
                 vdata_waiting <= 1'b1;
+                vdata_wait_id <= vdata_req_id;
             end
             else if (vdata_rvalid) begin
                 vdata_waiting <= 1'b0;
@@ -523,6 +530,7 @@ module vproc_top #(
     assign vdata_err    = data_err;
     assign sdata_rdata  = data_rdata[(sdata_wait_addr[$clog2(VMEM_W)-1:0] & {3'b000, {($clog2(VMEM_W/8)-2){1'b1}}, 2'b00})*8 +: 32];
     assign vdata_rdata  = data_rdata;
+    assign vdata_res_id = vdata_wait_id;
 
 
     ///////////////////////////////////////////////////////////////////////////
