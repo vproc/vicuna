@@ -883,6 +883,8 @@ module vproc_core import vproc_pkg::*; #(
     logic [PIPE_CNT-1:0][4:0]          pipe_vreg_wr_addr;
     logic [PIPE_CNT-1:0][VREG_W  -1:0] pipe_vreg_wr_data;
     logic [PIPE_CNT-1:0][VREG_W/8-1:0] pipe_vreg_wr_be;
+    logic [PIPE_CNT-1:0]               pipe_vreg_wr_clr;
+    logic [PIPE_CNT-1:0][1:0]          pipe_vreg_wr_clr_cnt;
 
     logic                lsu_trans_complete_valid;
     logic                lsu_trans_complete_ready;
@@ -986,7 +988,6 @@ module vproc_core import vproc_pkg::*; #(
                 .vreg_pend_wr_i           ( pend_vreg_wr_map           ),
                 .vreg_pend_rd_o           ( pipe_vreg_pend_rd_out[i]   ),
                 .vreg_pend_rd_i           ( pipe_vreg_pend_rd_in [i]   ),
-                .clear_wr_hazards_o       ( pipe_clear_pend_vreg_wr[i] ),
                 .instr_spec_i             ( ~instr_notspec_q           ),
                 .instr_killed_i           ( instr_killed_q             ),
                 .instr_done_valid_o       ( instr_complete_valid[i]    ),
@@ -994,11 +995,13 @@ module vproc_core import vproc_pkg::*; #(
                 .vreg_rd_addr_o           ( vreg_rd_addr               ),
                 .vreg_rd_data_i           ( vreg_rd_data               ),
                 .vreg_rd_v0_i             ( vreg_mask                  ),
-                .vreg_wr_valid_o          ( pipe_vreg_wr_valid[i]      ),
-                .vreg_wr_ready_i          ( pipe_vreg_wr_ready[i]      ),
-                .vreg_wr_addr_o           ( pipe_vreg_wr_addr [i]      ),
-                .vreg_wr_be_o             ( pipe_vreg_wr_be   [i]      ),
-                .vreg_wr_data_o           ( pipe_vreg_wr_data [i]      ),
+                .vreg_wr_valid_o          ( pipe_vreg_wr_valid  [i]    ),
+                .vreg_wr_ready_i          ( pipe_vreg_wr_ready  [i]    ),
+                .vreg_wr_addr_o           ( pipe_vreg_wr_addr   [i]    ),
+                .vreg_wr_be_o             ( pipe_vreg_wr_be     [i]    ),
+                .vreg_wr_data_o           ( pipe_vreg_wr_data   [i]    ),
+                .vreg_wr_clr_o            ( pipe_vreg_wr_clr    [i]    ),
+                .vreg_wr_clr_cnt_o        ( pipe_vreg_wr_clr_cnt[i]    ),
                 .pending_load_o           ( pending_load               ),
                 .pending_store_o          ( pending_store              ),
                 .xif_mem_if               ( pipe_xif                   ),
@@ -1056,15 +1059,22 @@ module vproc_core import vproc_pkg::*; #(
         .VREG_W             ( VREG_W             ),
         .VPORT_WR_CNT       ( VPORT_WR_CNT       ),
         .PIPE_CNT           ( PIPE_CNT           ),
+        .PIPE_UNITS         ( PIPE_UNITS         ),
         .PIPE_VPORT_WR      ( PIPE_VPORT_WR      ),
         .STALL_PIPELINES    ( 1'b0               ),
         .DONT_CARE_ZERO     ( DONT_CARE_ZERO     )
     ) vreg_wr_mux (
+        .clk_i              ( clk_i              ),
+        .async_rst_ni       ( async_rst_n        ),
+        .sync_rst_ni        ( sync_rst_n         ),
         .vreg_wr_valid_i    ( pipe_vreg_wr_valid ),
         .vreg_wr_ready_o    ( pipe_vreg_wr_ready ),
         .vreg_wr_addr_i     ( pipe_vreg_wr_addr  ),
         .vreg_wr_be_i       ( pipe_vreg_wr_be    ),
         .vreg_wr_data_i     ( pipe_vreg_wr_data  ),
+        .vreg_wr_clr_i      ( pipe_vreg_wr_clr     ),
+        .vreg_wr_clr_cnt_i  ( pipe_vreg_wr_clr_cnt ),
+        .pipe_clear_pend_vreg_wr_o ( pipe_clear_pend_vreg_wr ),
         .vregfile_wr_en_o   ( vregfile_wr_en_d   ),
         .vregfile_wr_addr_o ( vregfile_wr_addr_d ),
         .vregfile_wr_be_o   ( vregfile_wr_mask_d ),

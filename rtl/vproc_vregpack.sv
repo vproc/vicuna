@@ -6,8 +6,8 @@
 // Packing results into vector registers
 module vproc_vregpack #(
         // vector register port configuration
-        parameter int unsigned                      VPORT_W             = 0,    // vreg port widths
-        parameter int unsigned                      VADDR_W             = 5,    // address widths
+        parameter int unsigned                      VPORT_W             = 0,    // vreg port width
+        parameter int unsigned                      VADDR_W             = 5,    // vreg address width
         parameter int unsigned                      VPORT_WR_ATTEMPTS   = 1,    // number of write attempts
         parameter bit                               VPORT_PEND_CLR_BULK = '0,   // clear pending wr in bulk
 
@@ -47,15 +47,14 @@ module vproc_vregpack #(
         // vector register file write port
         output logic                                vreg_wr_valid_o,
         input  logic                                vreg_wr_ready_i,
-        output logic   [VADDR_W               -1:0] vreg_wr_addr_o,           // vreg write address
-        output logic   [VPORT_W/8             -1:0] vreg_wr_be_o,             // vreg byte enable
-        output logic   [VPORT_W               -1:0] vreg_wr_data_o,           // vreg write data
+        output logic   [VADDR_W               -1:0] vreg_wr_addr_o,         // vreg write address
+        output logic   [VPORT_W/8             -1:0] vreg_wr_be_o,           // vreg byte enable
+        output logic   [VPORT_W               -1:0] vreg_wr_data_o,         // vreg write data
+        output logic                                vreg_wr_clr_o,          // clear addr from pend writes
+        output logic   [$clog2(VADDR_W-1)     -1:0] vreg_wr_clr_cnt_o,      // number of vregs to clear
 
         // pending vector register reads (writes stall if the destination register is not clear)
         input  logic   [(1<<VADDR_W)          -1:0] pending_vreg_reads_i,
-
-        // pending vector register writes clear mask
-        output logic   [(1<<VADDR_W)          -1:0] clear_pending_vreg_writes_o,
 
         // Instruction IDs speculative and killed masks (vector register writes stall while the ID
         // of the current instruction is speculative and are inhibited if it is killed)
@@ -154,89 +153,21 @@ module vproc_vregpack #(
     assign instr_done_valid_o = stage_valid_q & stage_state_q.instr_done & ~stage_stall;
     assign instr_done_id_o    = stage_state_q.instr_id;
 
-    localparam WRITE_BUFFER_SZ = (MAX_WR_DELAY > 0) ? MAX_WR_DELAY : 1;
-    logic                        vreg_wr_en_q     [WRITE_BUFFER_SZ], vreg_wr_en_d;
-    logic [VADDR_W         -1:0] vreg_wr_addr_q   [WRITE_BUFFER_SZ], vreg_wr_addr_d;
-    logic [VPORT_W/8       -1:0] vreg_wr_mask_q   [WRITE_BUFFER_SZ], vreg_wr_mask_d;
-    logic [VPORT_W         -1:0] vreg_wr_q        [WRITE_BUFFER_SZ], vreg_wr_d;
-    logic                        vreg_wr_clr_q    [WRITE_BUFFER_SZ], vreg_wr_clr_d;
-    logic [PEND_CLEAR_CNT_W-1:0] vreg_wr_clr_cnt_q[WRITE_BUFFER_SZ], vreg_wr_clr_cnt_d;
-    always_ff @(posedge clk_i) begin
-        vreg_wr_en_q     [0] <= vreg_wr_en_d;
-        vreg_wr_addr_q   [0] <= vreg_wr_addr_d;
-        vreg_wr_mask_q   [0] <= vreg_wr_mask_d;
-        vreg_wr_q        [0] <= vreg_wr_d;
-        vreg_wr_clr_q    [0] <= vreg_wr_clr_d;
-        vreg_wr_clr_cnt_q[0] <= vreg_wr_clr_cnt_d;
-        for (int i = 1; i < MAX_WR_DELAY; i++) begin
-            vreg_wr_en_q     [i] <= vreg_wr_en_q     [i-1];
-            vreg_wr_addr_q   [i] <= vreg_wr_addr_q   [i-1];
-            vreg_wr_mask_q   [i] <= vreg_wr_mask_q   [i-1];
-            vreg_wr_q        [i] <= vreg_wr_q        [i-1];
-            vreg_wr_clr_q    [i] <= vreg_wr_clr_q    [i-1];
-            vreg_wr_clr_cnt_q[i] <= vreg_wr_clr_cnt_q[i-1];
-        end
-    end
-
     always_comb begin
-        vreg_wr_en_d   = '0;
-        vreg_wr_d      = DONT_CARE_ZERO ? '0 : 'x;
-        vreg_wr_mask_d = DONT_CARE_ZERO ? '0 : 'x;
+        vreg_wr_valid_o = '0;
+        vreg_wr_data_o  = DONT_CARE_ZERO ? '0 : 'x;
+        vreg_wr_be_o    = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < RES_CNT; i++) begin
             if (stage_state_q.res_store[i]) begin
-                vreg_wr_en_d   = stage_valid_q & ~stage_stall & ~instr_killed_i[stage_state_q.instr_id];
-                vreg_wr_d      = RES_MASK[i] ? {8{res_buffer[i][VPORT_W/8-1:0]}} : res_buffer[i];
-                vreg_wr_mask_d = msk_buffer[i];
+                vreg_wr_valid_o = stage_valid_q & ~stage_stall & ~instr_killed_i[stage_state_q.instr_id];
+                vreg_wr_data_o  = RES_MASK[i] ? {8{res_buffer[i][VPORT_W/8-1:0]}} : res_buffer[i];
+                vreg_wr_be_o    = msk_buffer[i];
             end
         end
     end
-    assign vreg_wr_addr_d    = stage_state_q.vaddr;
-    assign vreg_wr_clr_d     = stage_valid_q & stage_state_q.pend_clr & ~stage_stall;
-    assign vreg_wr_clr_cnt_d = stage_state_q.pend_clr_cnt;
-
-    always_comb begin
-        vreg_wr_valid_o = vreg_wr_en_d;
-        vreg_wr_addr_o  = vreg_wr_addr_d;
-        vreg_wr_be_o    = vreg_wr_mask_d;
-        vreg_wr_data_o  = vreg_wr_d;
-        for (int i = 0; i < MAX_WR_DELAY; i++) begin
-            if ((((i + 1) & (i + 2)) == 0) & vreg_wr_en_q[i]) begin
-                vreg_wr_valid_o = 1'b1;
-                vreg_wr_addr_o  = vreg_wr_addr_q[i];
-                vreg_wr_be_o    = vreg_wr_mask_q[i];
-                vreg_wr_data_o  = vreg_wr_q     [i];
-            end
-        end
-    end
-
-    // write hazard clearing
-    logic [(1<<VADDR_W)-1:0] clear_wr_hazards_q, clear_wr_hazards_d;
-    always_ff @(posedge clk_i) begin
-        clear_wr_hazards_q <= clear_wr_hazards_d;
-    end
-    assign clear_pending_vreg_writes_o = clear_wr_hazards_q;
-
-    logic                        pend_clr;
-    logic [PEND_CLEAR_CNT_W-1:0] pend_clr_cnt;
-    logic [VADDR_W         -1:0] pend_clr_addr;
-    logic [VADDR_W         -1:0] pend_clr_addr_mask;
-    assign pend_clr           = (MAX_WR_DELAY == 0) ? vreg_wr_clr_d     : vreg_wr_clr_q    [MAX_WR_DELAY-1];
-    assign pend_clr_cnt       = (MAX_WR_DELAY == 0) ? vreg_wr_clr_cnt_d : vreg_wr_clr_cnt_q[MAX_WR_DELAY-1];
-    assign pend_clr_addr      = (MAX_WR_DELAY == 0) ? vreg_wr_addr_d    : vreg_wr_addr_q   [MAX_WR_DELAY-1];
-    assign pend_clr_addr_mask = {VADDR_W{1'b1}} << pend_clr_cnt;
-    always_comb begin
-        clear_wr_hazards_d = '0;
-        if (pend_clr) begin
-            if (VPORT_PEND_CLR_BULK) begin
-                for (int i = 0; i < (1<<VADDR_W); i++) begin
-                    clear_wr_hazards_d[i] = (VADDR_W'(i) & pend_clr_addr_mask) == (pend_clr_addr & pend_clr_addr_mask);
-                end
-            end else begin
-                clear_wr_hazards_d[pend_clr_addr] = 1'b1;
-            end
-        end
-    end
-
+    assign vreg_wr_addr_o    = stage_state_q.vaddr;
+    assign vreg_wr_clr_o     = stage_valid_q & stage_state_q.pend_clr & ~stage_stall;
+    assign vreg_wr_clr_cnt_o = stage_state_q.pend_clr_cnt;
 
     logic [RES_CNT-1:0] res_saturated;
     generate

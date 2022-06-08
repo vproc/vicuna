@@ -44,8 +44,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         output logic [31:0]             vreg_pend_rd_o,
         input  logic [31:0]             vreg_pend_rd_i,
 
-        output logic [31:0]             clear_wr_hazards_o,
-
         input  logic [XIF_ID_CNT-1:0]   instr_spec_i,
         input  logic [XIF_ID_CNT-1:0]   instr_killed_i,
         output logic                    instr_done_valid_o,
@@ -60,6 +58,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         output logic [4:0]              vreg_wr_addr_o,
         output logic [VREG_W/8-1:0]     vreg_wr_be_o,
         output logic [VREG_W  -1:0]     vreg_wr_data_o,
+        output logic                    vreg_wr_clr_o,
+        output logic [1:0]              vreg_wr_clr_cnt_o,
 
         output logic                    pending_load_o,
         output logic                    pending_store_o,
