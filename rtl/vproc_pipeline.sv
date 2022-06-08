@@ -43,7 +43,6 @@ module vproc_pipeline import vproc_pkg::*; #(
         parameter int unsigned           VLSU_QUEUE_SZ     = 4,
         parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0,
         parameter mul_type               MUL_TYPE          = MUL_GENERIC,
-        parameter int unsigned          MAX_WR_ATTEMPTS     = 1,    // max required vregfile write attempts
         parameter type                  INIT_STATE_T        = logic,
         parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
     )(
@@ -101,18 +100,6 @@ module vproc_pipeline import vproc_pkg::*; #(
                   "the vector register width VREG_W and a power of two.  ",
                   "The current value of %d is invalid.", MAX_OP_W);
     end
-
-    if (MAX_WR_ATTEMPTS < 1 || (1 << (MAX_WR_ATTEMPTS - 1)) > VREG_W / MAX_OP_W) begin
-        $fatal(1, "The maximum number of write attempts MAX_WR_ATTEMPTS of a vector pipeline ",
-                  "must be at least 1 and 2^(MAX_WR_ATTEMPTS-1) must be less than or ",
-                  "equal to the ratio of the vector register width vs the operand width ",
-                  "of that unit.  ",
-                  "MAX_WR_ATTEMPTS is %d and that ratio is %d.",
-                  MAX_WR_ATTEMPTS, VREG_W / MAX_OP_W);
-    end
-
-    // max number of cycles by which a write can be delayed
-    localparam int unsigned MAX_WR_DELAY = (1 << (MAX_WR_ATTEMPTS - 1)) - 1;
 
     // Counter operand width (i.e., the operand width that serves to determine the counter width).
     // If element-wise operation may be required the counter operand width is always 8 bit (i.e.,
@@ -944,8 +931,6 @@ module vproc_pipeline import vproc_pkg::*; #(
     vproc_vregpack #(
         .VPORT_W                     ( VREG_W                  ),
         .VADDR_W                     ( 5                       ),
-        .VPORT_WR_ATTEMPTS           ( MAX_WR_ATTEMPTS         ),
-        .VPORT_PEND_CLR_BULK         ( UNITS[UNIT_ELEM]        ),
         .MAX_RES_W                   ( MAX_RES_W               ),
         .RES_CNT                     ( RES_CNT                 ),
         .RES_W                       ( RES_W                   ),

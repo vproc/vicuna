@@ -28,7 +28,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         parameter int unsigned           VLSU_QUEUE_SZ     = 4,
         parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0,
         parameter mul_type               MUL_TYPE          = MUL_GENERIC,
-        parameter int unsigned          MAX_WR_ATTEMPTS    = 1,    // max required vregfile write attempts
         parameter type                  DECODER_DATA_T     = logic,
         parameter bit                   DONT_CARE_ZERO     = 1'b0  // initialize don't care values to zero
     )(
@@ -562,7 +561,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -628,7 +626,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -694,7 +691,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -760,7 +756,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -826,7 +821,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -892,7 +886,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -958,7 +951,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -1024,7 +1016,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -1090,7 +1081,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
-                .MAX_WR_ATTEMPTS     ( MAX_WR_ATTEMPTS     ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (

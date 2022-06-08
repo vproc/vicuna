@@ -898,16 +898,6 @@ module vproc_core import vproc_pkg::*; #(
     logic [4:0]          elem_xreg_addr;
     logic [31:0]         elem_xreg_data;
 
-    // TODO move below function together with the entire repeated writes logic into the vreg write mux module
-    function static int unsigned MAX_WR_ATTEMPTS(int unsigned PIPE_IDX);
-        MAX_WR_ATTEMPTS = 1;
-        for (int i = 0; i < PIPE_IDX; i++) begin
-            if (PIPE_VPORT_WR[i] == PIPE_VPORT_WR[PIPE_IDX]) begin
-                MAX_WR_ATTEMPTS += 1;
-            end
-        end
-    endfunction
-
     generate
         for (genvar i = 0; i < PIPE_CNT; i++) begin
 `ifndef VERILATOR
@@ -919,8 +909,6 @@ module vproc_core import vproc_pkg::*; #(
             localparam int unsigned PIPE_MAX_VADDR_W = MAX_VPORT_RD_SLICE(VADDR_RD_W, PIPE_VPORT_IDX[i], PIPE_VPORT_CNT[i]);
 
             localparam bit [PIPE_VPORT_CNT[i]-1:0] PIPE_VPORT_BUFFER = {{(PIPE_VPORT_CNT[i]-1){1'b0}}, 1'b1};
-
-            localparam int unsigned PIPE_MAX_WR_ATTEMPTS = MAX_WR_ATTEMPTS(i);
 
             logic [PIPE_VPORT_CNT[i]-1:0][4       :0] vreg_rd_addr;
             logic [PIPE_VPORT_CNT[i]-1:0][VREG_W-1:0] vreg_rd_data;
@@ -975,7 +963,6 @@ module vproc_core import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ            ( VLSU_QUEUE_SZ              ),
                 .VLSU_FLAGS               ( VLSU_FLAGS                 ),
                 .MUL_TYPE                 ( MUL_TYPE                   ),
-                .MAX_WR_ATTEMPTS          ( PIPE_MAX_WR_ATTEMPTS       ),
                 .DECODER_DATA_T           ( decoder_data               ),
                 .DONT_CARE_ZERO           ( DONT_CARE_ZERO             )
             ) pipe (

@@ -8,8 +8,6 @@ module vproc_vregpack #(
         // vector register port configuration
         parameter int unsigned                      VPORT_W             = 0,    // vreg port width
         parameter int unsigned                      VADDR_W             = 5,    // vreg address width
-        parameter int unsigned                      VPORT_WR_ATTEMPTS   = 1,    // number of write attempts
-        parameter bit                               VPORT_PEND_CLR_BULK = '0,   // clear pending wr in bulk
 
         // vector register result configuration
         parameter int unsigned                      MAX_RES_W           = 64,
@@ -67,17 +65,6 @@ module vproc_vregpack #(
     );
 
     import vproc_pkg::*;
-
-    if (VPORT_WR_ATTEMPTS < 1 || (1 << (VPORT_WR_ATTEMPTS - 1)) > VPORT_W / MAX_RES_W) begin
-        $fatal(1, "The number of write attempts VPORT_WR_ATTEMPTS must be at least 1 and ",
-                  "2^(VPORT_WR_ATTEMPTS-1) must be less than or equal to the ratio of the vector ",
-                  "register port width vs the result width.  ",
-                  "However, VPORT_WR_ATTEMPTS is %d and that ratio is %d.",
-                  VPORT_WR_ATTEMPTS, VPORT_W / MAX_RES_W);
-    end
-
-    // max number of cycles by which a write can be delayed
-    localparam int unsigned MAX_WR_DELAY = (1 << (VPORT_WR_ATTEMPTS - 1)) - 1;
 
     // width of the pending write vreg clear counter (choosen such that it can span up to 1/4 of the
     // vector register addresses)
