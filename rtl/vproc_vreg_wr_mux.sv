@@ -150,12 +150,6 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
         for (genvar i = 0; i < PIPE_CNT; i++) begin
             localparam bit VPORT_PEND_CLR_BULK = PIPE_UNITS[i][UNIT_ELEM];
 
-            logic [(1<<VADDR_W)-1:0] clear_wr_hazards_q, clear_wr_hazards_d;
-            always_ff @(posedge clk_i) begin
-                clear_wr_hazards_q <= clear_wr_hazards_d;
-            end
-            assign pipe_pend_vreg_wr_clr[i] = clear_wr_hazards_q;
-
             logic                        pend_clr;
             logic [PEND_CLEAR_CNT_W-1:0] pend_clr_cnt;
             logic [VADDR_W         -1:0] pend_clr_addr;
@@ -165,14 +159,15 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
             assign pend_clr_addr      = vreg_wr_addr   [i];
             assign pend_clr_addr_mask = {VADDR_W{1'b1}} << pend_clr_cnt;
             always_comb begin
-                clear_wr_hazards_d = '0;
+                pipe_pend_vreg_wr_clr[i] = '0;
                 if (pend_clr) begin
                     if (VPORT_PEND_CLR_BULK) begin
                         for (int j = 0; j < (1<<VADDR_W); j++) begin
-                            clear_wr_hazards_d[j] = (VADDR_W'(j) & pend_clr_addr_mask) == (pend_clr_addr & pend_clr_addr_mask);
+                            pipe_pend_vreg_wr_clr[i][j] = (VADDR_W'(j)   & pend_clr_addr_mask) ==
+                                                          (pend_clr_addr & pend_clr_addr_mask);
                         end
                     end else begin
-                        clear_wr_hazards_d[pend_clr_addr] = 1'b1;
+                        pipe_pend_vreg_wr_clr[i][pend_clr_addr] = 1'b1;
                     end
                 end
             end
