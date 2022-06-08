@@ -182,10 +182,14 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     assign pending_store_o           = pending_store;
                     assign xif_mem_if.mem_valid      = unit_xif.mem_valid;
                     assign unit_xif.mem_ready        = xif_mem_if.mem_ready;
+                    assign xif_mem_if.mem_req.id     = unit_xif.mem_req.id;
                     assign xif_mem_if.mem_req.addr   = unit_xif.mem_req.addr;
+                    assign xif_mem_if.mem_req.mode   = unit_xif.mem_req.mode;
                     assign xif_mem_if.mem_req.we     = unit_xif.mem_req.we;
                     assign xif_mem_if.mem_req.be     = unit_xif.mem_req.be;
                     assign xif_mem_if.mem_req.wdata  = unit_xif.mem_req.wdata;
+                    assign xif_mem_if.mem_req.last   = unit_xif.mem_req.last;
+                    assign xif_mem_if.mem_req.spec   = unit_xif.mem_req.spec;
                     assign unit_xif.mem_resp.exc     = xif_mem_if.mem_resp.exc;
                     assign unit_xif.mem_resp.exccode = xif_mem_if.mem_resp.exccode;
                     assign unit_xif.mem_resp.dbg     = xif_mem_if.mem_resp.dbg;
