@@ -24,7 +24,7 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
         input  logic [PIPE_CNT    -1:0]               vreg_wr_clr_i,
         input  logic [PIPE_CNT    -1:0][1:0]          vreg_wr_clr_cnt_i,
 
-        output logic [PIPE_CNT    -1:0][31:0]         pipe_clear_pend_vreg_wr_o,
+        output logic [31:0]                           pend_vreg_wr_clr_o,
 
         output logic [VPORT_WR_CNT-1:0]               vregfile_wr_en_o,
         output logic [VPORT_WR_CNT-1:0][4:0]          vregfile_wr_addr_o,
@@ -145,6 +145,7 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
         end
     end
 
+    logic [PIPE_CNT-1:0][31:0] pipe_pend_vreg_wr_clr;
     generate
         for (genvar i = 0; i < PIPE_CNT; i++) begin
             localparam bit VPORT_PEND_CLR_BULK = PIPE_UNITS[i][UNIT_ELEM];
@@ -153,7 +154,7 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
             always_ff @(posedge clk_i) begin
                 clear_wr_hazards_q <= clear_wr_hazards_d;
             end
-            assign pipe_clear_pend_vreg_wr_o[i] = clear_wr_hazards_q;
+            assign pipe_pend_vreg_wr_clr[i] = clear_wr_hazards_q;
 
             logic                        pend_clr;
             logic [PEND_CLEAR_CNT_W-1:0] pend_clr_cnt;
@@ -177,5 +178,11 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
             end
         end
     endgenerate
+    always_comb begin
+        pend_vreg_wr_clr_o = '0;
+        for (int i = 0; i < PIPE_CNT; i++) begin
+            pend_vreg_wr_clr_o |= pipe_pend_vreg_wr_clr[i];
+        end
+    end
 
 endmodule

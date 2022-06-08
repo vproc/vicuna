@@ -759,30 +759,30 @@ module vproc_core import vproc_pkg::*; #(
     ///////////////////////////////////////////////////////////////////////////
     // DISPATCHER
 
-    logic [PIPE_CNT-1:0]       pipe_instr_valid;
-    logic [PIPE_CNT-1:0]       pipe_instr_ready;
-    decoder_data               pipe_instr_data;
-    logic [PIPE_CNT-1:0][31:0] pipe_clear_pend_vreg_wr;
-    logic               [31:0] pend_vreg_wr_map;
+    logic [PIPE_CNT-1:0] pipe_instr_valid;
+    logic [PIPE_CNT-1:0] pipe_instr_ready;
+    decoder_data         pipe_instr_data;
+    logic [31:0]         pend_vreg_wr_map;
+    logic [31:0]         pend_vreg_wr_clr;
     vproc_dispatcher #(
-        .PIPE_CNT             ( PIPE_CNT                ),
-        .PIPE_UNITS           ( PIPE_UNITS              ),
-        .MAX_VADDR_W          ( 5                       ),
-        .DECODER_DATA_T       ( decoder_data            ),
-        .DONT_CARE_ZERO       ( DONT_CARE_ZERO          )
+        .PIPE_CNT           ( PIPE_CNT           ),
+        .PIPE_UNITS         ( PIPE_UNITS         ),
+        .MAX_VADDR_W        ( 5                  ),
+        .DECODER_DATA_T     ( decoder_data       ),
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO     )
     ) dispatcher (
-        .clk_i                ( clk_i                   ),
-        .async_rst_ni         ( async_rst_n             ),
-        .sync_rst_ni          ( sync_rst_n              ),
-        .instr_valid_i        ( queue_valid_q           ),
-        .instr_ready_o        ( op_ack                  ),
-        .instr_data_i         ( queue_data_q            ),
-        .instr_vreg_wr_i      ( queue_pending_wr_q      ),
-        .dispatch_valid_o     ( pipe_instr_valid        ),
-        .dispatch_ready_i     ( pipe_instr_ready        ),
-        .dispatch_data_o      ( pipe_instr_data         ),
-        .pend_vreg_wr_map_o   ( pend_vreg_wr_map        ),
-        .pend_vreg_wr_clear_i ( pipe_clear_pend_vreg_wr )
+        .clk_i              ( clk_i              ),
+        .async_rst_ni       ( async_rst_n        ),
+        .sync_rst_ni        ( sync_rst_n         ),
+        .instr_valid_i      ( queue_valid_q      ),
+        .instr_ready_o      ( op_ack             ),
+        .instr_data_i       ( queue_data_q       ),
+        .instr_vreg_wr_i    ( queue_pending_wr_q ),
+        .dispatch_valid_o   ( pipe_instr_valid   ),
+        .dispatch_ready_i   ( pipe_instr_ready   ),
+        .dispatch_data_o    ( pipe_instr_data    ),
+        .pend_vreg_wr_map_o ( pend_vreg_wr_map   ),
+        .pend_vreg_wr_clr_i ( pend_vreg_wr_clr   )
     );
     assign pend_vreg_wr_map_o = pend_vreg_wr_map;
 
@@ -1056,29 +1056,29 @@ module vproc_core import vproc_pkg::*; #(
     endgenerate
 
     vproc_vreg_wr_mux #(
-        .VREG_W             ( VREG_W             ),
-        .VPORT_WR_CNT       ( VPORT_WR_CNT       ),
-        .PIPE_CNT           ( PIPE_CNT           ),
-        .PIPE_UNITS         ( PIPE_UNITS         ),
-        .PIPE_VPORT_WR      ( PIPE_VPORT_WR      ),
-        .STALL_PIPELINES    ( 1'b0               ),
-        .DONT_CARE_ZERO     ( DONT_CARE_ZERO     )
+        .VREG_W             ( VREG_W               ),
+        .VPORT_WR_CNT       ( VPORT_WR_CNT         ),
+        .PIPE_CNT           ( PIPE_CNT             ),
+        .PIPE_UNITS         ( PIPE_UNITS           ),
+        .PIPE_VPORT_WR      ( PIPE_VPORT_WR        ),
+        .STALL_PIPELINES    ( 1'b0                 ),
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO       )
     ) vreg_wr_mux (
-        .clk_i              ( clk_i              ),
-        .async_rst_ni       ( async_rst_n        ),
-        .sync_rst_ni        ( sync_rst_n         ),
-        .vreg_wr_valid_i    ( pipe_vreg_wr_valid ),
-        .vreg_wr_ready_o    ( pipe_vreg_wr_ready ),
-        .vreg_wr_addr_i     ( pipe_vreg_wr_addr  ),
-        .vreg_wr_be_i       ( pipe_vreg_wr_be    ),
-        .vreg_wr_data_i     ( pipe_vreg_wr_data  ),
+        .clk_i              ( clk_i                ),
+        .async_rst_ni       ( async_rst_n          ),
+        .sync_rst_ni        ( sync_rst_n           ),
+        .vreg_wr_valid_i    ( pipe_vreg_wr_valid   ),
+        .vreg_wr_ready_o    ( pipe_vreg_wr_ready   ),
+        .vreg_wr_addr_i     ( pipe_vreg_wr_addr    ),
+        .vreg_wr_be_i       ( pipe_vreg_wr_be      ),
+        .vreg_wr_data_i     ( pipe_vreg_wr_data    ),
         .vreg_wr_clr_i      ( pipe_vreg_wr_clr     ),
         .vreg_wr_clr_cnt_i  ( pipe_vreg_wr_clr_cnt ),
-        .pipe_clear_pend_vreg_wr_o ( pipe_clear_pend_vreg_wr ),
-        .vregfile_wr_en_o   ( vregfile_wr_en_d   ),
-        .vregfile_wr_addr_o ( vregfile_wr_addr_d ),
-        .vregfile_wr_be_o   ( vregfile_wr_mask_d ),
-        .vregfile_wr_data_o ( vregfile_wr_data_d )
+        .pend_vreg_wr_clr_o ( pend_vreg_wr_clr     ),
+        .vregfile_wr_en_o   ( vregfile_wr_en_d     ),
+        .vregfile_wr_addr_o ( vregfile_wr_addr_d   ),
+        .vregfile_wr_be_o   ( vregfile_wr_mask_d   ),
+        .vregfile_wr_data_o ( vregfile_wr_data_d   )
     );
 
 

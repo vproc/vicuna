@@ -4,27 +4,27 @@
 
 
 module vproc_dispatcher import vproc_pkg::*; #(
-        parameter int unsigned                            PIPE_CNT             = 1,
-        parameter bit [UNIT_CNT-1:0]                      PIPE_UNITS[PIPE_CNT] = '{'0},
-        parameter int unsigned                            MAX_VADDR_W          = 5,    // max addr width
-        parameter type                                    DECODER_DATA_T       = logic,
-        parameter bit                                     DONT_CARE_ZERO       = 1'b0  // initialize don't care values to zero
+        parameter int unsigned              PIPE_CNT             = 1,
+        parameter bit [UNIT_CNT-1:0]        PIPE_UNITS[PIPE_CNT] = '{'0},
+        parameter int unsigned              MAX_VADDR_W          = 5,    // max addr width
+        parameter type                      DECODER_DATA_T       = logic,
+        parameter bit                       DONT_CARE_ZERO       = 1'b0  // initialize don't care values to zero
     )(
-        input  logic                                      clk_i,
-        input  logic                                      async_rst_ni,
-        input  logic                                      sync_rst_ni,
+        input  logic                        clk_i,
+        input  logic                        async_rst_ni,
+        input  logic                        sync_rst_ni,
 
-        input  logic                                      instr_valid_i,
-        output logic                                      instr_ready_o,
-        input  DECODER_DATA_T                             instr_data_i,     // decoder data
-        input  logic [(1<<MAX_VADDR_W)-1:0]               instr_vreg_wr_i,  // vreg write map
+        input  logic                        instr_valid_i,
+        output logic                        instr_ready_o,
+        input  DECODER_DATA_T               instr_data_i,     // decoder data
+        input  logic [(1<<MAX_VADDR_W)-1:0] instr_vreg_wr_i,  // vreg write map
 
-        output logic [PIPE_CNT-1:0]                       dispatch_valid_o,
-        input  logic [PIPE_CNT-1:0]                       dispatch_ready_i,
-        output DECODER_DATA_T                             dispatch_data_o,
+        output logic [PIPE_CNT-1:0]         dispatch_valid_o,
+        input  logic [PIPE_CNT-1:0]         dispatch_ready_i,
+        output DECODER_DATA_T               dispatch_data_o,
 
-        output logic               [(1<<MAX_VADDR_W)-1:0] pend_vreg_wr_map_o,
-        input  logic [PIPE_CNT-1:0][(1<<MAX_VADDR_W)-1:0] pend_vreg_wr_clear_i
+        output logic [(1<<MAX_VADDR_W)-1:0] pend_vreg_wr_map_o,
+        input  logic [(1<<MAX_VADDR_W)-1:0] pend_vreg_wr_clr_i
     );
 
     localparam int unsigned VADDR_CNT = 1 << MAX_VADDR_W;
@@ -44,9 +44,8 @@ module vproc_dispatcher import vproc_pkg::*; #(
     assign pend_vreg_wr_map_o = pend_vreg_wr_map_q;
 
     logic [VADDR_CNT-1:0] pend_vreg_wr_map_set;   // add pending vreg writes
-    logic [VADDR_CNT-1:0] pend_vreg_wr_map_clr;   // remove pending vreg writes
     always_comb begin
-        pend_vreg_wr_map_d = (pend_vreg_wr_map_q & ~pend_vreg_wr_map_clr) | pend_vreg_wr_map_set;
+        pend_vreg_wr_map_d = (pend_vreg_wr_map_q & ~pend_vreg_wr_clr_i) | pend_vreg_wr_map_set;
     end
 
     // Dispatch next instruction
@@ -70,14 +69,6 @@ module vproc_dispatcher import vproc_pkg::*; #(
         if ((dispatch_valid_o & dispatch_ready_i) != '0) begin
             instr_ready_o        = 1'b1;
             pend_vreg_wr_map_set = instr_vreg_wr_i;
-        end
-    end
-
-    // Clearing pending vreg writes
-    always_comb begin
-        pend_vreg_wr_map_clr = '0;
-        for (int i = 0; i < PIPE_CNT; i++) begin
-            pend_vreg_wr_map_clr |= pend_vreg_wr_clear_i[i];
         end
     end
 
