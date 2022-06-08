@@ -59,49 +59,49 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
             localparam int unsigned MAX_WR_DELAY         = (1 << (PIPE_MAX_WR_ATTEMPTS - 1)) - 1;
             localparam int unsigned WRITE_BUFFER_SZ      = (MAX_WR_DELAY > 0) ? MAX_WR_DELAY : 1;
 
-            logic                        vreg_wr_en_q     [WRITE_BUFFER_SZ], vreg_wr_en_d;
+            logic                        vreg_wr_valid_q  [WRITE_BUFFER_SZ], vreg_wr_valid_d;
             logic [VADDR_W         -1:0] vreg_wr_addr_q   [WRITE_BUFFER_SZ], vreg_wr_addr_d;
-            logic [VREG_W/8        -1:0] vreg_wr_mask_q   [WRITE_BUFFER_SZ], vreg_wr_mask_d;
-            logic [VREG_W          -1:0] vreg_wr_q        [WRITE_BUFFER_SZ], vreg_wr_d;
+            logic [VREG_W/8        -1:0] vreg_wr_be_q     [WRITE_BUFFER_SZ], vreg_wr_be_d;
+            logic [VREG_W          -1:0] vreg_wr_data_q   [WRITE_BUFFER_SZ], vreg_wr_data_d;
             logic                        vreg_wr_clr_q    [WRITE_BUFFER_SZ], vreg_wr_clr_d;
             logic [PEND_CLEAR_CNT_W-1:0] vreg_wr_clr_cnt_q[WRITE_BUFFER_SZ], vreg_wr_clr_cnt_d;
             always_ff @(posedge clk_i) begin
-                vreg_wr_en_q     [0] <= vreg_wr_en_d;
+                vreg_wr_valid_q  [0] <= vreg_wr_valid_d;
                 vreg_wr_addr_q   [0] <= vreg_wr_addr_d;
-                vreg_wr_mask_q   [0] <= vreg_wr_mask_d;
-                vreg_wr_q        [0] <= vreg_wr_d;
+                vreg_wr_be_q     [0] <= vreg_wr_be_d;
+                vreg_wr_data_q   [0] <= vreg_wr_data_d;
                 vreg_wr_clr_q    [0] <= vreg_wr_clr_d;
                 vreg_wr_clr_cnt_q[0] <= vreg_wr_clr_cnt_d;
                 for (int j = 1; j < MAX_WR_DELAY; j++) begin
-                    vreg_wr_en_q     [j] <= vreg_wr_en_q     [j-1];
+                    vreg_wr_valid_q  [j] <= vreg_wr_valid_q  [j-1];
                     vreg_wr_addr_q   [j] <= vreg_wr_addr_q   [j-1];
-                    vreg_wr_mask_q   [j] <= vreg_wr_mask_q   [j-1];
-                    vreg_wr_q        [j] <= vreg_wr_q        [j-1];
+                    vreg_wr_be_q     [j] <= vreg_wr_be_q     [j-1];
+                    vreg_wr_data_q   [j] <= vreg_wr_data_q   [j-1];
                     vreg_wr_clr_q    [j] <= vreg_wr_clr_q    [j-1];
                     vreg_wr_clr_cnt_q[j] <= vreg_wr_clr_cnt_q[j-1];
                 end
             end
-            assign vreg_wr_en_d      = vreg_wr_valid_i  [i];
-            assign vreg_wr_d         = vreg_wr_data_i   [i];
-            assign vreg_wr_mask_d    = vreg_wr_be_i     [i];
+            assign vreg_wr_valid_d   = vreg_wr_valid_i  [i];
+            assign vreg_wr_data_d    = vreg_wr_data_i   [i];
+            assign vreg_wr_be_d      = vreg_wr_be_i     [i];
             assign vreg_wr_addr_d    = vreg_wr_addr_i   [i];
             assign vreg_wr_clr_d     = vreg_wr_clr_i    [i];
             assign vreg_wr_clr_cnt_d = vreg_wr_clr_cnt_i[i];
 
             if (~STALL_PIPELINES) begin
                 always_comb begin
-                    vreg_wr_valid  [i] = vreg_wr_en_d;
+                    vreg_wr_valid  [i] = vreg_wr_valid_d;
                     vreg_wr_addr   [i] = vreg_wr_addr_d;
-                    vreg_wr_be     [i] = vreg_wr_mask_d;
-                    vreg_wr_data   [i] = vreg_wr_d;
+                    vreg_wr_be     [i] = vreg_wr_be_d;
+                    vreg_wr_data   [i] = vreg_wr_data_d;
                     vreg_wr_clr    [i] = vreg_wr_clr_d;
                     vreg_wr_clr_cnt[i] = vreg_wr_clr_cnt_d;
                     for (int j = 0; j < MAX_WR_DELAY; j++) begin
-                        if ((((j + 1) & (j + 2)) == 0) & vreg_wr_en_q[j]) begin
+                        if ((((j + 1) & (j + 2)) == 0) & vreg_wr_valid_q[j]) begin
                             vreg_wr_valid  [i] = 1'b1;
                             vreg_wr_addr   [i] = vreg_wr_addr_q   [j];
-                            vreg_wr_be     [i] = vreg_wr_mask_q   [j];
-                            vreg_wr_data   [i] = vreg_wr_q        [j];
+                            vreg_wr_be     [i] = vreg_wr_be_q     [j];
+                            vreg_wr_data   [i] = vreg_wr_data_q   [j];
                             vreg_wr_clr    [i] = vreg_wr_clr_q    [j];
                             vreg_wr_clr_cnt[i] = vreg_wr_clr_cnt_q[j];
                         end
