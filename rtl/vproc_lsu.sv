@@ -321,7 +321,7 @@ module vproc_lsu import vproc_pkg::*; #(
         state_req_red.res_store   = state_req_q.res_store;
         state_req_red.res_shift   = state_req_q.res_shift;
         state_req_red.suppressed  = req_suppress;
-        state_req_red.exc         = xif_mem_if.mem_resp.exc;
+        state_req_red.exc         = xif_mem_if.mem_resp.exc & ~req_suppress;
         state_req_red.exccode     = xif_mem_if.mem_resp.exccode;
     end
     logic         deq_valid; // LSU queue dequeue valid signal
