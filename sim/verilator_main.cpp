@@ -21,9 +21,6 @@ typedef int VerilatedTrace_t;
 #endif
 #endif
 
-// Simulation is aborted if mem_req_o has not changed for the following number of cycles
-#define ABORT_CYCLES    10000
-
 static void log_cycle(Vvproc_top *top, VerilatedTrace_t *tfp, FILE *fcsv);
 
 int main(int argc, char **argv) {
@@ -183,7 +180,18 @@ int main(int argc, char **argv) {
 
             int end_cnt    = 0, // count number of cycles after address 0 was requested
                 abort_cnt  = 0; // count number of cycles since mem_req_o last toggled
-            while (end_cnt < extra_cycles && abort_cnt < ABORT_CYCLES) {
+            while (end_cnt < extra_cycles) {
+
+                // if ABORT_CYCLES is defined, then it specifies the number of cycles after which
+                // simulation is aborted in case there is no activity on the memory interface
+#ifdef ABORT_CYCLES
+                if (abort_cnt >= ABORT_CYCLES) {
+                    fprintf(stderr, "WARNING: memory interface inactive for %d cycles, "
+                                    "aborting simulation\n", ABORT_CYCLES);
+                    break;
+                }
+#endif
+
                 // read memory request
                 bool     valid = top->mem_addr_o < mem_sz;
                 unsigned addr  = top->mem_addr_o & ~(mem_w/8-1);

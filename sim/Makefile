@@ -22,8 +22,9 @@ VSIM       ?= vsim
 PROJ_DIR_TMP := $(shell mktemp -d)
 PROJ_DIR     ?= $(PROJ_DIR_TMP)
 
-# main core directory (Ibex by default)
-CORE_DIR ?= $(SIM_DIR)/../ibex/
+# select the core to use as main processor (defaults to Ibex)
+CORE     ?= ibex
+CORE_DIR := $(SIM_DIR)/../$(CORE)/
 
 # memory initialization files
 PROG_PATHS ?= progs.txt
@@ -69,12 +70,15 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR);                                                           \
 	options="";                                                               \
 	cflags="";                                                                \
-	if [ "$(TRACE_VCD)" != "" ]; then                                         \
+	if [ -n "$(TRACE_VCD)" ]; then                                            \
 	    options="--trace";                                                    \
 	    cflags="-CFLAGS -DTRACE_VCD";                                         \
-	elif [ "$(TRACE_FST)" != "" ]; then                                       \
+	elif [ -n "$(TRACE_FST)" ]; then                                          \
 	    options="--trace-fst";                                                \
 	    cflags="-CFLAGS -DTRACE_FST";                                         \
+	fi;                                                                       \
+	if [ -n "$(SIM_ABORT_CYCLES)" ]; then                                     \
+	    cflags="$${cflags} -CFLAGS -DABORT_CYCLES=$(SIM_ABORT_CYCLES)";       \
 	fi;                                                                       \
 	if [ "$(ENABLE_SVA)" != "" ]; then                                        \
 	    options="$$options --assert -DVPROC_SVA";                             \
@@ -100,6 +104,7 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	verilator --unroll-count 1024 -Wno-WIDTH -Wno-PINMISSING -Wno-UNOPTFLAT   \
 	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
 	    -Wno-SYMRSVDWORD -Wno-BLKANDNBLK -Wno-BLKSEQ -Wno-SYNCASYNCNET        \
+	    -Wno-COMBDLY                                                          \
 	    -I$(SIM_DIR)/../rtl/ -I$(SIM_DIR)/../sva/ $$inc $$core                \
 	    -GMEM_W=$(MEM_W) -GVMEM_W=$(VMEM_W)                                   \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \

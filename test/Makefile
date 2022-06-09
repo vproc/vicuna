@@ -11,10 +11,6 @@ SHELL := /bin/bash
 # get the absolute path of the test directory (must not contain spaces!)
 TEST_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-# select the core to use as main processor (defaults to Ibex)
-CORE     ?= ibex
-CORE_DIR := $(TEST_DIR)/../$(CORE)/
-
 # select the simulator to use; either verilator (default) or vivado
 SIMULATOR ?= verilator
 
@@ -93,7 +89,7 @@ $(TESTS_ALL): %: $$(addsuffix .vmem,$$(basename $$(shell [ -d % ] && ls %/*.S ||
 	    sim_dir=`mktemp -d`;                                                  \
 	    echo "[INFO] Writing temporary files to $${sim_dir}";                 \
 	    make -f $(TEST_DIR)/../sim/Makefile $(SIMULATOR) PROJ_DIR=$$sim_dir   \
-	        $$line PROG_PATHS=progs.txt CORE_DIR=$(CORE_DIR) ENABLE_SVA=1     \
+	        $$line PROG_PATHS=progs.txt SIM_ABORT_CYCLES=10000 ENABLE_SVA=1   \
 	        TRACE_SIGS="`cat $(TEST_DIR)/trace-sigs.conf`" >sim.log 2>&1;     \
 	    if [ $$? -ne 0 ]; then                                                \
 	        printf "\033[0;31m[FAIL]\033[0;0m $@ simulation error; ";         \
