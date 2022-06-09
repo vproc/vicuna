@@ -60,7 +60,9 @@ proj: $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR) && vivado -mode batch -source $(abspath $(GEN_DEMO_TCL))   \
 	    -tclargs $(DEMO_DIR)/../ $(abspath $(CORE_DIR)) $(VPROC_CONFIG_PKG)   \
 	    $(PART) $(abspath $(CONSTR)) $(abspath $(RAM_FILE))                   \
-	    $(DIFF_CLK) $(CLK_PER)
+	    $(DIFF_CLK) $(CLK_PER);                                               \
+	echo "";                                                                  \
+	echo 'Open the project with: $$ vivado $(PROJ_DIR)/vicuna_demo/*.xpr'
 
 perf: proj
 	cd $(PROJ_DIR) && vivado -mode batch -source $(abspath $(GET_PERF_TCL))   \
