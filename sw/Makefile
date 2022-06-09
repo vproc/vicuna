@@ -31,7 +31,7 @@ else ifeq ($(COMPILER),llvm)
     RISCV_DUMP          := llvm-objdump
     RISCV_OBCP          := llvm-objcopy
     ARCH                := rv32imzve32x
-    CC_SPECIFIC_OPTIONS := -fuse-ld=lld
+    CC_SPECIFIC_OPTIONS := -fuse-ld=lld -Wno-unused-command-line-argument
     LD_SCRIPT           := $(SW_DIR)/lld_link.ld
 endif
 
