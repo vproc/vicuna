@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-module vproc_top #(
-        parameter int unsigned         MEM_W         = 32,  // memory bus width in bits
-        parameter int unsigned         VMEM_W        = 32,  // vector memory interface width in bits
-        parameter vproc_pkg::vreg_type VREG_TYPE     = vproc_pkg::VREG_GENERIC,
-        parameter vproc_pkg::mul_type  MUL_TYPE      = vproc_pkg::MUL_GENERIC,
-        parameter int unsigned         ICACHE_SZ     = 0,   // instruction cache size in bytes
-        parameter int unsigned         ICACHE_LINE_W = 128, // instruction cache line width in bits
-        parameter int unsigned         DCACHE_SZ     = 0,   // data cache size in bytes
-        parameter int unsigned         DCACHE_LINE_W = 512  // data cache line width in bits
+module vproc_top import vproc_pkg::*; #(
+        parameter int unsigned     MEM_W         = 32,  // memory bus width in bits
+        parameter int unsigned     VMEM_W        = 32,  // vector memory interface width in bits
+        parameter vreg_type        VREG_TYPE     = VREG_GENERIC,
+        parameter mul_type         MUL_TYPE      = MUL_GENERIC,
+        parameter int unsigned     ICACHE_SZ     = 0,   // instruction cache size in bytes
+        parameter int unsigned     ICACHE_LINE_W = 128, // instruction cache line width in bits
+        parameter int unsigned     DCACHE_SZ     = 0,   // data cache size in bytes
+        parameter int unsigned     DCACHE_LINE_W = 512  // data cache line width in bits
     )(
         input  logic               clk_i,
         input  logic               rst_ni,
@@ -398,11 +398,11 @@ module vproc_top #(
     logic [X_ID_WIDTH-1:0] vdata_req_id;
     logic [X_ID_WIDTH-1:0] vdata_res_id;
 
-    localparam bit [vproc_pkg::VLSU_FLAGS_W-1:0] VLSU_FLAGS = USE_XIF_MEM ? '0 :
-                                                              (vproc_pkg::VLSU_FLAGS_W'(1) << vproc_pkg::VLSU_ADDR_ALIGNED);
+    localparam bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS = USE_XIF_MEM ? '0 :
+                                                   (VLSU_FLAGS_W'(1) << VLSU_ALIGNED_UNITSTRIDE);
 
-    localparam bit [vproc_pkg::BUF_FLAGS_W -1:0] BUF_FLAGS  = (vproc_pkg::BUF_FLAGS_W'(1) << vproc_pkg::BUF_DEQUEUE  ) |
-                                                              (vproc_pkg::BUF_FLAGS_W'(1) << vproc_pkg::BUF_VREG_PEND);
+    localparam bit [BUF_FLAGS_W -1:0] BUF_FLAGS  = (BUF_FLAGS_W'(1) << BUF_DEQUEUE  ) |
+                                                   (BUF_FLAGS_W'(1) << BUF_VREG_PEND);
 
     vproc_core #(
         .XIF_ID_W           ( X_ID_WIDTH         ),

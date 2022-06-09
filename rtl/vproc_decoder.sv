@@ -4,8 +4,10 @@
 
 
 module vproc_decoder #(
-        parameter bit                   DONT_CARE_ZERO = 1'b0, // initialize don't care values to zero
-        parameter int unsigned          CFG_VL_W       = 7     // width of VL reg in bits (= log2(VREG_W))
+        parameter int unsigned          CFG_VL_W           = 7,    // width of VL CSR register
+        parameter int unsigned          XIF_MEM_W          = 0,    // width of XIF mem iface
+        parameter bit                   ALIGNED_UNITSTRIDE = 1'b0, // aligned unit-stride only
+        parameter bit                   DONT_CARE_ZERO     = 1'b0
     )(
         input  logic                    instr_valid_i,
         input  logic [31:0]             instr_i,
@@ -171,8 +173,15 @@ module vproc_decoder #(
 
                         // lumop/sumop field
                         unique case (instr_i[24:20])
-                            5'b00000: begin // regular unit-stride load/store
-                                if (instr_i[31:29] != '0) begin
+                            5'b00000: begin // unit-strided load/store (simple or segment)
+
+                                // convert to strided load/store for segment loads/stores (content
+                                // of nf field not 0) and if the VLSU requires that the base
+                                // address of unit-strided loads/stores is aligned to the width of
+                                // the memory interface but the base address in rs1 is not
+                                if ((instr_i[31:29] != '0) |
+                                    (ALIGNED_UNITSTRIDE & (x_rs1_i[$clog2(XIF_MEM_W/8)-1:0] != '0))
+                                ) begin
                                     // Unit-strided segment stores result in strided stores
                                     mode_o.lsu.stride = LSU_STRIDED;
 
@@ -186,6 +195,7 @@ module vproc_decoder #(
                                         default: ;
                                     endcase
                                 end
+
                             end
                             5'b10000: begin // fault-only-first load
                                 instr_illegal = instr_i[6:0] == 7'h27; // illegal for stores

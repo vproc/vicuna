@@ -16,7 +16,7 @@ typedef enum {
 
 parameter int unsigned VLSU_FLAGS_W = 1;
 typedef enum {
-    VLSU_ADDR_ALIGNED = 0   // base address is aligned to XIF_MEM_W
+    VLSU_ALIGNED_UNITSTRIDE = 0  // base address of unit-strided loads/stores must be aligned to XIF_MEM_W
 } vlsu_flag;
 
 parameter int unsigned BUF_FLAGS_W = 3;

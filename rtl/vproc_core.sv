@@ -294,28 +294,30 @@ module vproc_core import vproc_pkg::*; #(
     op_unit instr_unit;
     op_mode instr_mode;
     vproc_decoder #(
-        .DONT_CARE_ZERO ( DONT_CARE_ZERO               ),
-        .CFG_VL_W       ( CFG_VL_W                     )
+        .CFG_VL_W           ( CFG_VL_W                            ),
+        .XIF_MEM_W          ( XIF_MEM_W                           ),
+        .ALIGNED_UNITSTRIDE ( VLSU_FLAGS[VLSU_ALIGNED_UNITSTRIDE] ),
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO                      )
     ) dec (
-        .instr_i        ( xif_issue_if.issue_req.instr ),
-        .instr_valid_i  ( instr_valid                  ),
-        .x_rs1_i        ( xif_issue_if.issue_req.rs[0] ),
-        .x_rs2_i        ( xif_issue_if.issue_req.rs[1] ),
-        .vsew_i         ( vsew_q                       ),
-        .lmul_i         ( lmul_q                       ),
-        .vxrm_i         ( vxrm_q                       ),
-        .vl_i           ( vl_q                         ),
-        .valid_o        ( dec_valid                    ),
-        .vsew_o         ( dec_data_d.vsew              ),
-        .emul_o         ( dec_data_d.emul              ),
-        .vxrm_o         ( dec_data_d.vxrm              ),
-        .vl_o           ( dec_data_d.vl                ),
-        .unit_o         ( instr_unit                   ),
-        .mode_o         ( instr_mode                   ),
-        .widenarrow_o   ( dec_data_d.widenarrow        ),
-        .rs1_o          ( dec_data_d.rs1               ),
-        .rs2_o          ( dec_data_d.rs2               ),
-        .rd_o           ( dec_data_d.rd                )
+        .instr_i            ( xif_issue_if.issue_req.instr        ),
+        .instr_valid_i      ( instr_valid                         ),
+        .x_rs1_i            ( xif_issue_if.issue_req.rs[0]        ),
+        .x_rs2_i            ( xif_issue_if.issue_req.rs[1]        ),
+        .vsew_i             ( vsew_q                              ),
+        .lmul_i             ( lmul_q                              ),
+        .vxrm_i             ( vxrm_q                              ),
+        .vl_i               ( vl_q                                ),
+        .valid_o            ( dec_valid                           ),
+        .vsew_o             ( dec_data_d.vsew                     ),
+        .emul_o             ( dec_data_d.emul                     ),
+        .vxrm_o             ( dec_data_d.vxrm                     ),
+        .vl_o               ( dec_data_d.vl                       ),
+        .unit_o             ( instr_unit                          ),
+        .mode_o             ( instr_mode                          ),
+        .widenarrow_o       ( dec_data_d.widenarrow               ),
+        .rs1_o              ( dec_data_d.rs1                      ),
+        .rs2_o              ( dec_data_d.rs2                      ),
+        .rd_o               ( dec_data_d.rd                       )
     );
     assign dec_data_d.id         = xif_issue_if.issue_req.id;
     assign dec_data_d.vl_0       = vl_0_q;

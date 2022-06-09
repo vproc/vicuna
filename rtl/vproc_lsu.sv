@@ -267,7 +267,7 @@ module vproc_lsu import vproc_pkg::*; #(
                 end
                 default: ;
             endcase
-            if (~VLSU_FLAGS[VLSU_ADDR_ALIGNED]) begin
+            if (~VLSU_FLAGS[VLSU_ALIGNED_UNITSTRIDE]) begin
                 wdata_buf_d = vs3_data[VMEM_W-1:0];
                 unique case (pipe_in_ctrl_i.mode.lsu.eew)
                     VSEW_8:  wmask_buf_d = {{VMEM_W/8-1{1'b0}},    wdata_stri_mask  };
@@ -289,7 +289,7 @@ module vproc_lsu import vproc_pkg::*; #(
     // memory request (keep requesting next access while addressing is not complete)
     assign xif_mem_if.mem_valid     = state_req_valid_q & ~req_suppress & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
     assign xif_mem_if.mem_req.id    = state_req_q.id;
-    assign xif_mem_if.mem_req.addr  = VLSU_FLAGS[VLSU_ADDR_ALIGNED] ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
+    assign xif_mem_if.mem_req.addr  = VLSU_FLAGS[VLSU_ALIGNED_UNITSTRIDE] ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
     assign xif_mem_if.mem_req.mode  = '0;
     assign xif_mem_if.mem_req.we    = state_req_q.mode.lsu.store;
     assign xif_mem_if.mem_req.be    = wmask_buf_q;
@@ -431,7 +431,7 @@ module vproc_lsu import vproc_pkg::*; #(
                 VSEW_32: pipe_out_res_o[31:0] = rdata_buf_q[{3'b000, rdata_off_q & ({$clog2(VMEM_W/8){1'b1}} << 2)} * 8 +: 32];
                 default: ;
             endcase
-            if (~VLSU_FLAGS[VLSU_ADDR_ALIGNED]) begin
+            if (~VLSU_FLAGS[VLSU_ALIGNED_UNITSTRIDE]) begin
                 pipe_out_res_o = rdata_buf_q;
             end
         end
