@@ -171,17 +171,23 @@ module vproc_decoder #(
                         rs2_o.vreg        = 1'b0;
                         rs2_o.r.xval      = DONT_CARE_ZERO ? '0 : 'x;
 
+                        // convert to strided load/store if the VLSU requires that the base address
+                        // of unit-strided loads/stores is aligned to the width of the memory
+                        // interface, but the base address in rs1 is not
+                        if (ALIGNED_UNITSTRIDE & (x_rs1_i[$clog2(XIF_MEM_W/8)-1:0] != '0)) begin
+                            mode_o.lsu.stride = LSU_STRIDED;
+                            unique case (instr_i[14:12]) // width field
+                                3'b000: rs2_o.r.xval = 32'h1; // EEW 8
+                                3'b101: rs2_o.r.xval = 32'h2; // EEW 16
+                                3'b110: rs2_o.r.xval = 32'h4; // EEW 32
+                                default: ;
+                            endcase
+                        end
+
                         // lumop/sumop field
                         unique case (instr_i[24:20])
                             5'b00000: begin // unit-strided load/store (simple or segment)
-
-                                // convert to strided load/store for segment loads/stores (content
-                                // of nf field not 0) and if the VLSU requires that the base
-                                // address of unit-strided loads/stores is aligned to the width of
-                                // the memory interface but the base address in rs1 is not
-                                if ((instr_i[31:29] != '0) |
-                                    (ALIGNED_UNITSTRIDE & (x_rs1_i[$clog2(XIF_MEM_W/8)-1:0] != '0))
-                                ) begin
+                                if (instr_i[31:29] != '0) begin
                                     // Unit-strided segment stores result in strided stores
                                     mode_o.lsu.stride = LSU_STRIDED;
 
@@ -195,7 +201,6 @@ module vproc_decoder #(
                                         default: ;
                                     endcase
                                 end
-
                             end
                             5'b10000: begin // fault-only-first load
                                 instr_illegal = instr_i[6:0] == 7'h27; // illegal for stores
