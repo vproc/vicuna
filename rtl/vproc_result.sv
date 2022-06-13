@@ -152,6 +152,8 @@ module vproc_result #(
         xif_result_if.result.we      = '0;
         xif_result_if.result.exc     = '0;
         xif_result_if.result.exccode = DONT_CARE_ZERO ? '0 : 'x;
+        xif_result_if.result.err     = '0;
+        xif_result_if.result.dbg     = '0;
 
         unique case (result_source)
             RESULT_SOURCE_EMPTY: begin

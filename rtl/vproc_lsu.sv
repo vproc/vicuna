@@ -292,7 +292,9 @@ module vproc_lsu import vproc_pkg::*; #(
     assign xif_mem_if.mem_req.addr  = VLSU_FLAGS[VLSU_ALIGNED_UNITSTRIDE] ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
     assign xif_mem_if.mem_req.mode  = '0;
     assign xif_mem_if.mem_req.we    = state_req_q.mode.lsu.store;
+    assign xif_mem_if.mem_req.size  = {1'b0, state_req_q.mode.lsu.eew};
     assign xif_mem_if.mem_req.be    = wmask_buf_q;
+    assign xif_mem_if.mem_req.attr  = '0;
     assign xif_mem_if.mem_req.wdata = wdata_buf_q;
     assign xif_mem_if.mem_req.last  = state_req_q.last_cycle;
     assign xif_mem_if.mem_req.spec  = '0;
