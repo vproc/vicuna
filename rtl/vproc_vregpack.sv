@@ -129,15 +129,15 @@ module vproc_vregpack #(
     end
 
     assign stage_stall = (stage_state_q.res_store != '0) & (
-        pending_vreg_reads_i[stage_state_q.vaddr   ] |
-        instr_spec_i        [stage_state_q.instr_id] |
-        ~vreg_wr_ready_i
+        pending_vreg_reads_i[stage_state_q.vaddr] | instr_spec_i[stage_state_q.instr_id]
     );
-    assign stage_ready = ~stage_valid_q | ~stage_stall;
+    assign stage_ready = ~stage_valid_q | (
+        ((stage_state_q.res_store == '0) | vreg_wr_ready_i) & ~stage_stall
+    );
 
     assign pipe_in_ready_o = stage_ready;
 
-    assign instr_done_valid_o = stage_valid_q & stage_state_q.instr_done & ~stage_stall;
+    assign instr_done_valid_o = stage_valid_q & stage_state_q.instr_done & stage_ready;
     assign instr_done_id_o    = stage_state_q.instr_id;
 
     always_comb begin
@@ -153,7 +153,7 @@ module vproc_vregpack #(
         end
     end
     assign vreg_wr_addr_o    = stage_state_q.vaddr;
-    assign vreg_wr_clr_o     = stage_valid_q & stage_state_q.pend_clr & ~stage_stall;
+    assign vreg_wr_clr_o     = stage_valid_q & stage_state_q.pend_clr & stage_ready;
     assign vreg_wr_clr_cnt_o = stage_state_q.pend_clr_cnt;
 
     logic [RES_CNT-1:0] res_saturated;
