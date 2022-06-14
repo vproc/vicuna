@@ -25,31 +25,50 @@ VPROC_CONFIG_PKG ?= vproc_config.sv
 
 VPROC_CONFIG ?= compact
 ifeq ($(VPROC_CONFIG), compact)
+  VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 128
   VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VMUL,VSLD,VELEM
 else
 ifeq ($(VPROC_CONFIG), dual)
+  VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 128
-  VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VELEM $(shell echo $$(($(VREG_W) / 2))):VMUL,VSLD
+  VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VELEM $(VPIPE_W_VMUL):VMUL,VSLD
 else
 ifeq ($(VPROC_CONFIG), triple)
+  VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 256
-  VPROC_PIPELINES ?= $(VMEM_W):VLSU $(shell echo $$(($(VREG_W) / 2))):VALU,VELEM                  \
-                                    $(shell echo $$(($(VREG_W) / 2))):VMUL,VSLD
+  VPROC_PIPELINES ?= $(VMEM_W):VLSU $(VPIPE_W_DFLT):VALU,VELEM $(VPIPE_W_VMUL):VMUL,VSLD
 else
 ifeq ($(VPROC_CONFIG), legacy)
+  VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 128
-  VPROC_PIPELINES ?= $(VMEM_W):VLSU $(shell echo $$(($(VREG_W) / 2))):VALU                        \
-                                    $(shell echo $$(($(VREG_W) / 2))):VMUL                        \
-                                    $(shell echo $$(($(VREG_W) / 2))):VSLD                        \
-                                    32:VELEM
+  VPROC_PIPELINES ?= $(VMEM_W):VLSU $(VPIPE_W_DFLT):VALU $(VPIPE_W_VMUL):VMUL                     \
+                                    $(VPIPE_W_DFLT):VSLD 32:VELEM
 else
 $(error Unknown vector coprocessor configuration $(VPROC_CONFIG))
 endif
+endif
+endif
+endif
+
+# default widths of vector pipelines based on VPORT_POLICY
+ifeq ($(VPORT_POLICY), few)
+  VPIPE_W_DFLT := $(shell echo $$(($(VREG_W) / 2)))
+  VPIPE_W_VMUL := $(shell echo $$(($(VREG_W) / 4)))
+else
+ifeq ($(VPORT_POLICY), some)
+  VPIPE_W_DFLT := $(shell echo $$(($(VREG_W) / 2)))
+  VPIPE_W_VMUL := $(shell echo $$(($(VREG_W) / 2)))
+else
+ifeq ($(VPORT_POLICY), many)
+  VPIPE_W_DFLT := $(VREG_W)
+  VPIPE_W_VMUL := $(VREG_W)
+else
+$(error Unknown vector register file port policy $(VPORT_POLICY))
 endif
 endif
 endif
