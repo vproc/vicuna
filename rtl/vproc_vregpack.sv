@@ -129,11 +129,11 @@ module vproc_vregpack #(
     end
 
     assign stage_stall = (stage_state_q.res_store != '0) & (
-        pending_vreg_reads_i[stage_state_q.vaddr] | instr_spec_i[stage_state_q.instr_id]
+        pending_vreg_reads_i[stage_state_q.vaddr   ] |
+        instr_spec_i        [stage_state_q.instr_id] |
+        ~vreg_wr_ready_i
     );
-    assign stage_ready = ~stage_valid_q | (
-        ((stage_state_q.res_store == '0) | vreg_wr_ready_i) & ~stage_stall
-    );
+    assign stage_ready = ~stage_valid_q | ~stage_stall;
 
     assign pipe_in_ready_o = stage_ready;
 
