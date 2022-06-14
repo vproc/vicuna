@@ -22,9 +22,20 @@ to the main core.  Currently, a modified version of the [Ibex core
 ](https://github.com/openhwgroup/cv32e40x) serves as the main core.  Support
 for further RISC-V CPUs is under development.
 
-The vector core is heavily parametrizable and primarily targets FPGAs,
-although patches for ASIC support are welcome.  Vicuna is under active
-development, and contributions are welcome!
+Vicuna is extensively configurable.  For instance, the width of the vector
+registers, the number and layout of its execution pipelines and the width of
+its memory interface are configurable. The following figure gives a high-level
+overview of Vicuna.
+
+![Vicuna Overview Figure](docs/fig/vproc_overview.svg)
+
+Vicuna is under active development, and contributions are welcome!
+
+
+## Documentation
+
+A high-level user guide for using Vicuna can be
+[read online at ReadTheDocs](http://vicuna.readthedocs.io/).
 
 
 ## Publication
