@@ -152,6 +152,10 @@ $(VPROC_CONFIG_PKG):
 	vport_wr_cnt=`echo $${vport_wr_capacities} | wc -w`;                                          \
 	echo "// - Vector register file needs $${vport_rd_cnt} read ports and $${vport_wr_cnt}"       \
 	     "write ports"                                                                      >>$@; \
+	buf_flags="(BUF_FLAGS_W'(1) << BUF_DEQUEUE) | (BUF_FLAGS_W'(1) << BUF_VREG_PEND)";            \
+	if [ -n "$(TIMEPRED)" ] && [ "$(TIMEPRED)" != "0" ]; then                                     \
+	    buf_flags="$${buf_flags} | (BUF_FLAGS_W'(1) << BUF_VREG_WR_MUX_TIMEPRED)";                \
+	fi;                                                                                           \
 	echo ""                                                                                 >>$@; \
 	echo "package vproc_config;"                                                            >>$@; \
 	echo ""                                                                                 >>$@; \
@@ -178,6 +182,6 @@ $(VPROC_CONFIG_PKG):
 	echo "    parameter mul_type     MUL_TYPE                    = MUL_GENERIC;"            >>$@; \
 	echo ""                                                                                 >>$@; \
 	echo "    parameter int unsigned INSTR_QUEUE_SZ              = 2;"                      >>$@; \
-	echo "    parameter bit [BUF_FLAGS_W-1:0] BUF_FLAGS          = '0;"                     >>$@; \
+	echo "    parameter bit [BUF_FLAGS_W-1:0] BUF_FLAGS          = $${buf_flags};"          >>$@; \
 	echo ""                                                                                 >>$@; \
 	echo "endpackage"                                                                       >>$@;

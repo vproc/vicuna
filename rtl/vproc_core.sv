@@ -1045,29 +1045,29 @@ module vproc_core import vproc_pkg::*; #(
     endgenerate
 
     vproc_vreg_wr_mux #(
-        .VREG_W             ( VREG_W               ),
-        .VPORT_WR_CNT       ( VPORT_WR_CNT         ),
-        .PIPE_CNT           ( PIPE_CNT             ),
-        .PIPE_UNITS         ( PIPE_UNITS           ),
-        .PIPE_VPORT_WR      ( PIPE_VPORT_WR        ),
-        .STALL_PIPELINES    ( 1'b0                 ),
-        .DONT_CARE_ZERO     ( DONT_CARE_ZERO       )
+        .VREG_W             ( VREG_W                              ),
+        .VPORT_WR_CNT       ( VPORT_WR_CNT                        ),
+        .PIPE_CNT           ( PIPE_CNT                            ),
+        .PIPE_UNITS         ( PIPE_UNITS                          ),
+        .PIPE_VPORT_WR      ( PIPE_VPORT_WR                       ),
+        .TIMEPRED           ( BUF_FLAGS[BUF_VREG_WR_MUX_TIMEPRED] ),
+        .DONT_CARE_ZERO     ( DONT_CARE_ZERO                      )
     ) vreg_wr_mux (
-        .clk_i              ( clk_i                ),
-        .async_rst_ni       ( async_rst_n          ),
-        .sync_rst_ni        ( sync_rst_n           ),
-        .vreg_wr_valid_i    ( pipe_vreg_wr_valid   ),
-        .vreg_wr_ready_o    ( pipe_vreg_wr_ready   ),
-        .vreg_wr_addr_i     ( pipe_vreg_wr_addr    ),
-        .vreg_wr_be_i       ( pipe_vreg_wr_be      ),
-        .vreg_wr_data_i     ( pipe_vreg_wr_data    ),
-        .vreg_wr_clr_i      ( pipe_vreg_wr_clr     ),
-        .vreg_wr_clr_cnt_i  ( pipe_vreg_wr_clr_cnt ),
-        .pend_vreg_wr_clr_o ( pend_vreg_wr_clr     ),
-        .vregfile_wr_en_o   ( vregfile_wr_en_d     ),
-        .vregfile_wr_addr_o ( vregfile_wr_addr_d   ),
-        .vregfile_wr_be_o   ( vregfile_wr_mask_d   ),
-        .vregfile_wr_data_o ( vregfile_wr_data_d   )
+        .clk_i              ( clk_i                               ),
+        .async_rst_ni       ( async_rst_n                         ),
+        .sync_rst_ni        ( sync_rst_n                          ),
+        .vreg_wr_valid_i    ( pipe_vreg_wr_valid                  ),
+        .vreg_wr_ready_o    ( pipe_vreg_wr_ready                  ),
+        .vreg_wr_addr_i     ( pipe_vreg_wr_addr                   ),
+        .vreg_wr_be_i       ( pipe_vreg_wr_be                     ),
+        .vreg_wr_data_i     ( pipe_vreg_wr_data                   ),
+        .vreg_wr_clr_i      ( pipe_vreg_wr_clr                    ),
+        .vreg_wr_clr_cnt_i  ( pipe_vreg_wr_clr_cnt                ),
+        .pend_vreg_wr_clr_o ( pend_vreg_wr_clr                    ),
+        .vregfile_wr_en_o   ( vregfile_wr_en_d                    ),
+        .vregfile_wr_addr_o ( vregfile_wr_addr_d                  ),
+        .vregfile_wr_be_o   ( vregfile_wr_mask_d                  ),
+        .vregfile_wr_data_o ( vregfile_wr_data_d                  )
     );
 
 

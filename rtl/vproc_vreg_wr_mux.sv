@@ -9,7 +9,7 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
         parameter int unsigned                        PIPE_CNT                = 1,
         parameter bit [UNIT_CNT-1:0]                  PIPE_UNITS   [PIPE_CNT] = '{'0},
         parameter int unsigned                        PIPE_VPORT_WR[PIPE_CNT] = '{0},
-        parameter bit                                 STALL_PIPELINES         = '0,
+        parameter bit                                 TIMEPRED                = '0,
         parameter bit                                 DONT_CARE_ZERO          = 1'b0  // initialize don't care values to zero
     )(
         input  logic                                  clk_i,
@@ -88,7 +88,8 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
             assign vreg_wr_clr_d     = vreg_wr_clr_i    [i];
             assign vreg_wr_clr_cnt_d = vreg_wr_clr_cnt_i[i];
 
-            if (~STALL_PIPELINES) begin
+            if (TIMEPRED) begin
+                // do repeated write attempts if timing predictability is required
                 always_comb begin
                     vreg_wr_valid  [i] = vreg_wr_valid_d;
                     vreg_wr_addr   [i] = vreg_wr_addr_d;
@@ -131,8 +132,11 @@ module vproc_vreg_wr_mux import vproc_pkg::*; #(
                     vregfile_wr_addr_o[i] = vreg_wr_addr[j];
                     vregfile_wr_be_o  [i] = vreg_wr_be  [j];
                     vregfile_wr_data_o[i] = vreg_wr_data[j];
-                    if (STALL_PIPELINES) begin
-                        // clear ready signal for higher index pipelines using the same write port
+
+                    // if timing predictability is not required, clear ready signal for higher
+                    // indexed pipelines in case of a write port collision (for timing-predictable
+                    // configurations multiple write attempts are generated)
+                    if (~TIMEPRED) begin
                         for (int k = j + 1; k < PIPE_CNT; k++) begin
                             if (i == PIPE_VPORT_WR[k]) begin
                                 vreg_wr_ready_o[k] = 1'b0;

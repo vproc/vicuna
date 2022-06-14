@@ -19,11 +19,20 @@ typedef enum {
     VLSU_ALIGNED_UNITSTRIDE = 0  // base address of unit-strided loads/stores must be aligned to XIF_MEM_W
 } vlsu_flag;
 
-parameter int unsigned BUF_FLAGS_W = 3;
+parameter int unsigned BUF_FLAGS_W = 12;
 typedef enum {
-    BUF_DEQUEUE    = 0,     // buffer instruction queue outputs
-    BUF_VREG_WR    = 1,
-    BUF_VREG_PEND  = 2      // buffer pending vreg reads
+    BUF_DEQUEUE              = 0,  // buffer instruction queue outputs
+    BUF_VREG_RD              = 1,  // buffer vector register read ports
+    BUF_OPERANDS             = 2,  // within units, buffer operands after unpacking
+    BUF_RESULTS              = 3,  // within units, buffer results before packing
+    BUF_VLSU_REQUEST         = 4,  // within the VLSU, buffer memory requests
+    BUF_VLSU_RDATA           = 5,  // within the VLSU, buffer memory read data
+    BUF_VALU_INTERMEDIATE    = 6,  // within the VALU, buffer intermediate results
+    BUF_VMUL_MUL_IN          = 7,  // within the VMUL unit, buffer HW multiplier input
+    BUF_VMUL_MUL_OUT         = 8,  // within the VMUL unit, buffer HW multiplier output
+    BUF_VREG_WR_MUX_TIMEPRED = 9,  // buffer vector register writes in a timing-predictable fashion
+    BUF_VREG_WR              = 10, // buffer vector register write ports
+    BUF_VREG_PEND            = 11  // buffer pending vreg reads
 } buf_flag;
 
 typedef enum {
