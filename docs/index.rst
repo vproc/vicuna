@@ -44,23 +44,6 @@ Vicuna currently offers the following units:
   to the general-purpose registers in the main core.
 
 
-Vector Processing
------------------
-
-If you are not yet familiar with vector processing
-and would like to first understand the advantages it offers and how it can be used,
-you might want to read some of these posts:
-
-* `Erik Engheim's comparison of vector processing on CPUs and GPUs
-  <https://itnext.io/vector-processing-on-cpus-and-gpus-compared-b1fab24343e6>`__
-  to understand what vector processing is,
-  which approaches there are,
-  and how it compares to other parallel processing concepts.
-
-* to understand how RISC-V vector instructions can currently be used
-  to speed-up you data-parallel workloads.
-
-
 Getting Started
 ---------------
 
