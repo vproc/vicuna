@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="220mm" height="150mm" version="1.1" viewBox="0 0 220 150" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <linearGradient id="linearGradient17680">
+   <stop stop-color="#e599ff" offset="0"/>
+   <stop stop-color="#e599ff" stop-opacity="0" offset="1"/>
+  </linearGradient>
+  <linearGradient id="linearGradient17535">
+   <stop offset="0"/>
+   <stop stop-opacity="0" offset="1"/>
+  </linearGradient>
+  <linearGradient id="linearGradient13724" x1="162" x2="164" y1="71" y2="79" gradientTransform="translate(-18 13)" gradientUnits="userSpaceOnUse">
+   <stop offset="0"/>
+   <stop stop-opacity="0" offset="1"/>
+  </linearGradient>
+  <linearGradient id="linearGradient17537" x1="86" x2="86" y1="86" y2="76" gradientTransform="translate(-20,10)" gradientUnits="userSpaceOnUse" xlink:href="#linearGradient17535"/>
+  <linearGradient id="linearGradient17682" x1="86" x2="86" y1="86" y2="76" gradientTransform="translate(-20,10)" gradientUnits="userSpaceOnUse" xlink:href="#linearGradient17680"/>
+  <linearGradient id="linearGradient20952" x1="86" x2="86" y1="88" y2="78" gradientTransform="translate(60,8)" gradientUnits="userSpaceOnUse" xlink:href="#linearGradient17680"/>
+  <linearGradient id="linearGradient20954" x1="86" x2="86" y1="88" y2="78" gradientTransform="translate(60,8)" gradientUnits="userSpaceOnUse" xlink:href="#linearGradient17535"/>
+  <marker id="marker56200-6-4" overflow="visible" orient="auto">
+   <path transform="scale(.4)" d="m5.77 0-8.65 5v-10z" fill="context-stroke" fill-rule="evenodd" stroke="context-stroke" stroke-width="1pt"/>
+  </marker>
+  <marker id="marker56200-6-4-0" overflow="visible" orient="auto">
+   <path transform="scale(.4)" d="m5.77 0-8.65 5v-10z" fill="context-stroke" fill-rule="evenodd" stroke="context-stroke" stroke-width="1pt"/>
+  </marker>
+  <marker id="marker56200-6-4-6" overflow="visible" orient="auto">
+   <path transform="scale(.4)" d="m5.77 0-8.65 5v-10z" fill="context-stroke" fill-rule="evenodd" stroke="context-stroke" stroke-width="1pt"/>
+  </marker>
+  <marker id="marker56200-6-4-7" overflow="visible" orient="auto">
+   <path transform="scale(.4)" d="m5.77 0-8.65 5v-10z" fill="context-stroke" fill-rule="evenodd" stroke="context-stroke" stroke-width="1pt"/>
+  </marker>
+ </defs>
+ <ellipse cx="92" cy="116" rx="90" ry="42" fill="none" stroke="url(#linearGradient13724)" stroke-linecap="round" stroke-width=".3"/>
+ <g>
+  <rect x="6" y="2" width="32" height="66" fill="#e6f3cf"/>
+  <rect x="70" y="18" width="20" height="12" fill="#e2e2e2" stroke="#000" stroke-dasharray="2.40000012,2.40000012" stroke-linecap="round" stroke-width=".6"/>
+  <rect x="46" y="18" width="20" height="12" fill="#ffc841" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+  <text x="56" y="26" fill="#000000" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:6px" xml:space="preserve"><tspan x="56" y="26" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">dec</tspan></text>
+  <rect x="94" y="18" width="20" height="12" fill="#ffc841" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+  <text x="104" y="26" fill="#000000" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:6px" xml:space="preserve"><tspan x="104" y="26" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">disp</tspan></text>
+  <rect x="124" y="18" width="20" height="12" fill="#fef0ce" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+  <text x="134" y="26" fill="#000000" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:6px" xml:space="preserve"><tspan x="134" y="26" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">issue</tspan></text>
+  <text x="134" y="36" fill="#000000" font-family="Cantarell" font-size="12.7px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:13.5px" xml:space="preserve"><tspan x="134" y="36" font-family="Cantarell" font-size="12.7px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">...</tspan></text>
+  <rect x="144" y="18" width="20" height="12" fill="#f2caff" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+  <text x="154" y="22.999689" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:5px" xml:space="preserve"><tspan x="154" y="22.999689" text-align="center">vreg</tspan><tspan x="154.02646" y="27.999689" text-align="center">read</tspan></text>
+  <rect x="164" y="18" width="20" height="12" fill="#d2e6ff" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+ </g>
+ <g fill="#000000" font-family="Cantarell" stroke-width=".26458">
+  <text x="174" y="26" font-size="5.6444px" font-weight="bold" text-align="center" text-anchor="middle" style="line-height:6px" xml:space="preserve"><tspan x="174" y="26" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">exec</tspan></text>
+  <text x="194" y="12" font-size="4.5861px" font-weight="bold" letter-spacing=".052917px" text-align="center" text-anchor="middle" style="line-height:4.875px" xml:space="preserve"><tspan x="194.02646" y="12" font-family="Cantarell" font-size="4.5861px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">xreg wb</tspan></text>
+  <g font-size="3.8806px" letter-spacing="-.079375px">
+   <text x="124" y="4.999764" word-spacing=".79375px" style="line-height:3.6px" xml:space="preserve"><tspan x="124" y="4.999764">Configurable number</tspan><tspan x="124" y="8.5997639">of vector pipelines</tspan><tspan x="124" y="12.199764">with configurable units</tspan><tspan x="124" y="15.799764">&amp; datapath width</tspan></text>
+   <text x="8" y="132.49954" word-spacing=".52917px" style="line-height:3.8px" xml:space="preserve"><tspan x="8" y="132.49954">Issue series of micro-</tspan><tspan x="8" y="136.29955">ops for each instr,</tspan><tspan x="8" y="140.09955">number depends on</tspan><tspan x="8" y="143.89954">pipeline's datapath</tspan><tspan x="8" y="147.69954">width &amp; config</tspan></text>
+   <g word-spacing=".79375px">
+    <text x="48.500221" y="132.49954" style="line-height:3.8px" xml:space="preserve"><tspan x="48.500221" y="132.49954">Read vector data</tspan><tspan x="48.500221" y="136.29955">from vector reg file</tspan><tspan x="48.500221" y="140.09955">&amp; forward portions</tspan><tspan x="48.500221" y="143.89954">as wide as datapath</tspan><tspan x="48.500221" y="147.69954">to exec</tspan></text>
+    <text x="89.000221" y="132.49954" style="line-height:3.8px" xml:space="preserve"><tspan x="89.000221" y="132.49954">Pipeline hosts one</tspan><tspan x="89.000221" y="136.29955">or more exec units</tspan><tspan x="89.000221" y="140.09955">processing fixed-</tspan><tspan x="89.000221" y="143.89954">width portion of</tspan><tspan x="89.000221" y="147.69954">data each cycle</tspan></text>
+    <text x="129.00023" y="132.49954" style="line-height:3.8px" xml:space="preserve"><tspan x="129.00023" y="132.49954">Result data is</tspan><tspan x="129.00023" y="136.29955">aggregated and</tspan><tspan x="129.00023" y="140.09955">then written back</tspan><tspan x="129.00023" y="143.89954">to vector reg file</tspan></text>
+   </g>
+  </g>
+ </g>
+ <rect x="184" y="18" width="20" height="12" fill="#f2caff" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+ <text x="80" y="26" fill="#000000" font-family="Cantarell" font-size="5.6444px" font-weight="bold" letter-spacing="0px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:6px" xml:space="preserve"><tspan x="80" y="26" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">queue</tspan></text>
+ <path d="m114 23.699v0.60156h8v-0.60156z" color="#000000" style="-inkscape-stroke:none"/>
+ <g fill-rule="evenodd">
+  <path d="m123.38 24-2.076 1.2v-2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+  <path d="m121.15 22.523v2.9531l2.5566-1.4766-0.24024-0.13867zm0.32031 0.55469 1.5957 0.92188-1.5957 0.92188z" color="#000000" style="-inkscape-stroke:none"/>
+ </g>
+ <path d="m118 34.699v0.60156h4v-0.60156z" color="#000000" style="-inkscape-stroke:none"/>
+ <g fill-rule="evenodd">
+  <path d="m123.38 35-2.076 1.2v-2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+  <path d="m121.15 33.523v2.9531l2.5566-1.4766-0.24024-0.13867zm0.32031 0.55469 1.5957 0.92188-1.5957 0.92383z" color="#000000" style="-inkscape-stroke:none"/>
+ </g>
+ <path d="m117.7 24v22.301h4.3008v-0.60156h-3.6992v-21.699z" color="#000000" style="-inkscape-stroke:none"/>
+ <g fill-rule="evenodd">
+  <path d="m123.38 46-2.076 1.2v-2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+  <path d="m121.15 44.523v2.9531l2.5566-1.4766-0.24024-0.13867zm0.32031 0.55469 1.5957 0.92188-1.5957 0.92188z" color="#000000" style="-inkscape-stroke:none"/>
+ </g>
+ <g>
+  <path d="m36 41.699v0.60156h43.699v14h94.602v-2.3008h-0.60156v1.6992h-93.398v-14z" color="#000000" style="-inkscape-stroke:none"/>
+  <g fill-rule="evenodd">
+   <path d="m174 52.615 1.2 2.076h-2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+   <path d="m174 52.295-0.13867 0.24023-1.3379 2.3164h2.9531zm0 0.64062 0.92187 1.5957h-1.8438z" color="#000000" style="-inkscape-stroke:none"/>
+   <path d="m34.615 42 2.076-1.2v2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+   <path d="m36.852 40.523-2.5566 1.4766 0.24023 0.13867 2.3164 1.3379zm-0.32031 0.55469v1.8438l-1.5957-0.92188z" color="#000000" style="-inkscape-stroke:none"/>
+  </g>
+ </g>
+ <path d="m173.7 13.699v4.3008h0.60156v-3.6992h39.398v45.398h-177.7v0.60156h178.3v-46.602z" color="#000000" style="-inkscape-stroke:none"/>
+ <g fill-rule="evenodd">
+  <path d="m34.615 60 2.076-1.2v2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+  <path d="m36.852 58.523-2.5566 1.4766 0.24023 0.13867 2.3164 1.3379zm-0.32031 0.55469v1.8438l-1.5957-0.92188z" color="#000000" style="-inkscape-stroke:none"/>
+ </g>
+ <path d="m90 23.699v0.60156h2v-0.60156z" color="#000000" style="-inkscape-stroke:none"/>
+ <g fill-rule="evenodd">
+  <path d="m93.385 24-2.076 1.2v-2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+  <path d="m91.148 22.523v2.9531l2.5566-1.4766-0.24023-0.13867zm0.32031 0.55469 1.5957 0.92188-1.5957 0.92188z" color="#000000" style="-inkscape-stroke:none"/>
+ </g>
+ <path d="m66 23.699v0.60156h2v-0.60156z" color="#000000" style="-inkscape-stroke:none"/>
+ <g fill-rule="evenodd">
+  <path d="m69.385 24-2.076 1.2v-2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+  <path d="m67.148 22.523v2.9531l2.5566-1.4766-0.24023-0.13867zm0.32031 0.55469 1.5957 0.92188-1.5957 0.92188z" color="#000000" style="-inkscape-stroke:none"/>
+ </g>
+ <path d="m34 23.699v0.60156h10v-0.60156z" color="#000000" style="-inkscape-stroke:none"/>
+ <g fill-rule="evenodd">
+  <path d="m45.385 24-2.076 1.2v-2.4z" color="#000000" stroke-width=".24pt" style="-inkscape-stroke:none"/>
+  <path d="m43.148 22.523v2.9531l2.5566-1.4766-0.24023-0.13867zm0.32031 0.55469 1.5957 0.92188-1.5957 0.92188z" color="#000000" style="-inkscape-stroke:none"/>
+ </g>
+ <g>
+  <text x="194" y="22.999689" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:5px" xml:space="preserve"><tspan x="194" y="22.999689" text-align="center">vreg</tspan><tspan x="194.02646" y="27.999689" text-align="center">write</tspan></text>
+  <rect x="124" y="40" width="20" height="12" fill="#fef0ce" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+  <text x="134" y="48" fill="#000000" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:6px" xml:space="preserve"><tspan x="134" y="48" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">issue</tspan></text>
+  <rect x="144" y="40" width="20" height="12" fill="#f2caff" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+  <text x="154" y="44.999687" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:5px" xml:space="preserve"><tspan x="154" y="44.999687" text-align="center">vreg</tspan><tspan x="154.02646" y="49.999687" text-align="center">read</tspan></text>
+  <rect x="164" y="40" width="20" height="12" fill="#d2e6ff" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+  <text x="174" y="44.79969" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:5.25px" xml:space="preserve"><tspan x="174.02646" y="44.79969" font-family="Cantarell" font-size="4.9389px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">exec</tspan></text>
+  <text x="174" y="50" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:5.25px" xml:space="preserve"><tspan x="174.02646" y="50" font-family="Cantarell" font-size="4.9389px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">mem</tspan></text>
+  <rect x="184" y="40" width="20" height="12" fill="#f2caff" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+  <text x="194" y="44.999687" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:5px" xml:space="preserve"><tspan x="194" y="44.999687" text-align="center">vreg</tspan><tspan x="194.02646" y="49.999687" text-align="center">write</tspan></text>
+ </g>
+ <path d="m166 46h16" fill="none" stroke="#000" stroke-width=".3"/>
+ <rect x="6" y="100" width="40" height="28" fill="#fef0ce" stroke="#000" stroke-linecap="round" stroke-width=".6"/>
+ <g fill="#000000" font-family="Cantarell" stroke-width=".26458">
+  <g font-weight="bold">
+   <text x="26" y="106" font-size="5.6444px" text-align="center" text-anchor="middle" style="line-height:6px" xml:space="preserve"><tspan x="26" y="106" font-family="Cantarell" font-size="5.6444px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">issue</tspan></text>
+   <text x="178" y="88" font-size="4.5861px" style="line-height:4.875px" xml:space="preserve"><tspan x="178" y="88">Available vector</tspan><tspan x="178" y="92.875">exec units:</tspan></text>
+   <text x="178" y="100" font-size="4.5861px" word-spacing="1.0583px" style="line-height:4.875px" xml:space="preserve"><tspan x="178" y="100" font-family="Cantarell" font-size="4.5861px" font-weight="bold" stroke-width=".26458">• VLSU</tspan></text>
+  </g>
+  <g>
+   <text x="182" y="104" font-size="3.5278px" letter-spacing="-.052917px" word-spacing=".079375px" style="line-height:4px" xml:space="preserve"><tspan x="182" y="104" font-family="Cantarell" font-size="3.5278px" stroke-width=".26458">vector loads &amp; stores</tspan></text>
+   <text x="178" y="110" font-size="4.5861px" font-weight="bold" word-spacing="1.0583px" style="line-height:4.875px" xml:space="preserve"><tspan x="178" y="110" font-family="Cantarell" font-size="4.5861px" font-weight="bold" stroke-width=".26458">• VALU</tspan></text>
+   <text x="182" y="114" font-size="3.5278px" letter-spacing="-.052917px" word-spacing=".079375px" style="line-height:4px" xml:space="preserve"><tspan x="182" y="114" font-family="Cantarell" font-size="3.5278px" stroke-width=".26458">vector arithm instr</tspan></text>
+   <text x="178" y="120" font-size="4.5861px" font-weight="bold" word-spacing="1.0583px" style="line-height:4.875px" xml:space="preserve"><tspan x="178" y="120" font-family="Cantarell" font-size="4.5861px" font-weight="bold" stroke-width=".26458">• VMUL</tspan></text>
+   <text x="182" y="124" font-size="3.5278px" letter-spacing="-.052917px" word-spacing=".079375px" style="line-height:4px" xml:space="preserve"><tspan x="182" y="124" font-family="Cantarell" font-size="3.5278px" stroke-width=".26458">vector multiplication</tspan></text>
+   <text x="178" y="130" font-size="4.5861px" font-weight="bold" word-spacing="1.0583px" style="line-height:4.875px" xml:space="preserve"><tspan x="178" y="130" font-family="Cantarell" font-size="4.5861px" font-weight="bold" stroke-width=".26458">• VSLD</tspan></text>
+   <text x="182" y="134" font-size="3.5278px" letter-spacing="-.052917px" word-spacing=".079375px" style="line-height:4px" xml:space="preserve"><tspan x="182" y="134" font-family="Cantarell" font-size="3.5278px" stroke-width=".26458">vector slide instr</tspan></text>
+   <text x="178" y="140" font-size="4.5861px" font-weight="bold" word-spacing="1.0583px" style="line-height:4.875px" xml:space="preserve"><tspan x="178" y="140" font-family="Cantarell" font-size="4.5861px" font-weight="bold" stroke-width=".26458">• VELEM</tspan></text>
+   <text x="182" y="144" font-size="3.5278px" letter-spacing="-.052917px" word-spacing=".079375px" style="line-height:3.7px" xml:space="preserve"><tspan x="182" y="144">xreg wb, reductions,</tspan><tspan x="182" y="147.7">permutations, ...</tspan></text>
+  </g>
+ </g>
+ <g stroke="#000" stroke-width=".6">
+  <g stroke-linecap="round">
+   <rect x="46" y="100" width="40" height="28" fill="#f2caff"/>
+   <rect x="86" y="100" width="40" height="28" fill="#d2e6ff"/>
+   <rect x="126" y="100" width="40" height="28" fill="#f2caff"/>
+  </g>
+  <path d="m14 18h16l4 6-4 6h-16l-4-6z" fill="#cbff6c"/>
+ </g>
+ <g fill="#000000" font-family="Cantarell" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-anchor="middle">
+  <text x="22" y="22.999689" font-size="4.9389px" text-align="center" style="line-height:5px" xml:space="preserve"><tspan x="22" y="22.999689" text-align="center">XIF</tspan><tspan x="22.026459" y="27.999689" text-align="center">issue</tspan></text>
+  <text x="22" y="10" font-size="4.5861px" text-align="center" style="line-height:4px" xml:space="preserve"><tspan x="22" y="10" text-align="center">eXtension</tspan><tspan x="22.026459" y="14" text-align="center">Interface</tspan></text>
+  <text x="22.066147" y="6" font-size="4.5861px" text-align="center" style="line-height:4.64286px" xml:space="preserve"><tspan x="22" y="6" font-family="Cantarell" font-size="4.2333px" font-weight="normal" letter-spacing="-.13229px" stroke-width=".26458" text-align="center" text-anchor="middle" word-spacing=".26458px">OpenHW Group</tspan></text>
+ </g>
+ <g>
+  <path d="m14 36h16l4 6-4 6h-16l-4-6z" fill="#cbff6c" stroke="#000" stroke-width=".6"/>
+  <text x="22" y="40.999687" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:5px" xml:space="preserve"><tspan x="22" y="40.999687" text-align="center">XIF</tspan><tspan x="22.026459" y="45.999687" text-align="center">mem</tspan></text>
+  <path d="m14 54h16l4 6-4 6h-16l-4-6z" fill="#cbff6c" stroke="#000" stroke-width=".6"/>
+  <text x="22" y="58.999687" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:5px" xml:space="preserve"><tspan x="22" y="58.999687" text-align="center">XIF</tspan><tspan x="22.026459" y="63.999687" text-align="center">result</tspan></text>
+ </g>
+ <ellipse cx="164" cy="46.5" rx="39" ry="11.5" fill="none" stroke="#000" stroke-linecap="round" stroke-width=".25"/>
+ <path d="m163.88 58c0 15.948-9.9629 25.912-9.9629 25.912l0.17578 0.17578s10.037-10.036 10.037-26.088z" color="#000000" style="-inkscape-stroke:none"/>
+ <g fill-rule="evenodd" stroke-linejoin="round">
+  <path d="m156.67 82.895-2.9058 1.3433 1.3433-2.9058c0.12184 0.80068 0.75488 1.4298 1.5625 1.5625z" color="#000000" stroke-width=".17188" style="-inkscape-stroke:none"/>
+  <path d="m155.12 81.246a0.085946 0.085946 0 0 0-0.0899 0.05078l-1.3438 2.9043a0.085946 0.085946 0 0 0 0.11524 0.11523l2.9062-1.3438a0.085946 0.085946 0 0 0-0.0234-0.16211c-0.77186-0.12684-1.374-0.72866-1.4902-1.4922a0.085946 0.085946 0 0 0-0.0742-0.07227zm-6e-3 0.27734c0.17826 0.6737 0.6868 1.1803 1.3652 1.3652l-2.5391 1.1738z" color="#000000" style="-inkscape-stroke:none"/>
+ </g>
+ <path d="m50 85v12l16 6 16-6v-12z" fill="url(#linearGradient17682)" stroke="url(#linearGradient17537)" stroke-width=".6"/>
+ <g fill="#d4f4e7" stroke="#000" stroke-linecap="round" stroke-width=".4">
+  <rect x="54" y="104" width="6" height="8"/>
+  <rect x="60" y="104" width="6" height="8"/>
+  <rect x="66" y="104" width="6" height="8"/>
+  <rect x="72" y="104" width="6" height="8"/>
+  <rect x="54" y="116" width="6" height="8"/>
+  <rect x="60" y="116" width="6" height="8"/>
+  <rect x="66" y="116" width="6" height="8"/>
+  <rect x="72" y="116" width="6" height="8"/>
+  <rect x="134" y="110" width="6" height="8"/>
+  <rect x="140" y="110" width="6" height="8"/>
+  <rect x="146" y="110" width="6" height="8"/>
+  <rect x="152" y="110" width="6" height="8"/>
+ </g>
+ <g>
+  <text x="66" y="92.99984" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" word-spacing=".52917px" style="line-height:5px" xml:space="preserve"><tspan x="66" y="92.99984" text-align="center">vreg read</tspan><tspan x="66.026459" y="97.99984" text-align="center">port(s)</tspan></text>
+  <path d="m130 84v22l16-6 16 6v-22z" fill="url(#linearGradient20952)" stroke="url(#linearGradient20954)" stroke-width=".6"/>
+  <text x="146" y="93" fill="#000000" font-family="Cantarell" font-size="4.9389px" font-weight="bold" letter-spacing=".052917px" stroke-width=".26458" text-align="center" text-anchor="middle" word-spacing=".52917px" style="line-height:5px" xml:space="preserve"><tspan x="146" y="93" text-align="center">vreg write</tspan><tspan x="146.02646" y="98" text-align="center">port</tspan></text>
+  <text x="90" y="84" fill="#000000" font-family="Cantarell" font-size="7.0556px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle" word-spacing=".79375px" style="line-height:7.5px" xml:space="preserve"><tspan x="90" y="84" font-family="Cantarell" font-size="7.0556px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">Vector pipeline detail</tspan></text>
+ </g>
+ <g fill="none" stroke="#000" stroke-width=".6">
+  <path d="m80 108h14" marker-end="url(#marker56200-6-4)"/>
+  <path d="m37 114h12" marker-end="url(#marker56200-6-4-7)"/>
+  <path d="m80 120h14" marker-end="url(#marker56200-6-4-0)"/>
+  <path d="m118 114h14" marker-end="url(#marker56200-6-4-6)"/>
+ </g>
+ <g fill="#d4f4e7" stroke="#000" stroke-linecap="round" stroke-width=".4">
+  <rect x="84" y="104" width="6" height="8"/>
+  <rect x="122" y="110" width="6" height="8"/>
+  <rect x="84" y="116" width="6" height="8"/>
+ </g>
+ <g transform="matrix(.93008 0 0 .93008 76.237 54.915)" fill="none" stroke="#000">
+  <g stroke-width=".3">
+   <circle cx="32" cy="56" r="6"/>
+   <path d="m38 56a6 6 0 0 1-3 5.1962 6 6 0 0 1-6 0l3-5.1962z"/>
+   <path d="m29 61.196a6 6 0 0 1-3-5.1962 6 6 0 0 1 3-5.1962l3 5.1962z"/>
+  </g>
+  <g>
+   <g stroke-width=".5">
+    <path d="m27.8 54.5v3l0.7-1e-6c2-3e-6 2-3 0-3z"/>
+    <path d="m26.7 55h1"/>
+    <path d="m26.7 57h1"/>
+    <path d="m30 56h1"/>
+   </g>
+   <g stroke-width=".49">
+    <path d="m34 52v2.8"/>
+    <path d="m32.6 53.4h2.8"/>
+    <path d="m32.6 58.5h2.8"/>
+   </g>
+  </g>
+ </g>
+ <g transform="matrix(.93008 0 0 .93008 76.237 68.915)" fill="none" stroke="#000">
+  <g stroke-width=".3">
+   <circle cx="32" cy="56" r="6"/>
+   <path d="m38 56a6 6 0 0 1-3 5.1962 6 6 0 0 1-6 0l3-5.1962z"/>
+   <path d="m29 61.196a6 6 0 0 1-3-5.1962 6 6 0 0 1 3-5.1962l3 5.1962z"/>
+  </g>
+  <g>
+   <g stroke-width=".5">
+    <path d="m27.8 54.5v3l0.7-1e-6c2-3e-6 2-3 0-3z"/>
+    <path d="m26.7 55h1"/>
+    <path d="m26.7 57h1"/>
+    <path d="m30 56h1"/>
+   </g>
+   <g stroke-width=".49">
+    <path d="m34 52v2.8"/>
+    <path d="m32.6 53.4h2.8"/>
+    <path d="m32.6 58.5h2.8"/>
+   </g>
+  </g>
+ </g>
+ <text x="106" y="114.4997" fill="#000000" font-family="Cantarell" font-size="6.35px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle" style="line-height:6.75px" xml:space="preserve"><tspan x="106" y="114.4997" font-family="Cantarell" font-size="6.35px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">...</tspan></text>
+ <g transform="translate(-36,-3)">
+  <g transform="matrix(.75 0 0 .75 19.5 28.5)" stroke-width=".26458" aria-label="0">
+   <path d="m46.989 116.06c0.93133 0 1.5409-0.79022 1.5409-2.0376 0-1.2136-0.59267-1.9925-1.5071-1.9925-0.94827 0-1.5579 0.79587-1.5579 2.0376 0 1.2192 0.59831 1.9925 1.524 1.9925zm0.02822-0.62088c-0.49107 0-0.80716-0.54751-0.80716-1.4111 0-0.84103 0.31044-1.3716 0.78458-1.3716 0.47978 0 0.79022 0.54751 0.79022 1.4168 0 0.83538-0.29916 1.366-0.76764 1.366z"/>
+  </g>
+  <g transform="matrix(.75 0 0 .75 18.75 28.5)" stroke-width=".26458" aria-label="1">
+   <path d="m54.964 116.02h0.71684v-3.9342h-0.42898l-1.4845 0.75635 0.26529 0.51365 1.1571-0.51365-0.22578-0.23142z"/>
+  </g>
+  <path d="m64.5 111c-0.02038 0-0.04066 7.5e-4 -0.06085 2e-3l-0.42284 0.60927v0.2837h1.4065l-0.0012 0.6395h0.52904v-0.6395h0.52516v-0.45695l-0.52516-1e-3v-0.43702h-0.52632l-7.76e-4 0.43525-0.82708-2e-3 0.29068-0.43331z" stroke-width=".19844"/>
+  <path d="m65.1 116.67c0.7112 0 1.1811-0.37676 1.1811-0.98213 0-0.55457-0.39793-0.88476-1.0837-0.88476-0.17357 0-0.29633 0.0212-0.41487 0.0677l0.13547 0.16933 0.0381-0.87629h1.1769v-0.47414h-1.6976l-0.07197 1.6171c0.18627-0.0381 0.42333-0.0635 0.60537-0.0635 0.4699 0 0.74507 0.18204 0.74507 0.49953 0 0.28787-0.2286 0.45297-0.6096 0.45297-0.254 0-0.5334-0.0635-0.7493-0.17356l-0.1524 0.42756c0.27517 0.14393 0.5715 0.22013 0.89747 0.22013z" stroke-width=".19844"/>
+  <g fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width=".3">
+   <rect x="52.5" y="111" width="4.5" height="6" ry="1.5"/>
+   <rect x="57.75" y="111" width="4.5" height="6" ry="1.5"/>
+   <rect x="63" y="111" width="4.5" height="6" ry="1.5"/>
+  </g>
+ </g>
+ <path d="m33.746 118.83-0.24288 0.67541 0.0031 0.0388 0.11782 0.58601-0.68213 0.28267-0.33124-0.49765-0.02532-0.03-0.64957-0.30592-0.35915 0.35966 0.30592 0.64906 0.02997 0.0253 0.49764 0.33125-0.28267 0.68213-0.58601-0.11782-0.03927-3e-3 -0.67541 0.24288v0.50798l0.67541 0.24288 0.03927-3e-3 0.58601-0.11782 0.28267 0.68264-0.49764 0.33125-0.02997 0.0248-0.30592 0.64957 0.35915 0.35916 0.64957-0.30593 0.02532-0.0294 0.33124-0.49816 0.68213 0.28267-0.11782 0.58652-0.0031 0.0388 0.24288 0.67541h0.50798l0.24288-0.67541-0.0031-0.0388-0.11782-0.58652 0.68213-0.28267 0.33124 0.49816 0.02532 0.0294 0.64906 0.30593 0.35967-0.35916-0.30592-0.64957-0.02997-0.0248-0.49764-0.33125 0.28267-0.68264 0.58601 0.11782 0.03927 3e-3 0.67541-0.24288v-0.50798l-0.67541-0.24288-0.03927 3e-3 -0.58601 0.11782-0.28267-0.68213 0.49764-0.33125 0.02997-0.0253 0.30592-0.64906-0.35967-0.35966-0.64906 0.30592-0.02532 0.03-0.33124 0.49765-0.68213-0.28267 0.11782-0.58601 0.0031-0.0388-0.24288-0.67541zm0.25425 2.173a1 1 0 0 1 0.99994 0.99994 1 1 0 0 1-0.99994 0.99994 1 1 0 0 1-1.0005-0.99994 1 1 0 0 1 1.0005-0.99994z" stroke="#000" stroke-width=".8"/>
+ <path d="m33.746 118.83-0.24288 0.67541 0.0031 0.0388 0.11782 0.58601-0.68213 0.28267-0.33124-0.49765-0.02532-0.03-0.64957-0.30592-0.35915 0.35966 0.30592 0.64906 0.02997 0.0253 0.49764 0.33125-0.28267 0.68213-0.58601-0.11782-0.03927-3e-3 -0.67541 0.24288v0.50798l0.67541 0.24288 0.03927-3e-3 0.58601-0.11782 0.28267 0.68264-0.49764 0.33125-0.02997 0.0248-0.30592 0.64957 0.35915 0.35916 0.64957-0.30593 0.02532-0.0294 0.33124-0.49816 0.68213 0.28267-0.11782 0.58652-0.0031 0.0388 0.24288 0.67541h0.50798l0.24288-0.67541-0.0031-0.0388-0.11782-0.58652 0.68213-0.28267 0.33124 0.49816 0.02532 0.0294 0.64906 0.30593 0.35967-0.35916-0.30592-0.64957-0.02997-0.0248-0.49764-0.33125 0.28267-0.68264 0.58601 0.11782 0.03927 3e-3 0.67541-0.24288v-0.50798l-0.67541-0.24288-0.03927 3e-3 -0.58601 0.11782-0.28267-0.68213 0.49764-0.33125 0.02997-0.0253 0.30592-0.64906-0.35967-0.35966-0.64906 0.30592-0.02532 0.03-0.33124 0.49765-0.68213-0.28267 0.11782-0.58601 0.0031-0.0388-0.24288-0.67541zm0.25425 2.173a1 1 0 0 1 0.99994 0.99994 1 1 0 0 1-0.99994 0.99994 1 1 0 0 1-1.0005-0.99994 1 1 0 0 1 1.0005-0.99994z" fill="#fef0ce"/>
+ <g fill="none" stroke="#000" stroke-linecap="round" stroke-width=".6">
+  <path d="m13 117v8"/>
+  <path d="m16 117v8"/>
+  <path d="m19 117v8"/>
+ </g>
+ <g fill="#fef0ce" stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width=".6">
+  <circle cx="13" cy="121" r="1"/>
+  <circle cx="16" cy="123" r="1"/>
+  <circle cx="19" cy="119" r="1"/>
+ </g>
+ <text x="41.539673" y="112" fill="#000000" font-family="Cantarell" font-size="4.2333px" font-weight="bold" letter-spacing="0px" stroke-width=".26458" text-align="center" text-anchor="middle" word-spacing=".79375px" style="line-height:4.14545px" xml:space="preserve"><tspan x="41.499985" y="112" font-family="Cantarell" font-size="4.2333px" font-weight="bold" stroke-width=".26458" text-align="center" text-anchor="middle">μop</tspan></text>
+ <g transform="rotate(90 5.4999 128.5)">
+  <path transform="scale(.26458)" d="m-19.156 391.89-1.5098 0.87304 0.44336 2.7598 0.06836 0.0879 1.0234 1.0176a5.6693 5.6693 0 0 0-1.457 2.5234l-1.3926-0.37696-0.10938-0.0156-2.6133 0.99805v1.7422l2.6133 0.99805 0.10938-0.0156 1.3945-0.37696a5.6693 5.6693 0 0 0 1.4551 2.5215l-1.0234 1.0195-0.06836 0.0879-0.44336 2.7598 1.5098 0.87305 2.1699-1.7656 0.04102-0.10157 0.37109-1.3984a5.6693 5.6693 0 0 0 1.457 0.19531 5.6693 5.6693 0 0 0 1.4551-0.19531l0.37109 1.3984 0.04102 0.10157 2.1699 1.7656 1.5098-0.87305-0.44336-2.7598-0.06836-0.0879-1.0234-1.0195a5.6693 5.6693 0 0 0 1.4551-2.5215l1.3945 0.37696 0.10938 0.0156 2.6133-0.99805v-1.7422l-2.6133-0.99805-0.10938 0.0156-1.3887 0.375a5.6693 5.6693 0 0 0-1.459-2.5234l1.0215-1.0156 0.06836-0.0879 0.44336-2.7598-1.5098-0.87304-2.1699 1.7656-0.04102 0.10157-0.36914 1.3926a5.6693 5.6693 0 0 0-1.457-0.1914 5.6693 5.6693 0 0 0-1.457 0.19531l-0.37109-1.3965-0.04102-0.10157z" stroke="#000" stroke-width="3.0236"/>
+  <path transform="scale(.26458)" d="m-19.156 391.89-1.5098 0.87304 0.44336 2.7598 0.06836 0.0879 1.0234 1.0176a5.6693 5.6693 0 0 0-1.457 2.5234l-1.3926-0.37696-0.10938-0.0156-2.6133 0.99805v1.7422l2.6133 0.99805 0.10938-0.0156 1.3945-0.37696a5.6693 5.6693 0 0 0 1.4551 2.5215l-1.0234 1.0195-0.06836 0.0879-0.44336 2.7598 1.5098 0.87305 2.1699-1.7656 0.04102-0.10157 0.37109-1.3984a5.6693 5.6693 0 0 0 1.457 0.19531 5.6693 5.6693 0 0 0 1.4551-0.19531l0.37109 1.3984 0.04102 0.10157 2.1699 1.7656 1.5098-0.87305-0.44336-2.7598-0.06836-0.0879-1.0234-1.0195a5.6693 5.6693 0 0 0 1.4551-2.5215l1.3945 0.37696 0.10938 0.0156 2.6133-0.99805v-1.7422l-2.6133-0.99805-0.10938 0.0156-1.3887 0.375a5.6693 5.6693 0 0 0-1.459-2.5234l1.0215-1.0156 0.06836-0.0879 0.44336-2.7598-1.5098-0.87304-2.1699 1.7656-0.04102 0.10157-0.36914 1.3926a5.6693 5.6693 0 0 0-1.457-0.1914 5.6693 5.6693 0 0 0-1.457 0.19531l-0.37109-1.3965-0.04102-0.10157z" fill="#fef0ce"/>
+  <circle cx="-4" cy="106" r=".6" fill="#fef0ce" stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width=".4"/>
+ </g>
+</svg>
