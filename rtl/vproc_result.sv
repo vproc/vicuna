@@ -131,7 +131,7 @@ module vproc_result #(
             instr_result_empty_d[result_empty_id_i] = 1'b1;
         end
         // CSR result is always buffered
-        if (result_csr_valid_i) begin
+        if (result_csr_valid_i & result_csr_ready_o) begin
             result_csr_valid_d   = 1'b1;
             result_csr_id_d      = result_csr_id_i;
             result_csr_addr_d    = result_csr_addr_i;
