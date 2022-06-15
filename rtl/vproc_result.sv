@@ -118,7 +118,7 @@ module vproc_result #(
         // be buffered as well
         if (result_csr_delayed_q) begin
             result_csr_delayed_d = 1'b0;
-            result_csr_data_d    = result_csr_data_i;
+            result_csr_data_d    = result_csr_data_delayed_i;
         end
 
         if (result_source == RESULT_SOURCE_EMPTY_BUF) begin
