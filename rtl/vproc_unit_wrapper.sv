@@ -307,6 +307,10 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 .pipe_out_res_o        ( unit_out_res                   ),
                 .pipe_out_mask_o       ( unit_out_mask                  )
             );
+            // guard ELEM unit's pipe_out_res_valid_o with its pipe_out_valid_o
+            logic res_valid;
+            assign res_valid = unit_out_valid & unit_out_res_valid;
+            // ELEM unit's output buffer signals
             logic                has_valid_result_q, has_valid_result_d;
             COUNTER_T            vd_count_q,         vd_count_d;
             logic                flushing_q,         flushing_d;
@@ -341,20 +345,19 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 if (unit_out_ctrl.first_cycle) begin
                     has_valid_result_d = 1'b0;
                 end
-                if (unit_out_res_valid) begin
+                if (res_valid) begin
                     has_valid_result_d = 1'b1;
                 end
             end
             // determine when we see the first valid result
             logic first_valid_result;
-            assign first_valid_result = ~flushing_q & unit_out_res_valid & (unit_out_ctrl.first_cycle | ~has_valid_result_q);
-            always_comb begin
+            assign first_valid_result = ~flushing_q & res_valid & (unit_out_ctrl.first_cycle | ~has_valid_re            always_comb begin
                 vd_count_d.val = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (flushing_q ? flushing_eew_q : unit_out_ctrl.eew)
-                    VSEW_8:  vd_count_d.val = vd_count_q.val + {{(COUNTER_W-1){1'b0}}, flushing_q | unit_out_res_valid      };
-                    VSEW_16: vd_count_d.val = vd_count_q.val + {{(COUNTER_W-2){1'b0}}, flushing_q | unit_out_res_valid, 1'b0};
-                    VSEW_32: vd_count_d.val = vd_count_q.val + {{(COUNTER_W-3){1'b0}}, flushing_q | unit_out_res_valid, 2'b0};
-                    default: ;
+trl.eew)
+                    VSEW_8:  vd_count_d.val = vd_count_q.val + {{(COUNTER_W-1){1'b0}}, flushing_q | res_valid      };
+                    VSEW_16: vd_count_d.val = vd_count_q.val + {{(COUNTER_W-2){1'b0}}, flushing_q | res_valid, 1'b0};
+                    VSEW_32: vd_count_d.val = vd_count_q.val + {{(COUNTER_W-3){1'b0}}, flushing_q | res_valid                    default: ;
                 endcase
                 if (first_valid_result) begin
                     vd_count_d.val      = '0;
