@@ -113,6 +113,14 @@ module vproc_result #(
         result_csr_delayed_d = result_csr_delayed_q;
         result_csr_data_d    = result_csr_data_q;
 
+        // for a delayed result the data is always available in the cycle after the result was
+        // received, but if the interface is not ready to return that result yet, the data has to
+        // be buffered as well
+        if (result_csr_delayed_q) begin
+            result_csr_delayed_d = 1'b0;
+            result_csr_data_d    = result_csr_data_i;
+        end
+
         if (result_source == RESULT_SOURCE_EMPTY_BUF) begin
             // clear the lowest index ID if the XIF interface is ready
             for (int i = 0; i < XIF_ID_CNT; i++) begin
