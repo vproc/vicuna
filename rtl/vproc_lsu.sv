@@ -370,7 +370,7 @@ module vproc_lsu import vproc_pkg::*; #(
 
     // LSU transaction complete queue, result indicates potential exceptions
     logic trans_complete_valid, trans_complete_ready;
-    assign trans_complete_valid = deq_valid & deq_ready & deq_state.last_cycle;
+    assign trans_complete_valid = deq_valid & deq_ready & deq_state.last_cycle & ~instr_killed_i[deq_state.id];
     vproc_queue #(
         .WIDTH        ( XIF_ID_W + 7                                                          ),
         .DEPTH        ( 2                                                                     )
