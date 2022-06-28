@@ -284,10 +284,10 @@ module vproc_lsu import vproc_pkg::*; #(
     // that could be tricky because the LSU cannot accept a memory response transaction while
     // dequeueing a suppressed request
     logic req_suppress;
-    assign req_suppress = state_req_q.vl_part_0;
+    assign req_suppress = instr_killed_i[state_req_q.id] | state_req_q.vl_part_0;
 
     // memory request (keep requesting next access while addressing is not complete)
-    assign xif_mem_if.mem_valid     = state_req_valid_q & ~req_suppress & ~state_req_stall & ~instr_killed_i[state_req_q.id] & (~mem_exc_q | state_req_q.first_cycle);
+    assign xif_mem_if.mem_valid     = state_req_valid_q & ~req_suppress & ~state_req_stall & (~mem_exc_q | state_req_q.first_cycle);
     assign xif_mem_if.mem_req.id    = state_req_q.id;
     assign xif_mem_if.mem_req.addr  = VLSU_FLAGS[VLSU_ALIGNED_UNITSTRIDE] ? {req_addr_q[31:$clog2(VMEM_W/8)], {$clog2(VMEM_W/8){1'b0}}} : req_addr_q;
     assign xif_mem_if.mem_req.mode  = '0;
