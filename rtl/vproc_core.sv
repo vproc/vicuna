@@ -414,7 +414,7 @@ module vproc_core import vproc_pkg::*; #(
             instr_state_d    [xif_issue_if.issue_req.id] = INSTR_SPECULATIVE;
             instr_empty_res_d[xif_issue_if.issue_req.id] = ~xif_issue_if.issue_resp.writeback & ~xif_issue_if.issue_resp.loadstore;
         end
-        if (xif_commit_if.commit_valid) begin
+        if (xif_commit_if.commit_valid & (instr_state_q[xif_commit_if.commit.id] != INSTR_INVALID)) begin
             // Generate an empty result for all instructions except those that
             // writeback to the main core and for vector loads and stores
             if (~xif_commit_if.commit.commit_kill) begin
