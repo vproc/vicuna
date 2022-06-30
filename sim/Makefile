@@ -80,7 +80,7 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	if [ -n "$(SIM_ABORT_CYCLES)" ]; then                                     \
 	    cflags="$${cflags} -CFLAGS -DABORT_CYCLES=$(SIM_ABORT_CYCLES)";       \
 	fi;                                                                       \
-	if [ "$(ENABLE_SVA)" != "" ]; then                                        \
+	if [ -n "$(ENABLE_SVA)" ] && [ "$(ENABLE_SVA)" != "0" ]; then             \
 	    options="$$options --assert -DVPROC_SVA";                             \
 	fi;                                                                       \
 	core="";                                                                  \
