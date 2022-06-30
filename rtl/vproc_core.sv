@@ -396,6 +396,11 @@ module vproc_core import vproc_pkg::*; #(
     // the decode buffer is cleared without asserting dec_ready
     assign dec_ready = ~dec_buf_valid_q | (queue_ready & queue_push);
 
+    // XIF instruction successfully offloaded
+    logic instr_offload;
+    assign instr_offload = xif_issue_if.issue_valid & xif_issue_if.issue_ready &
+                           xif_issue_if.issue_resp.accept;
+
     always_comb begin
         instr_state_d      = instr_state_q;
         instr_empty_res_d  = instr_empty_res_q;
@@ -406,7 +411,7 @@ module vproc_core import vproc_pkg::*; #(
         result_empty_id    = xif_commit_if.commit.id;
         dec_clear          = 1'b0;
 
-        if (xif_issue_if.issue_valid & xif_issue_if.issue_ready & xif_issue_if.issue_resp.accept) begin
+        if (instr_offload) begin
             // For each issued instruction, remember whether it will produce an
             // empty result or not. This must be done for accepted as well as
             // rejected instructions, since the main core will commit all of
@@ -414,7 +419,12 @@ module vproc_core import vproc_pkg::*; #(
             instr_state_d    [xif_issue_if.issue_req.id] = INSTR_SPECULATIVE;
             instr_empty_res_d[xif_issue_if.issue_req.id] = ~xif_issue_if.issue_resp.writeback & ~xif_issue_if.issue_resp.loadstore;
         end
-        if (xif_commit_if.commit_valid & (instr_state_q[xif_commit_if.commit.id] != INSTR_INVALID)) begin
+        // Only instructions that have already been offloaded or are being offloaded right now
+        // can be committed.  Commit transactions for invalid IDs are ignored.
+        if (xif_commit_if.commit_valid & (
+            (instr_offload & (xif_issue_if.issue_req.id == xif_commit_if.commit.id)) |
+            (instr_state_q[xif_commit_if.commit.id] != INSTR_INVALID)
+        )) begin
             // Generate an empty result for all instructions except those that
             // writeback to the main core and for vector loads and stores
             if (~xif_commit_if.commit.commit_kill) begin
