@@ -43,8 +43,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         output logic [31:0]             vreg_pend_rd_o,
         input  logic [31:0]             vreg_pend_rd_i,
 
-        input  logic [XIF_ID_CNT-1:0]   instr_spec_i,
-        input  logic [XIF_ID_CNT-1:0]   instr_killed_i,
+        input  instr_state [XIF_ID_CNT-1:0] instr_state_i,
         output logic                    instr_done_valid_o,
         output logic [XIF_ID_W-1:0]     instr_done_id_o,
 

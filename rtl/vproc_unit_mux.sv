@@ -49,8 +49,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
 
         input  logic    [31:0]                       vreg_pend_rd_i,
 
-        input  logic    [XIF_ID_CNT            -1:0] instr_spec_i,
-        input  logic    [XIF_ID_CNT            -1:0] instr_killed_i,
+        input  instr_state [XIF_ID_CNT         -1:0] instr_state_i,
 
         vproc_xif.coproc_mem                         xif_mem_if,
         vproc_xif.coproc_mem_result                  xif_memres_if,
@@ -161,8 +160,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     .pending_load_o            ( pending_load               ),
                     .pending_store_o           ( pending_store              ),
                     .vreg_pend_rd_i            ( vreg_pend_rd_i             ),
-                    .instr_spec_i              ( instr_spec_i               ),
-                    .instr_killed_i            ( instr_killed_i             ),
+                    .instr_state_i             ( instr_state_i              ),
                     .xif_mem_if                ( unit_xif                   ),
                     .xif_memres_if             ( unit_xif                   ),
                     .trans_complete_valid_o    ( trans_complete_valid       ),

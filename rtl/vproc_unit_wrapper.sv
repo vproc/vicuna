@@ -49,8 +49,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
 
         input  logic    [31:0]                       vreg_pend_rd_i,
 
-        input  logic    [XIF_ID_CNT            -1:0] instr_spec_i,
-        input  logic    [XIF_ID_CNT            -1:0] instr_killed_i,
+        input  instr_state [XIF_ID_CNT         -1:0] instr_state_i,
 
         vproc_xif.coproc_mem                         xif_mem_if,
         vproc_xif.coproc_mem_result                  xif_memres_if,
@@ -100,8 +99,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 .pending_load_o           ( pending_load_o                              ),
                 .pending_store_o          ( pending_store_o                             ),
                 .vreg_pend_rd_i           ( vreg_pend_rd_i                              ),
-                .instr_spec_i             ( instr_spec_i                                ),
-                .instr_killed_i           ( instr_killed_i                              ),
+                .instr_state_i            ( instr_state_i                               ),
                 .trans_complete_valid_o   ( trans_complete_valid_o                      ),
                 .trans_complete_ready_i   ( trans_complete_ready_i                      ),
                 .trans_complete_id_o      ( trans_complete_id_o                         ),
@@ -371,7 +369,26 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                     endcase
                 end
             end
-            assign unit_out_stall = unit_out_xreg_valid & (instr_spec_i[unit_out_ctrl.id] | ~xreg_ready_i);
+
+            logic instr_speculative, instr_committed;
+            always_comb begin
+                instr_speculative = DONT_CARE_ZERO ? '0 : 'x;
+                instr_committed   = DONT_CARE_ZERO ? '0 : 'x;
+                unique case (instr_state_i[unit_out_ctrl.id])
+                    INSTR_SPECULATIVE: instr_speculative = 1'b1;
+                    INSTR_COMMITTED,
+                    INSTR_KILLED:      instr_speculative = 1'b0;
+                    default: ;
+                endcase
+                unique case (instr_state_i[unit_out_ctrl.id])
+                    INSTR_SPECULATIVE,
+                    INSTR_KILLED:      instr_committed = 1'b0;
+                    INSTR_COMMITTED:   instr_committed = 1'b1;
+                    default: ;
+                endcase
+            end
+
+            assign unit_out_stall = unit_out_xreg_valid & (instr_speculative | ~xreg_ready_i);
 
             // flush the downstream part of the pipeline after the last cycle if needed
             logic flushing_last_cycle;
@@ -395,7 +412,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 end
             end
 
-            assign xreg_valid_o     = unit_out_valid & unit_out_xreg_valid & ~instr_spec_i[unit_out_ctrl.id] & ~flushing_q & ~instr_killed_i[unit_out_ctrl.id];
+            assign xreg_valid_o     = unit_out_valid & unit_out_xreg_valid & instr_committed & ~flushing_q;
             assign xreg_id_o        = unit_out_ctrl.id;
             assign pipe_out_valid_o = (unit_out_valid & ~unit_out_stall) | flushing_q;
             assign unit_out_ready   = pipe_out_ready_i & ~flushing_q & ~unit_out_stall;

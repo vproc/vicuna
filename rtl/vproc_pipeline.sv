@@ -58,8 +58,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         output logic [31:0]             vreg_pend_rd_o,
         input  logic [31:0]             vreg_pend_rd_i,
 
-        input  logic [XIF_ID_CNT-1:0]   instr_spec_i,
-        input  logic [XIF_ID_CNT-1:0]   instr_killed_i,
+        input  instr_state [XIF_ID_CNT-1:0] instr_state_i,
         output logic                    instr_done_valid_o,
         output logic [XIF_ID_W-1:0]     instr_done_id_o,
 
@@ -909,8 +908,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         .pending_load_o            ( lsu_pending_load         ),
         .pending_store_o           ( lsu_pending_store        ),
         .vreg_pend_rd_i            ( vreg_pend_rd_i           ),
-        .instr_spec_i              ( instr_spec_i             ),
-        .instr_killed_i            ( instr_killed_i           ),
+        .instr_state_i             ( instr_state_i            ),
         .xif_mem_if                ( xif_mem_if               ),
         .xif_memres_if             ( xif_memres_if            ),
         .trans_complete_valid_o    ( trans_complete_valid_o   ),
@@ -967,8 +965,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         .vreg_wr_clr_o               ( vreg_wr_clr_o           ),
         .vreg_wr_clr_cnt_o           ( vreg_wr_clr_cnt_o       ),
         .pending_vreg_reads_i        ( vreg_pend_rd_i          ),
-        .instr_spec_i                ( instr_spec_i            ),
-        .instr_killed_i              ( instr_killed_i          ),
+        .instr_state_i               ( instr_state_i           ),
         .instr_done_valid_o          ( instr_done_valid_o      ),
         .instr_done_id_o             ( instr_done_id_o         )
     );

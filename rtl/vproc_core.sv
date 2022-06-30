@@ -344,40 +344,36 @@ module vproc_core import vproc_pkg::*; #(
     ///////////////////////////////////////////////////////////////////////////
     // VECTOR INSTRUCTION COMMIT STATE
 
-    // The instruction commit state masks track whether a vector instruction is
-    // speculative or not and whether an instruction has been killed.  First,
-    // any instruction ID is speculative (instr_notspec_q[id] == 1'b0), which
-    // indicates that either no instruction with that ID has been offloaded yet
-    // or if there is an instruction with that ID, then it is still speculative
-    // (i.e., it has not been committed yet).  Once an instruction becomes non-
-    // speculative (by being either committed or killed via the XIF commit
-    // interface) the respective bit in instr_notspec_q is set; the bit remains
-    // set until the instruction is complete.  Note that an instruction may be
-    // incomplete despite having been retired (by providing a result to the
-    // host CPU via the XIF result interface).  Hence, the host CPU might
-    // attempt to reuse the ID of an incomplete instruction.  To avoid this,
-    // the decoder stalls in case the instruction ID of a new instruction is
-    // still marked as non-speculative (i.e., the corresponding bit in
-    // instr_notspec_q is set).
-    logic [XIF_ID_CNT-1:0] instr_notspec_q,   instr_notspec_d;   // not speculative mask
-    logic [XIF_ID_CNT-1:0] instr_killed_q,    instr_killed_d;    // killed mask
-    logic [XIF_ID_CNT-1:0] instr_empty_res_q, instr_empty_res_d; // empty result mask
+    // The instruction state tracks whether a vector instruction is invalid,
+    // speculative, committed, or killed.  First, any instruction ID is
+    // invalid, which indicates that no instruction with that ID has been
+    // offloaded yet.  Once an instruction has been accepted, it becomes
+    // speculative until there is a corresponding commit transaction.  The
+    // commit transaction changes the instruction's state to either committed
+    // or killed, depending on the corresponding bit in the commit transaction.
+    // The instruction remains in that state until it is complete.  Note that
+    // an instruction may be incomplete despite having been retired (by
+    // providing a result to the host CPU via the XIF result interface).
+    // Hence, the host CPU might attempt to reuse the ID of an incomplete
+    // instruction.  To avoid this, the decoder stalls in case the instruction
+    // ID of a new instruction is still valid.
+    instr_state [XIF_ID_CNT-1:0] instr_state_q,     instr_state_d;     // instruction state
+    logic       [XIF_ID_CNT-1:0] instr_empty_res_q, instr_empty_res_d; // empty result mask
     always_ff @(posedge clk_i or negedge async_rst_n) begin : vproc_commit_buf
         if (~async_rst_n) begin
-            instr_notspec_q <= '0;
+            instr_state_q    <= '{default: INSTR_INVALID};
         end
         else if (~sync_rst_n) begin
-            instr_notspec_q <= '0;
+            instr_state_q    <= '{default: INSTR_INVALID};
         end else begin
-            instr_notspec_q <= instr_notspec_d;
+            instr_state_q    <= instr_state_d;
         end
     end
     always_ff @(posedge clk_i) begin
-        instr_killed_q    <= instr_killed_d;
         instr_empty_res_q <= instr_empty_res_d;
     end
 
-    assign issue_id_used = instr_notspec_q[xif_issue_if.issue_req.id];
+    assign issue_id_used = instr_state_q[xif_issue_if.issue_req.id] != INSTR_INVALID;
 
     // Instruction complete signal for each pipeline
     logic [PIPE_CNT-1:0]               instr_complete_valid;
@@ -401,8 +397,7 @@ module vproc_core import vproc_pkg::*; #(
     assign dec_ready = ~dec_buf_valid_q | (queue_ready & queue_push);
 
     always_comb begin
-        instr_notspec_d    = instr_notspec_q;
-        instr_killed_d     = instr_killed_q;
+        instr_state_d      = instr_state_q;
         instr_empty_res_d  = instr_empty_res_q;
         result_csr_valid   = 1'b0;
         result_csr_id      = dec_data_q.id;
@@ -411,12 +406,13 @@ module vproc_core import vproc_pkg::*; #(
         result_empty_id    = xif_commit_if.commit.id;
         dec_clear          = 1'b0;
 
-        if (xif_issue_if.issue_valid) begin
+        if (xif_issue_if.issue_valid & xif_issue_if.issue_ready & xif_issue_if.issue_resp.accept) begin
             // For each issued instruction, remember whether it will produce an
             // empty result or not. This must be done for accepted as well as
             // rejected instructions, since the main core will commit all of
             // them and rejected instructions must not produce a result.
-            instr_empty_res_d[xif_issue_if.issue_req.id] = xif_issue_if.issue_resp.accept & ~xif_issue_if.issue_resp.writeback & ~xif_issue_if.issue_resp.loadstore;
+            instr_state_d    [xif_issue_if.issue_req.id] = INSTR_SPECULATIVE;
+            instr_empty_res_d[xif_issue_if.issue_req.id] = ~xif_issue_if.issue_resp.writeback & ~xif_issue_if.issue_resp.loadstore;
         end
         if (xif_commit_if.commit_valid) begin
             // Generate an empty result for all instructions except those that
@@ -435,29 +431,33 @@ module vproc_core import vproc_pkg::*; #(
                 // committed.
                 result_csr_valid = ~xif_commit_if.commit.commit_kill;
                 if (result_csr_ready | xif_commit_if.commit.commit_kill) begin
-                    dec_clear = 1'b1;
+                    dec_clear                    = 1'b1;
+                    instr_state_d[dec_data_q.id] = INSTR_INVALID;
                 end else begin
-                    instr_notspec_d[xif_commit_if.commit.id] = 1'b1;
+                    instr_state_d[xif_commit_if.commit.id] = xif_commit_if.commit.commit_kill ?
+                                                             INSTR_KILLED : INSTR_COMMITTED;
                 end
             end else begin
-                instr_notspec_d[xif_commit_if.commit.id] = 1'b1;
+                instr_state_d[xif_commit_if.commit.id] = xif_commit_if.commit.commit_kill ?
+                                                         INSTR_KILLED : INSTR_COMMITTED;
             end
-
-            instr_killed_d[xif_commit_if.commit.id] = xif_commit_if.commit.commit_kill;
         end
-        if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & instr_notspec_q[dec_data_q.id]) begin
+        if (dec_buf_valid_q & (dec_data_q.unit == UNIT_CFG) & (
+            (instr_state_q[dec_data_q.id] == INSTR_COMMITTED) |
+            (instr_state_q[dec_data_q.id] == INSTR_KILLED   )
+        )) begin
             // Execute a configuration instruction that has already been
-            // committed earlier (i.e., while decoding and accepting the
+            // committed earlier (e.g., while decoding and accepting the
             // instruction).
-            result_csr_valid = ~instr_killed_q[dec_data_q.id];
-            if (result_csr_ready | instr_killed_q[dec_data_q.id]) begin
-                dec_clear                      = 1'b1;
-                instr_notspec_d[dec_data_q.id] = 1'b0;
+            result_csr_valid = instr_state_q[dec_data_q.id] == INSTR_COMMITTED;
+            if (result_csr_ready | (instr_state_q[dec_data_q.id] == INSTR_KILLED)) begin
+                dec_clear                    = 1'b1;
+                instr_state_d[dec_data_q.id] = INSTR_INVALID;
             end
         end
         for (int i = 0; i < PIPE_CNT; i++) begin
             if (instr_complete_valid[i]) begin
-                instr_notspec_d[instr_complete_id[i]] = 1'b0;
+                instr_state_d   [instr_complete_id[i]] = INSTR_INVALID;
             end
         end
     end
@@ -977,8 +977,7 @@ module vproc_core import vproc_pkg::*; #(
                 .vreg_pend_wr_i           ( pend_vreg_wr_map           ),
                 .vreg_pend_rd_o           ( pipe_vreg_pend_rd_out[i]   ),
                 .vreg_pend_rd_i           ( pipe_vreg_pend_rd_in [i]   ),
-                .instr_spec_i             ( ~instr_notspec_q           ),
-                .instr_killed_i           ( instr_killed_q             ),
+                .instr_state_i            ( instr_state_q              ),
                 .instr_done_valid_o       ( instr_complete_valid[i]    ),
                 .instr_done_id_o          ( instr_complete_id   [i]    ),
                 .vreg_rd_addr_o           ( vreg_rd_addr               ),
@@ -1102,5 +1101,10 @@ module vproc_core import vproc_pkg::*; #(
         .result_csr_data_delayed_i ( csr_vl_o                   ),
         .xif_result_if             ( xif_result_if              )
     );
+
+
+`ifdef VPROC_SVA
+`include "vproc_core_sva.svh"
+`endif
 
 endmodule

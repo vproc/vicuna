@@ -41,6 +41,13 @@ typedef enum {
 } mul_type;
 
 typedef enum logic [1:0] {
+    INSTR_INVALID,
+    INSTR_SPECULATIVE,
+    INSTR_COMMITTED,
+    INSTR_KILLED
+} instr_state;
+
+typedef enum logic [1:0] {
     VSEW_8       = 2'b00,
     VSEW_16      = 2'b01,
     VSEW_32      = 2'b10,

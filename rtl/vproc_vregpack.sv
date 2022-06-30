@@ -54,10 +54,9 @@ module vproc_vregpack #(
         // pending vector register reads (writes stall if the destination register is not clear)
         input  logic   [(1<<VADDR_W)          -1:0] pending_vreg_reads_i,
 
-        // Instruction IDs speculative and killed masks (vector register writes stall while the ID
-        // of the current instruction is speculative and are inhibited if it is killed)
-        input  logic   [INSTR_ID_CNT          -1:0] instr_spec_i,
-        input  logic   [INSTR_ID_CNT          -1:0] instr_killed_i,
+        // Instruction IDs state (vector register writes stall while the ID of the current
+        // instruction is speculative and are inhibited if it is killed)
+        input  vproc_pkg::instr_state [INSTR_ID_CNT-1:0] instr_state_i,
 
         // Signals that this instruction ID is done
         output logic                                instr_done_valid_o,
@@ -128,8 +127,26 @@ module vproc_vregpack #(
         end
     end
 
+    logic instr_speculative, instr_killed;
+    always_comb begin
+        instr_speculative = DONT_CARE_ZERO ? '0 : 'x;
+        instr_killed      = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (instr_state_i[stage_state_q.instr_id])
+            INSTR_SPECULATIVE: instr_speculative = 1'b1;
+            INSTR_COMMITTED,
+            INSTR_KILLED:      instr_speculative = 1'b0;
+            default: ;
+        endcase
+        unique case (instr_state_i[stage_state_q.instr_id])
+            INSTR_SPECULATIVE,
+            INSTR_COMMITTED:   instr_killed = 1'b0;
+            INSTR_KILLED:      instr_killed = 1'b1;
+            default: ;
+        endcase
+    end
+
     assign stage_stall = (stage_state_q.res_store != '0) & (
-        pending_vreg_reads_i[stage_state_q.vaddr] | instr_spec_i[stage_state_q.instr_id]
+        pending_vreg_reads_i[stage_state_q.vaddr] | instr_speculative
     );
     assign stage_ready = ~stage_valid_q | (
         ((stage_state_q.res_store == '0) | vreg_wr_ready_i) & ~stage_stall
@@ -146,7 +163,7 @@ module vproc_vregpack #(
         vreg_wr_be_o    = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < RES_CNT; i++) begin
             if (stage_state_q.res_store[i]) begin
-                vreg_wr_valid_o = stage_valid_q & ~stage_stall & ~instr_killed_i[stage_state_q.instr_id];
+                vreg_wr_valid_o = stage_valid_q & ~stage_stall & ~instr_killed;
                 vreg_wr_data_o  = RES_MASK[i] ? {8{res_buffer[i][VPORT_W/8-1:0]}} : res_buffer[i];
                 vreg_wr_be_o    = msk_buffer[i];
             end
@@ -317,5 +334,10 @@ module vproc_vregpack #(
             end
         end
     endgenerate
+
+
+`ifdef VPROC_SVA
+`include "vproc_vregpack_sva.svh"
+`endif
 
 endmodule

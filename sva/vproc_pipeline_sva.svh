@@ -2,6 +2,14 @@
 // Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
+    // Assert that the instruction ID is always valid
+    assert property (
+        @(posedge clk_i)
+        state_valid_q |-> instr_state_i[state_q.id] != INSTR_INVALID
+    ) else begin
+        $error("Instruction %d is invalid", state_q.id);
+    end
+
     // Assert that local pending writes are only added in the first cycle of an instruction
     // Assert that new vregs are added to the pending reads only in the first cycle of an instruction or when local pending writes are cleared
     generate
