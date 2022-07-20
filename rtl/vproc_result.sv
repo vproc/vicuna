@@ -79,9 +79,28 @@ module vproc_result #(
         RESULT_SOURCE_CSR_BUF,
         RESULT_SOURCE_NONE
     } result_source_e;
-    result_source_e result_source;
+    logic                result_source_hold_q, result_source_hold_d;
+    result_source_e      result_source_q,      result_source_d;
+    logic [XIF_ID_W-1:0] result_empty_id_q,    result_empty_id_d;
+    always_ff @(posedge clk_i or negedge async_rst_ni) begin
+        if (~async_rst_ni) begin
+            result_source_hold_q <= 1'b0;
+        end
+        else if (~sync_rst_ni) begin
+            result_source_hold_q <= 1'b0;
+        end else begin
+            result_source_hold_q <= result_source_hold_d;
+        end
+    end
+    always_ff @(posedge clk_i) begin
+        result_source_q   <= result_source_d;
+        result_empty_id_q <= result_empty_id_d;
+    end
+    result_source_e      result_source;
+    logic [XIF_ID_W-1:0] result_empty_id;
     always_comb begin
-        result_source = RESULT_SOURCE_NONE;
+        result_source   = RESULT_SOURCE_NONE;
+        result_empty_id = DONT_CARE_ZERO ? '0 : 'x;
 
         // LSU always takes precedence (potentially oldest instruction)
         if (result_lsu_valid_i) begin
@@ -103,6 +122,30 @@ module vproc_result #(
         else if (result_empty_valid_i) begin
             result_source = RESULT_SOURCE_EMPTY;
         end
+
+        // select the lowest instruction ID for which an empty result must be returned
+        for (int i = 0; i < XIF_ID_CNT; i++) begin
+            if (instr_result_empty_q[i]) begin
+                result_empty_id = XIF_ID_W'(i);
+                break;
+            end
+        end
+
+        // always keep the current result source during an ongoing result transaction; since the
+        // ID for empty results is taken from a set, it must also be buffered to remain stable
+        if (result_source_hold_q) begin
+            result_source   = result_source_q;
+            result_empty_id = result_empty_id_q;
+        end
+    end
+    assign result_source_hold_d = xif_result_if.result_valid & ~xif_result_if.result_ready;
+    always_comb begin
+        result_source_d   = result_source;
+        result_empty_id_d = result_empty_id;
+        if (result_source == RESULT_SOURCE_EMPTY) begin
+            result_source_d   = RESULT_SOURCE_EMPTY_BUF;
+            result_empty_id_d = result_empty_id_i;
+        end
     end
 
     always_comb begin
@@ -122,13 +165,8 @@ module vproc_result #(
         end
 
         if (result_source == RESULT_SOURCE_EMPTY_BUF) begin
-            // clear the lowest index ID if the XIF interface is ready
-            for (int i = 0; i < XIF_ID_CNT; i++) begin
-                if (instr_result_empty_q[i]) begin
-                    instr_result_empty_d[i] = ~xif_result_if.result_ready;
-                    break;
-                end
-            end
+            // clear the selected ID if the XIF interface is ready
+            instr_result_empty_d[result_empty_id] = ~xif_result_if.result_ready;
         end
         if (result_source == RESULT_SOURCE_CSR_BUF) begin
             result_csr_valid_d = ~xif_result_if.result_ready;
@@ -168,12 +206,7 @@ module vproc_result #(
             end
             RESULT_SOURCE_EMPTY_BUF: begin
                 xif_result_if.result_valid = 1'b1;
-                for (int i = 0; i < XIF_ID_CNT; i++) begin
-                    if (instr_result_empty_q[i]) begin
-                        xif_result_if.result.id = XIF_ID_W'(i);
-                        break;
-                    end
-                end
+                xif_result_if.result.id    = result_empty_id;
             end
             RESULT_SOURCE_LSU: begin
                 xif_result_if.result_valid   = 1'b1;
