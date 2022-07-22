@@ -192,12 +192,15 @@ module vproc_result #(
 
     always_comb begin
         xif_result_if.result_valid   = '0;
-        xif_result_if.result.id      = DONT_CARE_ZERO ? '0 : 'x;
-        xif_result_if.result.data    = DONT_CARE_ZERO ? '0 : 'x;
-        xif_result_if.result.rd      = DONT_CARE_ZERO ? '0 : 'x;
+        xif_result_if.result.id      = DONT_CARE_ZERO ? '0 : 'x; // always set if result_valid = 1
+
+        // note: the signals below are all '0 if not used to ensure that they remain stable during
+        // a transaction
+        xif_result_if.result.data    = '0;
+        xif_result_if.result.rd      = '0;
         xif_result_if.result.we      = '0;
         xif_result_if.result.exc     = '0;
-        xif_result_if.result.exccode = DONT_CARE_ZERO ? '0 : 'x;
+        xif_result_if.result.exccode = '0;
 
         unique case (result_source)
             RESULT_SOURCE_EMPTY: begin
