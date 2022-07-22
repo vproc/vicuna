@@ -335,8 +335,8 @@ module vproc_core import vproc_pkg::*; #(
 
     assign xif_issue_if.issue_resp.accept    = dec_valid;
     assign xif_issue_if.issue_resp.writeback = dec_valid & (((instr_unit == UNIT_ELEM) & instr_mode.elem.xreg) | (instr_unit == UNIT_CFG));
-    assign xif_issue_if.issue_resp.dualwrite = 1'b0;
-    assign xif_issue_if.issue_resp.dualread  = 1'b0;
+    assign xif_issue_if.issue_resp.dualwrite = '0;
+    assign xif_issue_if.issue_resp.dualread  = '0;
     assign xif_issue_if.issue_resp.loadstore = dec_valid & (instr_unit == UNIT_LSU);
     assign xif_issue_if.issue_resp.exc       = dec_valid & (instr_unit == UNIT_LSU);
 

@@ -242,12 +242,11 @@ module vproc_top import vproc_pkg::*; #(
         .rst_ni              ( rst_ni        ),
         .scan_cg_en_i        ( 1'b0          ),
         .boot_addr_i         ( 32'h00000080  ),
-        .mtvec_addr_i        ( 32'h00000000  ),
+        .dm_exception_addr_i ( '0            ),
         .dm_halt_addr_i      ( '0            ),
         .mhartid_i           ( '0            ),
         .mimpid_patch_i      ( '0            ),
-        .dm_exception_addr_i ( '0            ),
-        .nmi_addr_i          ( '0            ),
+        .mtvec_addr_i        ( 32'h00000000  ),
         .instr_req_o         ( instr_req     ),
         .instr_gnt_i         ( instr_gnt     ),
         .instr_rvalid_i      ( instr_rvalid  ),
@@ -260,16 +259,16 @@ module vproc_top import vproc_pkg::*; #(
         .data_req_o          ( sdata_req     ),
         .data_gnt_i          ( sdata_gnt     ),
         .data_rvalid_i       ( sdata_rvalid  ),
-        .data_we_o           ( sdata_we      ),
-        .data_be_o           ( sdata_be      ),
         .data_addr_o         ( sdata_addr    ),
+        .data_be_o           ( sdata_be      ),
+        .data_we_o           ( sdata_we      ),
+        .data_wdata_o        ( sdata_wdata   ),
         .data_memtype_o      (               ),
         .data_prot_o         (               ),
         .data_dbg_o          (               ),
-        .data_wdata_o        ( sdata_wdata   ),
+        .data_atop_o         (               ),
         .data_rdata_i        ( sdata_rdata   ),
         .data_err_i          ( sdata_err     ),
-        .data_atop_o         (               ),
         .data_exokay_i       ( 1'b0          ),
         .mcycle_o            (               ),
         .xif_compressed_if   ( host_xif      ),
@@ -281,12 +280,9 @@ module vproc_top import vproc_pkg::*; #(
         .irq_i               ( '0            ),
         .clic_irq_i          ( '0            ),
         .clic_irq_id_i       ( '0            ),
-        .clic_irq_il_i       ( '0            ),
+        .clic_irq_level_i    ( '0            ),
         .clic_irq_priv_i     ( '0            ),
-        .clic_irq_hv_i       ( '0            ),
-        .clic_irq_id_o       (               ),
-        .clic_irq_mode_o     (               ),
-        .clic_irq_exit_o     (               ),
+        .clic_irq_shv_i      ( '0            ),
         .fencei_flush_req_o  (               ),
         .fencei_flush_ack_i  ( 1'b0          ),
         .debug_req_i         ( 1'b0          ),
@@ -323,6 +319,8 @@ module vproc_top import vproc_pkg::*; #(
     assign host_xif.result.we      = vcore_xif.result.we;
     assign host_xif.result.exc     = vcore_xif.result.exc;
     assign host_xif.result.exccode = vcore_xif.result.exccode;
+    assign host_xif.result.err     = vcore_xif.result.err;
+    assign host_xif.result.dbg     = vcore_xif.result.dbg;
 
     if (USE_XIF_MEM) begin
         assign host_xif.mem_valid         = vcore_xif.mem_valid;
@@ -331,7 +329,9 @@ module vproc_top import vproc_pkg::*; #(
         assign host_xif.mem_req.addr      = vcore_xif.mem_req.addr;
         assign host_xif.mem_req.mode      = vcore_xif.mem_req.mode;
         assign host_xif.mem_req.we        = vcore_xif.mem_req.we;
+        assign host_xif.mem_req.size      = vcore_xif.mem_req.size;
         assign host_xif.mem_req.be        = vcore_xif.mem_req.be;
+        assign host_xif.mem_req.attr      = vcore_xif.mem_req.attr;
         assign host_xif.mem_req.wdata     = vcore_xif.mem_req.wdata;
         assign host_xif.mem_req.last      = vcore_xif.mem_req.last;
         assign host_xif.mem_req.spec      = vcore_xif.mem_req.spec;
@@ -398,8 +398,7 @@ module vproc_top import vproc_pkg::*; #(
     logic [X_ID_WIDTH-1:0] vdata_req_id;
     logic [X_ID_WIDTH-1:0] vdata_res_id;
 
-    localparam bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS = USE_XIF_MEM ? '0 :
-                                                   (VLSU_FLAGS_W'(1) << VLSU_ALIGNED_UNITSTRIDE);
+    localparam bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS = (VLSU_FLAGS_W'(1) << VLSU_ALIGNED_UNITSTRIDE);
 
     localparam bit [BUF_FLAGS_W -1:0] BUF_FLAGS  = (BUF_FLAGS_W'(1) << BUF_DEQUEUE  ) |
                                                    (BUF_FLAGS_W'(1) << BUF_VREG_PEND);
