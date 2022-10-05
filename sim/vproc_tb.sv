@@ -4,7 +4,7 @@
 
 
 module vproc_tb #(
-        parameter              PROG_PATHS_LIST = "",
+        parameter              PROG_PATHS_LIST = "/home/hfaroo9/ece498hk-RISCV-V-Extension/src/vicuna/sim/files.txt",
         parameter int unsigned MEM_W           = 32,
         parameter int unsigned MEM_SZ          = 262144,
         parameter int unsigned MEM_LATENCY     = 1,
@@ -35,8 +35,8 @@ module vproc_tb #(
     vproc_top #(
         .MEM_W         ( MEM_W                       ),
         .VMEM_W        ( VMEM_W                      ),
-        .VREG_TYPE     ( vproc_pkg::VREG_XLNX_RAM32M ),
-        .MUL_TYPE      ( vproc_pkg::MUL_XLNX_DSP48E1 ),
+        .VREG_TYPE     ( vproc_pkg::VREG_GENERIC     ),
+        .MUL_TYPE      ( vproc_pkg::MUL_GENERIC      ),
         .ICACHE_SZ     ( ICACHE_SZ                   ),
         .ICACHE_LINE_W ( ICACHE_LINE_W               ),
         .DCACHE_SZ     ( DCACHE_SZ                   ),
@@ -63,7 +63,8 @@ module vproc_tb #(
     logic        mem_rvalid_queue[MEM_LATENCY];
     logic [31:0] mem_rdata_queue [MEM_LATENCY];
     logic        mem_err_queue   [MEM_LATENCY];
-    always_ff @(posedge clk) begin
+    always begin
+	#5;
         if (mem_req & mem_we) begin
             for (int i = 0; i < MEM_W/8; i++) begin
                 if (mem_be[i]) begin
@@ -91,12 +92,13 @@ module vproc_tb #(
             mem_rdata  <= mem_rdata_queue [MEM_LATENCY-1];
             mem_err    <= mem_err_queue   [MEM_LATENCY-1];
         end
-        for (int i = 0; i < MEM_SZ; i++) begin
+//        for (int i = 0; i < MEM_SZ; i++) begin
             // set the don't care values in the memory to 0 during the first rising edge
-            if ($isunknown(mem[i]) & ($time < 10)) begin
-                mem[i] <= '0;
-            end
-        end
+//            if ($isunknown(mem[i]) & ($time < 10)) begin
+//                mem[i] <= '0;
+//            end
+//        end
+	#5;
     end
 
     logic prog_end, done;
@@ -105,6 +107,7 @@ module vproc_tb #(
     integer fd1, fd2, cnt, ref_start, ref_end, dump_start, dump_end;
     string  line, prog_path, ref_path, dump_path;
     initial begin
+	$display("STARTING TB");
         done = 1'b0;
 
         fd1 = $fopen(PROG_PATHS_LIST, "r");
@@ -126,15 +129,30 @@ module vproc_tb #(
                 continue;
             end
 
+            $display("ABOUT TO READ MEM (%s)", prog_path);
             $readmemh(prog_path, mem);
+            $display("FINISHED READ MEM");
+
+	    for(int j = 0; j < MEM_SZ; j++) begin
+		if($isunknown(mem[j])) begin
+		    mem[j] = 0;
+		end
+	    end
 
             fd2 = $fopen(ref_path, "w");
+	    $display("REF PATH OPEN (%s)", ref_path);
             for (int j = ref_start / (MEM_W/8); j < ref_end / (MEM_W/8); j++) begin
                 for (int k = 0; k < MEM_W/32; k++) begin
+		    if($isunknown(mem[j][k*32 +: 32])) begin
+		        mem[j][k*32 +: 32] = 0;
+		    end
+ 
+		    // $display("%x", mem[j][k*32 +: 32]);
                     $fwrite(fd2, "%x\n", mem[j][k*32 +: 32]);
                 end
             end
             $fclose(fd2);
+	    $display("REF PATH CLOSED");
 
             // reset for 10 cycles
             #100
@@ -142,12 +160,14 @@ module vproc_tb #(
 
             // wait for completion (i.e. request of instr mem addr 0x00000000)
             //@(posedge prog_end);
+	    $display("STARTING WHILE LOOP");
             while (1) begin
                 @(posedge clk);
                 if (prog_end) begin
                     break;
                 end
             end
+	    $display("OUT OF WHILE LOOP");
 
             fd2 = $fopen(dump_path, "w");
             for (int j = dump_start / (MEM_W/8); j < dump_end / (MEM_W/8); j++) begin
@@ -159,6 +179,7 @@ module vproc_tb #(
         end
         $fclose(fd1);
         done = 1'b1;
+	$finish;
     end
 
 endmodule
