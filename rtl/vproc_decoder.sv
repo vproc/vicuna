@@ -1093,6 +1093,33 @@ module vproc_decoder #(
                             endcase
                         end
 
+                        /***** ECE 498 HK MODIFICATIONS *****/
+                        // DIV unit:
+                        {6'b100000, 3'b010},        // vdivu VV
+                        {6'b100000, 3'b110}: begin  // vidvu VX
+                            unit_o                = UNIT_DIV;   // CREATE UNIT_DIV!!!
+                            mode_o.div.op         = DIV_VDIVU;  // CREAT DIV TYPES!!!
+                            // ...
+                        end
+                        {6'b100001, 3'b010},        // vdiv VV
+                        {6'b100001, 3'b110}: begin  // vdiv VX
+                            unit_o                = UNIT_DIV;
+                            mode_o.div.op         = DIV_VDIV;
+                            // ...
+                        end
+                        {6'b100010, 3'b010},        // vremu VV
+                        {6'b100010, 3'b110}: begin  // vremu VX
+                            unit_o                = UNIT_DIV;
+                            mode_o.div.op         = DIV_VREMU;
+                            // ...
+                        end
+                        {6'b100011, 3'b010},        // vrem VV
+                        {6'b100011, 3'b110}: begin  // vrem VX
+                            unit_o                = UNIT_DIV;
+                            mode_o.div.op         = DIV_VREM;
+                            // ...
+                        end
+                        /***** END ECE 498 HK MODIFICATIONS *****/
 
                         // MUL unit:
                         {6'b100100, 3'b010},        // vmulhu VV
