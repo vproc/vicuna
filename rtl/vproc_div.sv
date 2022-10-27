@@ -42,7 +42,7 @@ module vproc_div #(
                     state_ex1_valid_q <= state_ex1_valid_d;
                 end
             end
-            always_ff @(posedge c lk_i) begin : vproc_div_stage_ex1
+            always_ff @(posedge clk_i) begin : vproc_div_stage_ex1
                 if (state_ex1_ready & state_ex1_valid_d) begin
                     state_ex1_q <= state_ex1_d;
                     operand1_q  <= operand1_d;
@@ -140,7 +140,93 @@ module vproc_div #(
         end
     endgenerate
 
+
+    ///////////////////////////////////////////////////////////////////////////
+    // DIV ARITHMETIC
+
+    logic [DIV_OP_W/8-1:0] op1_signs, op2_signs;
+    always_comb begin
+        op1_signs = DONT_CARE_ZERO ? '0 : 'x;
+        op2_signs = DONT_CARE_ZERO ? '0 : 'x;
+        for (int i = 0; i < DIV_OP_W/8; i++) begin
+            op1_signs[i] = state_ex1_q.mode.mul.op1_signed & operand1_q[8*i+7];
+            op2_signs[i] = state_ex1_q.mode.mul.op2_signed & operand2_q[8*i+7];
+        end
+    end
+
+    logic ex1_vsew_8, ex1_vsew_32;
+    always_comb begin
+        ex1_vsew_8  = DONT_CARE_ZERO ? '0 : 'x;
+        ex1_vsew_32 = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_ex1_q.eew)
+            VSEW_8:  ex1_vsew_8 = 1'b1;
+            VSEW_16: ex1_vsew_8 = 1'b0;
+            VSEW_32: ex1_vsew_8 = 1'b0;
+            default: ;
+        endcase
+        unique case (state_ex1_q.eew)
+            VSEW_8:  ex1_vsew_32 = 1'b0;
+            VSEW_16: ex1_vsew_32 = 1'b0;
+            VSEW_32: ex1_vsew_32 = 1'b1;
+            default: ;
+        endcase
+    end
+
     logic [(DIV_OP_W/8)*17-1:0] div_op1, div_op2;
+    always_comb begin
+        div_op1 = DONT_CARE_ZERO ? '0 : 'x;
+        for (int i = 0; i < DIV_OP_W / 32; i++) begin
+            div_op1[68*i +: 68] = {
+                // VSEW_8: byte 3, VSEW_32: upper halfword
+                op1_signs[4*i+3]               , ~ex1_vsew_32 ? {{8{op1_signs[4*i+3]}},  operand1_q[32*i+24 +: 8]} : operand1_q[32*i+16 +: 16],
+                // VSEW_8: byte 2, VSEW_16 and VSEW_32: upper halfword
+                op1_signs[4*i+3]               ,  ex1_vsew_8  ?  {8{op1_signs[4*i+2]}} : operand1_q[32*i+24 +: 8],   operand1_q[32*i+16 +: 8 ],
+                // VSEW_8: byte 1, VSEW_32: lower halfword
+                1'b0                           , ~ex1_vsew_32 ? {{8{op1_signs[4*i+1]}},  operand1_q[32*i+8  +: 8]} : operand1_q[32*i    +: 16],
+                // VSEW_8: byte 0, VSEW_16 and VSEW_32: lower halfword
+                ~ex1_vsew_32 & op1_signs[4*i+1],  ex1_vsew_8  ?  {8{op1_signs[4*i  ]}} : operand1_q[32*i+8  +: 8],   operand1_q[32*i    +: 8 ]
+            };
+        end
+        div_op2 = DONT_CARE_ZERO ? '0 : 'x;
+        for (int i = 0; i < DIV_OP_W / 32; i++) begin
+            div_op2[68*i +: 68] = {
+                // VSEW_8: byte 3, VSEW_32: lower halfword
+                1'b0                           , ~ex1_vsew_32 ? {{8{op2_signs[4*i+3]}},  operand2_q[32*i+24 +: 8]} : operand2_q[32*i    +: 16],
+                // VSEW_8: byte 2, VSEW_16 and VSEW_32: upper halfword
+                op2_signs[4*i+3]               ,  ex1_vsew_8  ?  {8{op2_signs[4*i+2]}} : operand2_q[32*i+24 +: 8],   operand2_q[32*i+16 +: 8 ],
+                // VSEW_8: byte 1, VSEW_32: upper halfword
+                op2_signs[4*i+3]               , ~ex1_vsew_32 ? {{8{op2_signs[4*i+1]}},  operand2_q[32*i+8  +: 8]} : operand2_q[32*i+16 +: 16],
+                // VSEW_8: byte 0, VSEW_16 and VSEW_32: lower halfword
+                ~ex1_vsew_32 & op2_signs[4*i+1],  ex1_vsew_8  ?  {8{op2_signs[4*i  ]}} : operand2_q[32*i+8  +: 8],   operand2_q[32*i    +: 8 ]
+            };
+        end
+    end
+
+    // Not sure if this is needed...
+    logic ex2_vsew_8, ex2_vsew_16, ex2_vsew_32;
+    always_comb begin
+        ex2_vsew_8  = DONT_CARE_ZERO ? '0 : 'x;
+        ex2_vsew_16 = DONT_CARE_ZERO ? '0 : 'x;
+        ex2_vsew_32 = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_ex2_q.eew)
+            VSEW_8:  ex2_vsew_8 = 1'b1;
+            VSEW_16: ex2_vsew_8 = 1'b0;
+            VSEW_32: ex2_vsew_8 = 1'b0;
+            default: ;
+        endcase
+        unique case (state_ex2_q.eew)
+            VSEW_8:  ex2_vsew_16 = 1'b0;
+            VSEW_16: ex2_vsew_16 = 1'b1;
+            VSEW_32: ex2_vsew_16 = 1'b0;
+            default: ;
+        endcase
+        unique case (state_ex2_q.eew)
+            VSEW_8:  ex2_vsew_32 = 1'b0;
+            VSEW_16: ex2_vsew_32 = 1'b0;
+            VSEW_32: ex2_vsew_32 = 1'b1;
+            default: ;
+        endcase
+    end
 
     // perform signed division of xx-bit integers
     logic [(DIV_TOP_W/8)*33-1:0] div_res;
@@ -164,7 +250,7 @@ module vproc_div #(
     endgenerate
 
     // compose result
-    alwasy_comb begin
+    always_comb begin
 
     end
 
