@@ -13,12 +13,11 @@ module vproc_div_block #(
 
         input logic                    mod, // 0 = quotient, 1 = modulo
 
-        input  logic [16:0]            op1_i,
-        input  logic [16:0]            op2_i,
+        input  logic [31:0]            op1_i,
+        input  logic [31:0]            op2_i,
 
-        output logic [32:0]            res_o
+        output logic [31:0]            res_o
 
-        // May or may not need more ports...
     );
 
     generate
@@ -27,8 +26,8 @@ module vproc_div_block #(
             vproc_pkg::DIV_GENERIC: begin
 
                 logic [16:0] op1_q, op2_q;
-                logic [32:0] div_q, div_d;
-                logic [32:0] res_q, res_d;
+                logic [16:0] div_q, div_d;
+                logic [16:0] res_q, res_d;
 
                 if (BUF_OPS) begin
                     always_ff @(posedge clk_i) begin

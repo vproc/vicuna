@@ -1,7 +1,7 @@
 // TODO DO THIS
 
 module vproc_div #(
-        parameter int unsigned        DIV_OP_W     = 64,    // DIV unit operand width in bits (NOT PERMANENT)
+        parameter int unsigned        DIV_OP_W     = 64,    // DIV unit operand width in bits
         parameter vproc_pkg::div_type DIV_TYPE     = vproc_pkg::DIV_GENERIC,
         parameter bit                 BUF_OPERANDS = 1'b1,
         parameter bit                 BUF_DIV_IN   = 1'b1,
@@ -44,8 +44,8 @@ module vproc_div #(
     logic [DIV_OP_W  -1:0] operand2_q,     operand2_d;
     logic [DIV_OP_W/8-1:0] operand_mask_q, operand_mask_d;
     logic [DIV_OP_W  -1:0] result_q,       result_d;
-    logic [DIV_OP_W/8-1:0] result_mask1_q, result_mask1_d; //  mask out stage 1 buffer (MUL_IN)
-    logic [DIV_OP_W/8-1:0] result_mask2_q, result_mask2_d; //  mask out stage 2 buffer (MUL_OUT)
+    logic [DIV_OP_W/8-1:0] result_mask1_q, result_mask1_d; //  mask out stage 1 buffer (DIV_IN)
+    logic [DIV_OP_W/8-1:0] result_mask2_q, result_mask2_d; //  mask out stage 2 buffer (DIV_OUT)
     logic [DIV_OP_W/8-1:0] result_mask3_q, result_mask3_d; //  mask out stage 3 buffer (RESULTS)
                                                             // needed for vregunpack to mask write destinations
     generate
@@ -178,8 +178,8 @@ module vproc_div #(
     assign operand2_d        = pipe_in_op2_i;
     assign operand_mask_d    = pipe_in_mask_i;
 
-    logic [MUL_OP_W/8-1:0] vl_mask;
-    assign vl_mask        = ~state_ex1_q.vl_part_0 ? ({(MUL_OP_W/8){1'b1}} >> (~state_ex1_q.vl_part)) : '0;
+    logic [DIV_OP_W/8-1:0] vl_mask;
+    assign vl_mask        = ~state_ex1_q.vl_part_0 ? ({(DIV_OP_W/8){1'b1}} >> (~state_ex1_q.vl_part)) : '0;
     assign result_mask1_d = (state_ex1_q.mode.div.masked ? operand_mask_q : {(DIV_OP_W/8){1'b1}}) & vl_mask;
 
     assign result_mask2_d = result_mask1_q;
@@ -221,63 +221,45 @@ module vproc_div #(
         endcase
     end
 
-    logic [(DIV_OP_W/8)*17-1:0] div_op1, div_op2;
+    logic [(DIV_OP_W*4-1:0] div_op1, div_op2;
     always_comb begin
         div_op1 = DONT_CARE_ZERO ? '0 : 'x;
-        for (int i = 0; i < DIV_OP_W / 32; i++) begin
-            div_op1[68*i +: 68] = {
-                // VSEW_8: byte 3, VSEW_32: upper halfword
-                op1_signs[4*i+3]               , ~ex1_vsew_32 ? {{8{op1_signs[4*i+3]}},  operand1_q[32*i+24 +: 8]} : operand1_q[32*i+16 +: 16],
-                // VSEW_8: byte 2, VSEW_16 and VSEW_32: upper halfword
-                op1_signs[4*i+3]               ,  ex1_vsew_8  ?  {8{op1_signs[4*i+2]}} : operand1_q[32*i+24 +: 8],   operand1_q[32*i+16 +: 8 ],
-                // VSEW_8: byte 1, VSEW_32: lower halfword
-                1'b0                           , ~ex1_vsew_32 ? {{8{op1_signs[4*i+1]}},  operand1_q[32*i+8  +: 8]} : operand1_q[32*i    +: 16],
-                // VSEW_8: byte 0, VSEW_16 and VSEW_32: lower halfword
-                ~ex1_vsew_32 & op1_signs[4*i+1],  ex1_vsew_8  ?  {8{op1_signs[4*i  ]}} : operand1_q[32*i+8  +: 8],   operand1_q[32*i    +: 8 ]
-            };
-        end
         div_op2 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < DIV_OP_W / 32; i++) begin
-            div_op2[68*i +: 68] = {
-                // VSEW_8: byte 3, VSEW_32: lower halfword
-                1'b0                           , ~ex1_vsew_32 ? {{8{op2_signs[4*i+3]}},  operand2_q[32*i+24 +: 8]} : operand2_q[32*i    +: 16],
-                // VSEW_8: byte 2, VSEW_16 and VSEW_32: upper halfword
-                op2_signs[4*i+3]               ,  ex1_vsew_8  ?  {8{op2_signs[4*i+2]}} : operand2_q[32*i+24 +: 8],   operand2_q[32*i+16 +: 8 ],
-                // VSEW_8: byte 1, VSEW_32: upper halfword
-                op2_signs[4*i+3]               , ~ex1_vsew_32 ? {{8{op2_signs[4*i+1]}},  operand2_q[32*i+8  +: 8]} : operand2_q[32*i+16 +: 16],
-                // VSEW_8: byte 0, VSEW_16 and VSEW_32: lower halfword
-                ~ex1_vsew_32 & op2_signs[4*i+1],  ex1_vsew_8  ?  {8{op2_signs[4*i  ]}} : operand2_q[32*i+8  +: 8],   operand2_q[32*i    +: 8 ]
-            };
-        end
-    end
+            unique case (state_ex1_q.eew) 
+                VSEW_8: begin
+                    div_op1[32*(4*i+0) +: 32] = {{24{op1_signs[4*i+0]},    operand1_q[32*(i)+8*0 +: 8]}};
+                    div_op1[32*(4*i+1) +: 32] = {{24{op1_signs[4*i+1]},    operand1_q[32*(i)+8*1 +: 8]}};
+                    div_op1[32*(4*i+2) +: 32] = {{24{op1_signs[4*i+2]},    operand1_q[32*(i)+8*2 +: 8]}};
+                    div_op1[32*(4*i+3) +: 32] = {{24{op1_signs[4*i+3]},    operand1_q[32*(i)+8*3 +: 8]}};
 
-    logic ex2_vsew_8, ex2_vsew_16, ex2_vsew_32;
-    always_comb begin
-        ex2_vsew_8  = DONT_CARE_ZERO ? '0 : 'x;
-        ex2_vsew_16 = DONT_CARE_ZERO ? '0 : 'x;
-        ex2_vsew_32 = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_ex2_q.eew)
-            VSEW_8:  ex2_vsew_8 = 1'b1;
-            VSEW_16: ex2_vsew_8 = 1'b0;
-            VSEW_32: ex2_vsew_8 = 1'b0;
-            default: ;
-        endcase
-        unique case (state_ex2_q.eew)
-            VSEW_8:  ex2_vsew_16 = 1'b0;
-            VSEW_16: ex2_vsew_16 = 1'b1;
-            VSEW_32: ex2_vsew_16 = 1'b0;
-            default: ;
-        endcase
-        unique case (state_ex2_q.eew)
-            VSEW_8:  ex2_vsew_32 = 1'b0;
-            VSEW_16: ex2_vsew_32 = 1'b0;
-            VSEW_32: ex2_vsew_32 = 1'b1;
-            default: ;
-        endcase
+                    div_op2[32*(4*i+0) +: 32] = {{24{op2_signs[4*i+0]},    operand2_q[32*(i)+8*0 +: 8]}};
+                    div_op2[32*(4*i+1) +: 32] = {{24{op2_signs[4*i+1]},    operand2_q[32*(i)+8*1 +: 8]}};
+                    div_op2[32*(4*i+2) +: 32] = {{24{op2_signs[4*i+2]},    operand2_q[32*(i)+8*2 +: 8]}};
+                    div_op2[32*(4*i+3) +: 32] = {{24{op2_signs[4*i+3]},    operand2_q[32*(i)+8*3 +: 8]}};
+                end
+
+
+                VSEW_16:begin
+                    div_op1[32*(2*i+0) +: 32] = {{16{op1_signs[4*i+0]},    operand1_q[32*i+16*0 +: 16]}};
+                    div_op1[32*(2*i+1) +: 32] = {{16{op1_signs[4*i+2]},    operand1_q[32*i+16*1 +: 16]}};
+
+                    div_op2[32*(2*i+0) +: 32] = {{16{op2_signs[4*i+0]},    operand2_q[32*i+16*0 +: 16]}};
+                    div_op2[32*(2*i+1) +: 32] = {{16{op2_signs[4*i+2]},    operand2_q[32*i+16*1 +: 16]}};
+                end
+
+                VSEW_32: begin
+                    div_op1[32*i +: 32] =  operand1_q[32*i +: 32];
+
+                    div_op2[32*i +: 32] =  operand2_q[32*i +: 32];
+                end
+                default: ;
+            endcase 
+        end
     end
 
     // perform unsigned division of xx-bit integers
-    logic [(DIV_TOP_W/8)*33-1:0] div_res;
+    logic [(DIV_OP_W*4-1:0] div_res;
     genvar g;
     generate
         for (g = 0; g < DIV_OP_W / 8; g++) begin
@@ -291,9 +273,9 @@ module vproc_div #(
                 .async_rst_ni   (async_rst_ni            ),
                 .sync_rst_ni    (sync_rst_ni             ),
                 .mod            (state_ex3_q.mode.div.op), // tells div_block to mod or not
-                .op1_i          (div_op1    [17*g +: 17] ),
-                .op2_i          (div_op2    [17*g +: 17] ),
-                .res_o          (div_res    [33*g +: 33] )
+                .op1_i          (div_op1    [32*g +: 32] ),
+                .op2_i          (div_op2    [32*g +: 32] ),
+                .res_o          (div_res    [32*g +: 32] )
             );
         end
     endgenerate
@@ -302,25 +284,19 @@ module vproc_div #(
     always_comb begin
         result_d = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_ex3_q.mode.div.op)
-
-            // multiplication retaining low part
-            /*
-            DIV_VDIV,   //  divide
-            DIV_VREM   // rem
-            */
             DIV_VDIV, DIV_VREM: begin
                 unique case (state_ex3_q.eew)
                     VSEW_8: begin
-                        for (int i = 0; i < (MUL_OP_W / 8 ); i++)
-                            result_d[8 *i +: 8 ] = div_res[16*i +: 8 ];
+                        for (int i = 0; i < (DIV_OP_W / 8 ); i++)
+                            result_d[8 *i +: 8 ] = div_res[32*i +: 8 ];
                     end
                     VSEW_16: begin
-                        for (int i = 0; i < (MUL_OP_W / 16); i++)
+                        for (int i = 0; i < (DIV_OP_W / 16); i++)
                             result_d[16*i +: 16] = div_res[32*i +: 16];
                     end
                     VSEW_32: begin
-                        for (int i = 0; i < (MUL_OP_W / 32); i++)
-                            result_d[32*i +: 32] = div_res[64*i +: 32];
+                        for (int i = 0; i < (DIV_OP_W / 32); i++)
+                            result_d[32*i +: 32] = div_res[32*i +: 32];
                     end
                     default: ;
                 endcase
