@@ -42,6 +42,7 @@ package vproc_config;
     parameter int unsigned VLSU_QUEUE_SZ               = 4;
     parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0;
     parameter mul_type     MUL_TYPE                    = MUL_GENERIC;
+    parameter div_type     DIV_TYPE                    = DIV_GENERIC;
 
     parameter int unsigned INSTR_QUEUE_SZ              = 2;
     parameter bit [BUF_FLAGS_W-1:0] BUF_FLAGS          = (BUF_FLAGS_W'(1) << BUF_DEQUEUE) | (BUF_FLAGS_W'(1) << BUF_VREG_PEND);

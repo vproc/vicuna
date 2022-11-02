@@ -43,6 +43,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         parameter int unsigned           VLSU_QUEUE_SZ     = 4,
         parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0,
         parameter mul_type               MUL_TYPE          = MUL_GENERIC,
+        parameter div_type               DIV_TYPE          = DIV_GENERIC,
         parameter type                  INIT_STATE_T        = logic,
         parameter bit                   DONT_CARE_ZERO      = 1'b0  // initialize don't care values to zero
     )(
@@ -121,7 +122,7 @@ module vproc_pipeline import vproc_pkg::*; #(
 
     typedef struct packed {
         counter_t                        count;          // main counter
-        counter_t                        alt_count;      // alternative counter (used by some ops)
+        counter_t                        alt_count;      // alternative counter (used by some ops (UNIT_SLD))
         count_inc_e                      count_inc;      // counter increment policy
         logic        [AUX_COUNTER_W-1:0] aux_count;      // auxiliary counter (for dyn addr ops)
         logic                      [2:0] field_count;    // field counter (for segment loads/stores)
@@ -880,6 +881,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         .VLSU_QUEUE_SZ             ( VLSU_QUEUE_SZ            ),
         .VLSU_FLAGS                ( VLSU_FLAGS               ),
         .MUL_TYPE                  ( MUL_TYPE                 ),
+        .DIV_TYPE                  ( DIV_TYPE                 ),
         .CTRL_T                    ( ctrl_t                   ),
         .COUNTER_T                 ( counter_t                ),
         .COUNTER_W                 ( COUNTER_W                ),

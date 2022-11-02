@@ -114,6 +114,7 @@ typedef enum logic [2:0] {
 
 // The number of different types of execution units (excludes pseudo-units)
 parameter int unsigned UNIT_CNT = 6;
+// LSU ALU DIV MUL STD ELEM
 
 typedef enum logic [1:0] {
     COUNT_INC_1,
@@ -224,6 +225,7 @@ typedef enum logic [1:0] {
 
 typedef struct packed {
     // TODO
+    logic       masked;
     opcode_div  op;
     logic       op1_signed;
     logic       op2_signed;

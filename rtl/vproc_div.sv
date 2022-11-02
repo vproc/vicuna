@@ -6,7 +6,8 @@ module vproc_div #(
         parameter bit                 BUF_OPERANDS = 1'b1,
         parameter bit                 BUF_DIV_IN   = 1'b1,
         parameter bit                 BUF_DIV_OUT  = 1'b1,
-        parameter bit                 BUF_RESULTS  = 1'b1
+        parameter bit                 BUF_RESULTS  = 1'b1,
+        parameter type                CTRL_T       = logic
         // parameter bit                 DONT_CARE_ZERO = 1'b0
     )(
         input  logic                  clk_i,
@@ -15,9 +16,19 @@ module vproc_div #(
 
         input  logic                  pipe_in_valid_i,
         output logic                  pipe_in_ready_o,
+
+        input  CTRL_T                 pipe_in_ctrl_i,
+        input  logic [DIV_OP_W  -1:0] pipe_in_op1_i,
+        input  logic [DIV_OP_W  -1:0] pipe_in_op2_i,
+        input  logic [DIV_OP_W  -1:0] pipe_in_op3_i,
+        input  logic [DIV_OP_W/8-1:0] pipe_in_mask_i,
         
         output logic                  pipe_out_valid_o,
-        input  logic                  pipe_out_ready_i
+        input  logic                  pipe_out_ready_i,
+
+        output CTRL_T                 pipe_out_ctrl_o,
+        output logic [DIV_OP_W  -1:0] pipe_out_res_o,
+        output logic [DIV_OP_W/8-1:0] pipe_out_mask_o
     );
 
     import vproc_pkg::*;
@@ -29,6 +40,14 @@ module vproc_div #(
     logic  state_ex1_valid_q, state_ex1_valid_d, state_ex2_valid_q, state_ex3_valid_q, state_res_valid_q;
     CTRL_T state_ex1_q,       state_ex1_d,       state_ex2_q,       state_ex3_q,       state_res_q;
 
+    logic [DIV_OP_W  -1:0] operand1_q,     operand1_d;
+    logic [DIV_OP_W  -1:0] operand2_q,     operand2_d;
+    logic [DIV_OP_W/8-1:0] operand_mask_q, operand_mask_d;
+    logic [DIV_OP_W  -1:0] result_q,       result_d;
+    logic [DIV_OP_W/8-1:0] result_mask1_q, result_mask1_d; //  mask out stage 1 buffer (MUL_IN)
+    logic [DIV_OP_W/8-1:0] result_mask2_q, result_mask2_d; //  mask out stage 2 buffer (MUL_OUT)
+    logic [DIV_OP_W/8-1:0] result_mask3_q, result_mask3_d; //  mask out stage 3 buffer (RESULTS)
+                                                            // needed for vregunpack to mask write destinations
     generate
         if (BUF_OPERANDS) begin
             always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_div_stage_ex1_valid
@@ -47,6 +66,7 @@ module vproc_div #(
                     state_ex1_q <= state_ex1_d;
                     operand1_q  <= operand1_d;
                     operand2_q  <= operand2_d;
+                    operand_mask_q <= operand_mask_d;
                 end
             end
             assign state_ex1_ready = ~state_ex1_valid_q | state_ex2_ready;
@@ -56,7 +76,9 @@ module vproc_div #(
                 state_ex1_q       = state_ex1_d;
                 operand1_q        = operand1_d;
                 operand2_q        = operand2_d;
+                operand_mask_q <= operand_mask_d;
             end
+            assign state_ex1_ready = state_ex2_ready;
         end
 
         if (BUF_DIV_IN) begin
@@ -74,6 +96,7 @@ module vproc_div #(
             always_ff @(posedge clk_i) begin : vproc_div_stage_ex2
                 if (state_ex2_ready & state_ex1_valid_q) begin
                     state_ex2_q    <= state_ex1_q;
+                    result_mask1_q <= result_mask1_d;
                 end
             end
             assign state_ex2_ready = ~state_ex2_valid_q | state_ex3_ready;
@@ -81,6 +104,7 @@ module vproc_div #(
             always_comb begin
                 state_ex2_valid_q = state_ex1_valid_q;
                 state_ex2_q       = state_ex1_q;
+                result_mask1_q    = result_mask1_d;
             end
             assign state_ex2_ready = state_ex3_ready;
         end
@@ -100,6 +124,7 @@ module vproc_div #(
             always_ff @(posedge clk_i) begin : vproc_div_stage_ex3
                 if (state_ex3_ready & state_ex2_valid_q) begin
                     state_ex3_q    <= state_ex2_q;
+                    result_mask2_q <= result_mask2_d;
                 end
             end
             assign state_ex3_ready = ~state_ex3_valid_q | state_res_ready;
@@ -107,6 +132,7 @@ module vproc_div #(
             always_comb begin
                 state_ex3_valid_q = state_ex2_valid_q;
                 state_ex3_q       = state_ex2_q;
+                result_mask2_q    = result_mask2_d;
             end
             assign state_ex3_ready = state_res_ready;
         end
@@ -127,6 +153,7 @@ module vproc_div #(
                 if (state_res_ready & state_ex3_valid_q) begin
                     state_res_q    <= state_ex3_q;
                     result_q       <= result_d;
+                    result_mask3_q <= result_mask3_d;
                 end
             end
             assign state_res_ready = ~state_res_valid_q | pipe_out_ready_i;
@@ -135,6 +162,7 @@ module vproc_div #(
                 state_res_valid_q = state_ex3_valid_q;
                 state_res_q       = state_ex3_q;
                 result_q          = result_d;
+                result_mask3_q    = result_mask3_d;
             end
             assign state_res_ready = pipe_out_ready_i;
         end

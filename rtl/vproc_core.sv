@@ -28,6 +28,7 @@ module vproc_core import vproc_pkg::*; #(
         parameter int unsigned           VLSU_QUEUE_SZ            = vproc_config::VLSU_QUEUE_SZ,
         parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS               = vproc_config::VLSU_FLAGS,
         parameter mul_type               MUL_TYPE                 = vproc_config::MUL_TYPE,
+        parameter div_type               DIV_TYPE                 = vproc_config::DIV_TYPE,
 
         // Miscellaneous configuration
         parameter int unsigned           INSTR_QUEUE_SZ           = vproc_config::INSTR_QUEUE_SZ,
@@ -975,6 +976,7 @@ module vproc_core import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ            ( VLSU_QUEUE_SZ              ),
                 .VLSU_FLAGS               ( VLSU_FLAGS                 ),
                 .MUL_TYPE                 ( MUL_TYPE                   ),
+                .DIV_TYPE                 ( DIV_TYPE                   ),
                 .DECODER_DATA_T           ( decoder_data               ),
                 .DONT_CARE_ZERO           ( DONT_CARE_ZERO             )
             ) pipe (
