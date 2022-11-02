@@ -61,7 +61,31 @@ module vproc_div_block #(
                     end
                 end
 
-                assign div_d = (mod) ? ($signed(op1_q) % $signed(op2_q)) : ($signed(op1_q) / $signed(op2_q));
+                always_comb begin
+                    unique case(mod)
+
+                        // DIV/U
+                        1'b0 : begin
+                            if (op2_q == 0) begin
+                                div_d = '1;
+                            end
+                            else begin
+                                div_d = $signed(op1_q) / $signed(op2_q);
+                            end
+                        end
+
+                        // REM/U
+                        1'b1 : begin
+                            if (op2_q == 0) begin
+                                div_d = op1_q;
+                            end
+                            else begin
+                                div_d = $signed(op1_q) % $signed(op2_q);
+                            end
+                        end
+                    endcase
+                end
+                
                 assign res_d = div_d;
                 assign res_o = res_q;
 
