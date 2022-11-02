@@ -7,8 +7,8 @@ module vproc_div #(
         parameter bit                 BUF_DIV_IN   = 1'b1,
         parameter bit                 BUF_DIV_OUT  = 1'b1,
         parameter bit                 BUF_RESULTS  = 1'b1,
-        parameter type                CTRL_T       = logic
-        // parameter bit                 DONT_CARE_ZERO = 1'b0
+        parameter type                CTRL_T       = logic,
+        parameter bit                 DONT_CARE_ZERO = 1'b0
     )(
         input  logic                  clk_i,
         input  logic                  async_rst_ni,
@@ -20,7 +20,7 @@ module vproc_div #(
         input  CTRL_T                 pipe_in_ctrl_i,
         input  logic [DIV_OP_W  -1:0] pipe_in_op1_i,
         input  logic [DIV_OP_W  -1:0] pipe_in_op2_i,
-        input  logic [DIV_OP_W  -1:0] pipe_in_op3_i,
+
         input  logic [DIV_OP_W/8-1:0] pipe_in_mask_i,
         
         output logic                  pipe_out_valid_o,
@@ -34,7 +34,7 @@ module vproc_div #(
     import vproc_pkg::*;
 
     ///////////////////////////////////////////////////////////////////////////
-    // MUL BUFFERS
+    // DIV BUFFERS
 
     logic  state_ex1_ready,                      state_ex2_ready,   state_ex3_ready,   state_res_ready;
     logic  state_ex1_valid_q, state_ex1_valid_d, state_ex2_valid_q, state_ex3_valid_q, state_res_valid_q;
@@ -170,6 +170,27 @@ module vproc_div #(
 
 
     ///////////////////////////////////////////////////////////////////////////
+    // DIV operand conversion
+    assign pipe_in_ready_o   = state_ex1_ready;
+    assign state_ex1_valid_d = pipe_in_valid_i;
+    assign state_ex1_d       = pipe_in_ctrl_i;
+    assign operand1_d        = pipe_in_op1_i;
+    assign operand2_d        = pipe_in_op2_i;
+    assign operand_mask_d    = pipe_in_mask_i;
+
+    logic [MUL_OP_W/8-1:0] vl_mask;
+    assign vl_mask        = ~state_ex1_q.vl_part_0 ? ({(MUL_OP_W/8){1'b1}} >> (~state_ex1_q.vl_part)) : '0;
+    assign result_mask1_d = (state_ex1_q.mode.div.masked ? operand_mask_q : {(DIV_OP_W/8){1'b1}}) & vl_mask;
+
+    assign result_mask2_d = result_mask1_q;
+    assign result_mask3_d = result_mask2_q;
+
+    assign pipe_out_valid_o = state_res_valid_q;
+    assign pipe_out_ctrl_o  = state_res_q;
+    assign pipe_out_res_o   = result_q;
+    assign pipe_out_mask_o  = result_mask3_q;
+
+
     // DIV ARITHMETIC
 
     logic [DIV_OP_W/8-1:0] op1_signs, op2_signs;
@@ -177,8 +198,8 @@ module vproc_div #(
         op1_signs = DONT_CARE_ZERO ? '0 : 'x;
         op2_signs = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < DIV_OP_W/8; i++) begin
-            op1_signs[i] = state_ex1_q.mode.mul.op1_signed & operand1_q[8*i+7];
-            op2_signs[i] = state_ex1_q.mode.mul.op2_signed & operand2_q[8*i+7];
+            op1_signs[i] = state_ex1_q.mode.div.op1_signed & operand1_q[8*i+7];
+            op2_signs[i] = state_ex1_q.mode.div.op2_signed & operand2_q[8*i+7];
         end
     end
 
@@ -230,7 +251,6 @@ module vproc_div #(
         end
     end
 
-    // Not sure if this is needed...
     logic ex2_vsew_8, ex2_vsew_16, ex2_vsew_32;
     always_comb begin
         ex2_vsew_8  = DONT_CARE_ZERO ? '0 : 'x;
@@ -270,7 +290,7 @@ module vproc_div #(
                 .clk_i          (clk_i                   ),
                 .async_rst_ni   (async_rst_ni            ),
                 .sync_rst_ni    (sync_rst_ni             ),
-                .mod            (                        ), // tells div_block to mod or not
+                .mod            (state_ex3_q.mode.div.op), // tells div_block to mod or not
                 .op1_i          (div_op1    [17*g +: 17] ),
                 .op2_i          (div_op2    [17*g +: 17] ),
                 .res_o          (div_res    [33*g +: 33] )
@@ -280,7 +300,35 @@ module vproc_div #(
 
     // compose result
     always_comb begin
+        result_d = DONT_CARE_ZERO ? '0 : 'x;
+        unique case (state_ex3_q.mode.div.op)
 
+            // multiplication retaining low part
+            /*
+            DIV_VDIV,   //  divide
+            DIV_VREM   // rem
+            */
+            DIV_VDIV, DIV_VREM: begin
+                unique case (state_ex3_q.eew)
+                    VSEW_8: begin
+                        for (int i = 0; i < (MUL_OP_W / 8 ); i++)
+                            result_d[8 *i +: 8 ] = div_res[16*i +: 8 ];
+                    end
+                    VSEW_16: begin
+                        for (int i = 0; i < (MUL_OP_W / 16); i++)
+                            result_d[16*i +: 16] = div_res[32*i +: 16];
+                    end
+                    VSEW_32: begin
+                        for (int i = 0; i < (MUL_OP_W / 32); i++)
+                            result_d[32*i +: 32] = div_res[64*i +: 32];
+                    end
+                    default: ;
+                endcase
+            end
+
+            default: ;
+
+        endcase
     end
 
 endmodule

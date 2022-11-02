@@ -1098,7 +1098,7 @@ module vproc_decoder #(
                         {6'b100000, 3'b010},        // vdivu VV
                         {6'b100000, 3'b110}: begin  // vidvu VX
                             unit_o                = UNIT_DIV;   // CREATE UNIT_DIV!!!
-                            mode_o.div.op         = DIV_VDIVU;  // CREAT DIV TYPES!!!
+                            mode_o.div.op         = DIV_VDIV;  // CREAT DIV TYPES!!!
                             mode_o.div.op1_signed = 1'b0;
                             mode_o.div.op2_signed = 1'b0;
                             // ...
@@ -1114,7 +1114,7 @@ module vproc_decoder #(
                         {6'b100010, 3'b010},        // vremu VV
                         {6'b100010, 3'b110}: begin  // vremu VX
                             unit_o                = UNIT_DIV;
-                            mode_o.div.op         = DIV_VREMU;
+                            mode_o.div.op         = DIV_VREM;
                             mode_o.div.op1_signed = 1'b0;
                             mode_o.div.op2_signed = 1'b0;
                             // ...

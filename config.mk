@@ -183,6 +183,7 @@ $(VPROC_CONFIG_PKG):
 	echo "    parameter int unsigned VLSU_QUEUE_SZ               = 4;"                      >>$@; \
 	echo "    parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0;"                     >>$@; \
 	echo "    parameter mul_type     MUL_TYPE                    = MUL_GENERIC;"            >>$@; \
+	echo "    parameter div_type     DIV_TYPE                    = DIV_GENERIC;"            >>$@; \
 	echo ""                                                                                 >>$@; \
 	echo "    parameter int unsigned INSTR_QUEUE_SZ              = 2;"                      >>$@; \
 	echo "    parameter bit [BUF_FLAGS_W-1:0] BUF_FLAGS          = $${buf_flags};"          >>$@; \

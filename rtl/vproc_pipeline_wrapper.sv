@@ -115,7 +115,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     // - in case a pipeline contains only the SLD unit the operand count is 2 (indices 0 and -1)
 
     // ECE498HK edits
-    localparam int unsigned OP_CNT        = (UNITS[UNIT_MUL]  | UNITS[UNIT_DIV])  ? (
+    localparam int unsigned OP_CNT        = (UNITS[UNIT_MUL])  ? (
                                                 UNITS[UNIT_ELEM] ? 6 : 4
                                             ) : (
                                                 UNITS[UNIT_ELEM] ? 5 : (
@@ -131,7 +131,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     // completes its cycle before accepting the next instruction.
     localparam int unsigned OP0_SRC   = 0;
     // ece498hk edits
-    localparam int unsigned OP1_SRC   = (VPORT_CNT >= ((UNITS[UNIT_MUL] | UNITS[UNIT_DIV]) ? 3 : 2)) ? 1 : 0;
+    localparam int unsigned OP1_SRC   = (VPORT_CNT >= ((UNITS[UNIT_MUL]) ? 3 : 2)) ? 1 : 0;
     localparam int unsigned OP2_SRC   = VPORT_CNT - 1;
     localparam int unsigned MIN_STAGE = 1; // first possible unpack stage
     // start by fetching op 0, then op1, except for ELEM unit which needs to fetch op1 first since
@@ -158,13 +158,6 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                   VPORT_W[OP0_SRC], VPORT_W[OP0_SRC] / 4,
                   "however, the specified operand width is %d bits).", MAX_OP_W);
     end
-    if (UNITS[UNIT_DIV] & (OP0_SRC == OP1_SRC) & (OP0_SRC == OP2_SRC) & (MAX_OP_W * 2 >= VPORT_W[OP0_SRC])) begin
-        $fatal(1, "If operands 0, 1, and 2 share the same source read port, then the operand ",
-                  "width must not be larger than one quarter of the read port width (the current ",
-                  "read port width is %d bits, hence the operand width can be at most %d bits; ",
-                  VPORT_W[OP0_SRC], VPORT_W[OP0_SRC] / 4,
-                  "however, the specified operand width is %d bits).", MAX_OP_W);
-    end
 
     // Number of stages for required for operand unpacking (maximum of operand stages + 1)
     localparam int unsigned UNPACK_STAGES = 1 + ((OP0_STAGE > OP1_STAGE) ? (
@@ -179,9 +172,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
 
     // ECE498HK edits
     // The fixed-point instructions help preserve precision in narrow operands by supporting scaling and rounding
-    localparam bit OP0_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_ELEM] | UNITS[UNIT_DIV]; 
-    localparam bit OP1_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_DIV];
-    localparam bit OP1_XREG               = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_DIV]; // OPMVX category of instr use GPT x register rs1 as scalar operand. vdiv/vrem supports .vv and .vx
+    localparam bit OP0_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_ELEM]; 
+    localparam bit OP1_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU];
+    localparam bit OP1_XREG               = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_DIV]; // OPMVX category of instr use GPR x register rs1 as scalar operand. vdiv/vrem supports .vv and .vx
     localparam bit OP0_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
     localparam bit OP1_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
     localparam bit OPMASK_ELEMWISE        = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
@@ -192,7 +185,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     localparam int unsigned MAX_RES_W     = MAX_OP_W;
 
     // result flags
-    localparam bit RES0_ALWAYS_VREG       = ~UNITS[UNIT_LSU] & ~UNITS[UNIT_ALU] & ~UNITS[UNIT_ELEM];
+    localparam bit RES0_ALWAYS_VREG       = ~UNITS[UNIT_LSU] & ~UNITS[UNIT_ALU] & ~UNITS[UNIT_ELEM]; // true for DIV 
     localparam bit RES0_NARROW            = UNITS[UNIT_ALU];
     localparam bit RES0_ALLOW_ELEMWISE    = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
 
@@ -650,6 +643,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -715,6 +709,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -780,6 +775,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -845,6 +841,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -910,6 +907,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -975,6 +973,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -1040,6 +1039,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -1105,6 +1105,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (

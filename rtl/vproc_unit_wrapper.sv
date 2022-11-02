@@ -191,7 +191,8 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
             vproc_div #(
                 .DIV_OP_W         ( MAX_OP_W                                    ),
                 .DIV_TYPE         ( DIV_TYPE                                    ),
-                .CTRL_T           ( CTRL_T                                      )
+                .CTRL_T           ( CTRL_T                                      ),
+                .DONT_CARE_ZERO   ( DONT_CARE_ZERO                              )
             ) div (
                 .clk_i            ( clk_i                                       ),
                 .async_rst_ni     ( async_rst_ni                                ),
@@ -201,9 +202,9 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 .pipe_in_ready_o  ( pipe_in_ready_o                             ),
 
                 .pipe_in_ctrl_i   ( pipe_in_ctrl_i                              ),
-                .pipe_in_op1_i    ( pipe_in_op_data_i[1]                        ), // TODO double check this
+                .pipe_in_op1_i    ( pipe_in_op_data_i[1]                        ), // TODO double check if this
                 .pipe_in_op2_i    ( pipe_in_op_data_i[0]                        ), // TODO should be swapped
-                .pipe_in_op3_i    ( pipe_in_op_data_i[2]                        ), // TODO might be different for DIV (since can only do vec-scalar div not scalar-vec)
+
                 .pipe_in_mask_i   ( pipe_in_op_data_i[OP_CNT-1][MAX_OP_W/8-1:0] ),
 
                 .pipe_out_valid_o ( pipe_out_valid_o                            ),

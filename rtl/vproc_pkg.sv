@@ -216,11 +216,9 @@ typedef struct packed {
 } op_mode_mul;
 
 /***** ECE 498 HK MODIFICATIONS *****/
-typedef enum logic [1:0] {
-    DIV_VDIVU,  // unsigned divide
-    DIV_VDIV,   // signed divide
-    DIV_VREMU,  // unsigned remainder
-    DIV_VREM    // signed remainder
+typedef enum logic [0:0] {
+    DIV_VDIV,   //  divide
+    DIV_VREM    // remainder
 } opcode_div;
 
 typedef struct packed {

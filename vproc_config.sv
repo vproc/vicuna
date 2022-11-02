@@ -32,7 +32,7 @@ package vproc_config;
 
     parameter int unsigned PIPE_CNT                    = 1;
     parameter bit [UNIT_CNT-1:0] PIPE_UNITS [PIPE_CNT] = '{
-        (UNIT_CNT'(1) << UNIT_LSU) | (UNIT_CNT'(1) << UNIT_ALU) | (UNIT_CNT'(1) << UNIT_MUL) | (UNIT_CNT'(1) << UNIT_SLD) | (UNIT_CNT'(1) << UNIT_ELEM)
+        (UNIT_CNT'(1) << UNIT_LSU) | (UNIT_CNT'(1) << UNIT_ALU) | (UNIT_CNT'(1) << UNIT_DIV) | (UNIT_CNT'(1) << UNIT_MUL) | (UNIT_CNT'(1) << UNIT_SLD) | (UNIT_CNT'(1) << UNIT_ELEM)
     };
     parameter int unsigned PIPE_W           [PIPE_CNT] = '{32};
     parameter int unsigned PIPE_VPORT_CNT   [PIPE_CNT] = '{1};
