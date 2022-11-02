@@ -69,6 +69,9 @@ module vproc_div_block #(
                             if (op2_q == 0) begin
                                 div_d = '1;
                             end
+                            else if (dividend == {1'b1, 32{1'b0}} & divisor == 32{1'b1}) begin
+                                div_d = '0; // DOUBLE CHECK THIS!!!
+                            end
                             else begin
                                 div_d = $signed(op1_q) / $signed(op2_q);
                             end
@@ -79,13 +82,17 @@ module vproc_div_block #(
                             if (op2_q == 0) begin
                                 div_d = op1_q;
                             end
+                            else if (dividend == {1'b1, 32{1'b0}} & divisor == 32{1'b1}) begin
+                                div_d = '0;
+                            end
                             else begin
                                 div_d = $signed(op1_q) % $signed(op2_q);
                             end
                         end
+
                     endcase
                 end
-                
+
                 assign res_d = div_d;
                 assign res_o = res_q;
 
