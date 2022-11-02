@@ -62,7 +62,7 @@ module vproc_div_block #(
                     end
                 end
 
-                assign div_d = (mod) ? (op1_q % op2_q) : (op1_q / op2_q);
+                assign div_d = (mod) ? ($signed(op1_q) % $signed(op2_q)) : ($signed(op1_q) / $signed(op2_q));
                 assign res_d = div_d;
                 assign res_o = res_q;
 
