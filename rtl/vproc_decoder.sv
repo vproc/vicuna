@@ -1099,24 +1099,32 @@ module vproc_decoder #(
                         {6'b100000, 3'b110}: begin  // vidvu VX
                             unit_o                = UNIT_DIV;   // CREATE UNIT_DIV!!!
                             mode_o.div.op         = DIV_VDIVU;  // CREAT DIV TYPES!!!
+                            mode_o.div.op1_signed = 1'b0;
+                            mode_o.div.op2_signed = 1'b0;
                             // ...
                         end
                         {6'b100001, 3'b010},        // vdiv VV
                         {6'b100001, 3'b110}: begin  // vdiv VX
                             unit_o                = UNIT_DIV;
                             mode_o.div.op         = DIV_VDIV;
+                            mode_o.div.op1_signed = 1'b1;
+                            mode_o.div.op2_signed = 1'b1;
                             // ...
                         end
                         {6'b100010, 3'b010},        // vremu VV
                         {6'b100010, 3'b110}: begin  // vremu VX
                             unit_o                = UNIT_DIV;
                             mode_o.div.op         = DIV_VREMU;
+                            mode_o.div.op1_signed = 1'b0;
+                            mode_o.div.op2_signed = 1'b0;
                             // ...
                         end
                         {6'b100011, 3'b010},        // vrem VV
                         {6'b100011, 3'b110}: begin  // vrem VX
                             unit_o                = UNIT_DIV;
                             mode_o.div.op         = DIV_VREM;
+                            mode_o.div.op1_signed = 1'b1;
+                            mode_o.div.op2_signed = 1'b1;
                             // ...
                         end
                         /***** END ECE 498 HK MODIFICATIONS *****/

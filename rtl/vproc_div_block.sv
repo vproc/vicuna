@@ -11,6 +11,8 @@ module vproc_div_block #(
         input  logic                   async_rst_ni,
         input  logic                   sync_rst_ni,
 
+        input logic                    mod, // 0 = quotient, 1 = modulo
+
         input  logic [16:0]            op1_i,
         input  logic [16:0]            op2_i,
 
@@ -60,7 +62,8 @@ module vproc_div_block #(
                     end
                 end
 
-                assign div_d = $signed(op1_q) / $signed(op2_q);
+                assign div_d = (mod) ? ($signed(op1_q) % $signed(op2_q)) : ($signed(op1_q) / $signed(op2_q));
+                assign res_d = div_d;
                 assign res_o = res_q;
 
             end
