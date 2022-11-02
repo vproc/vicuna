@@ -228,7 +228,7 @@ module vproc_div #(
         endcase
     end
 
-    // perform signed division of xx-bit integers
+    // perform unsigned division of xx-bit integers
     logic [(DIV_TOP_W/8)*33-1:0] div_res;
     genvar g;
     generate
@@ -242,6 +242,7 @@ module vproc_div #(
                 .clk_i          (clk_i                   ),
                 .async_rst_ni   (async_rst_ni            ),
                 .sync_rst_ni    (sync_rst_ni             ),
+                .mod            (                        ), // tells div_block to mod or not
                 .op1_i          (div_op1    [17*g +: 17] ),
                 .op2_i          (div_op2    [17*g +: 17] ),
                 .res_o          (div_res    [33*g +: 33] )
