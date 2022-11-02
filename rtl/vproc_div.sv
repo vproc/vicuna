@@ -221,31 +221,31 @@ module vproc_div #(
         endcase
     end
 
-    logic [(DIV_OP_W*4-1:0] div_op1, div_op2;
+    logic [(DIV_OP_W*4)-1:0] div_op1, div_op2;
     always_comb begin
         div_op1 = DONT_CARE_ZERO ? '0 : 'x;
         div_op2 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < DIV_OP_W / 32; i++) begin
             unique case (state_ex1_q.eew) 
                 VSEW_8: begin
-                    div_op1[32*(4*i+0) +: 32] = {{24{op1_signs[4*i+0]},    operand1_q[32*(i)+8*0 +: 8]}};
-                    div_op1[32*(4*i+1) +: 32] = {{24{op1_signs[4*i+1]},    operand1_q[32*(i)+8*1 +: 8]}};
-                    div_op1[32*(4*i+2) +: 32] = {{24{op1_signs[4*i+2]},    operand1_q[32*(i)+8*2 +: 8]}};
-                    div_op1[32*(4*i+3) +: 32] = {{24{op1_signs[4*i+3]},    operand1_q[32*(i)+8*3 +: 8]}};
+                    div_op1[32*(4*i+0) +: 32] = {{24{op1_signs[4*i+0]}},    operand1_q[32*(i)+8*0 +: 8]};
+                    div_op1[32*(4*i+1) +: 32] = {{24{op1_signs[4*i+1]}},    operand1_q[32*(i)+8*1 +: 8]};
+                    div_op1[32*(4*i+2) +: 32] = {{24{op1_signs[4*i+2]}},    operand1_q[32*(i)+8*2 +: 8]};
+                    div_op1[32*(4*i+3) +: 32] = {{24{op1_signs[4*i+3]}},    operand1_q[32*(i)+8*3 +: 8]};
 
-                    div_op2[32*(4*i+0) +: 32] = {{24{op2_signs[4*i+0]},    operand2_q[32*(i)+8*0 +: 8]}};
-                    div_op2[32*(4*i+1) +: 32] = {{24{op2_signs[4*i+1]},    operand2_q[32*(i)+8*1 +: 8]}};
-                    div_op2[32*(4*i+2) +: 32] = {{24{op2_signs[4*i+2]},    operand2_q[32*(i)+8*2 +: 8]}};
-                    div_op2[32*(4*i+3) +: 32] = {{24{op2_signs[4*i+3]},    operand2_q[32*(i)+8*3 +: 8]}};
+                    div_op2[32*(4*i+0) +: 32] = {{24{op2_signs[4*i+0]}},    operand2_q[32*(i)+8*0 +: 8]};
+                    div_op2[32*(4*i+1) +: 32] = {{24{op2_signs[4*i+1]}},    operand2_q[32*(i)+8*1 +: 8]};
+                    div_op2[32*(4*i+2) +: 32] = {{24{op2_signs[4*i+2]}},    operand2_q[32*(i)+8*2 +: 8]};
+                    div_op2[32*(4*i+3) +: 32] = {{24{op2_signs[4*i+3]}},    operand2_q[32*(i)+8*3 +: 8]};
                 end
 
 
                 VSEW_16:begin
-                    div_op1[32*(2*i+0) +: 32] = {{16{op1_signs[4*i+0]},    operand1_q[32*i+16*0 +: 16]}};
-                    div_op1[32*(2*i+1) +: 32] = {{16{op1_signs[4*i+2]},    operand1_q[32*i+16*1 +: 16]}};
+                    div_op1[32*(2*i+0) +: 32] = {{16{op1_signs[4*i+0]}},    operand1_q[32*i+16*0 +: 16]};
+                    div_op1[32*(2*i+1) +: 32] = {{16{op1_signs[4*i+2]}},    operand1_q[32*i+16*1 +: 16]};
 
-                    div_op2[32*(2*i+0) +: 32] = {{16{op2_signs[4*i+0]},    operand2_q[32*i+16*0 +: 16]}};
-                    div_op2[32*(2*i+1) +: 32] = {{16{op2_signs[4*i+2]},    operand2_q[32*i+16*1 +: 16]}};
+                    div_op2[32*(2*i+0) +: 32] = {{16{op2_signs[4*i+0]}},    operand2_q[32*i+16*0 +: 16]};
+                    div_op2[32*(2*i+1) +: 32] = {{16{op2_signs[4*i+2]}},    operand2_q[32*i+16*1 +: 16]};
                 end
 
                 VSEW_32: begin
@@ -259,7 +259,7 @@ module vproc_div #(
     end
 
     // perform unsigned division of xx-bit integers
-    logic [(DIV_OP_W*4-1:0] div_res;
+    logic [DIV_OP_W*4-1:0] div_res;
     genvar g;
     generate
         for (g = 0; g < DIV_OP_W / 8; g++) begin

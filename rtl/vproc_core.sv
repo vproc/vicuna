@@ -265,7 +265,6 @@ module vproc_core import vproc_pkg::*; #(
         logic                pend_load;
         logic                pend_store;
     } decoder_data;
-
     // signals for decoder and for decoder buffer
     logic        dec_ready,       dec_valid,       dec_clear;
     logic        dec_buf_valid_q, dec_buf_valid_d;

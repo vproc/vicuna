@@ -460,7 +460,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
             unit_lsu:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.lsu.masked;
             unit_alu:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.alu.op_mask != ALU_MASK_NONE;
             // ECE498HK additions
-            unit_div:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.div.masked
+            unit_div:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.div.masked;
             unit_mul:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.mul.masked;
             unit_sld:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.sld.masked;
             unit_elem: state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.elem.masked;

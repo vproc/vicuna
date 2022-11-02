@@ -1,7 +1,7 @@
 // TODO DO THIS
 
 module vproc_div_block #(
-        parameter vproc_pkg::div_types DIV_TYPE = vproc_pkg::DIV_GENERIC,
+        parameter vproc_pkg::div_type  DIV_TYPE = vproc_pkg::DIV_GENERIC,
         parameter bit                  BUF_OPS  = 1'b0, // buffer operands (op1_i and op2_i)
         parameter bit                  BUF_DIV  = 1'b0, // buffer division result
         parameter bit                  BUF_RES  = 1'b0  // buffer final result (res_o)
@@ -66,11 +66,11 @@ module vproc_div_block #(
 
                         // DIV/U
                         1'b0 : begin
-                            if (op2_q == 0) begin
+                            if (op2_q == '0) begin
                                 div_d = '1;
                             end
-                            else if (dividend == {1'b1, 32{1'b0}} & divisor == 32{1'b1}) begin
-                                div_d = '0; // DOUBLE CHECK THIS!!!
+                            else if (op1_q == {1'b1, {31{1'b0}}} & op2_q == '1) begin
+                                div_d = op1_q;
                             end
                             else begin
                                 div_d = $signed(op1_q) / $signed(op2_q);
@@ -82,7 +82,7 @@ module vproc_div_block #(
                             if (op2_q == 0) begin
                                 div_d = op1_q;
                             end
-                            else if (dividend == {1'b1, 32{1'b0}} & divisor == 32{1'b1}) begin
+                            else if (op1_q == {1'b1, {31{1'b0}}} & op2_q == '1) begin
                                 div_d = '0;
                             end
                             else begin
