@@ -66,27 +66,24 @@ module vproc_div_block #(
 
                         // DIV/U
                         1'b0 : begin
+                            div_d = $signed(op1_q) / $signed(op2_q);
                             if (op2_q == '0) begin
                                 div_d = '1;
                             end
-                            else if (op1_q == {1'b1, {31{1'b0}}} && op2_q == '1) begin
+                            if (op1_q == {1'b1, {31{1'b0}}} && op2_q == '1) begin
                                 div_d = op1_q;
                             end
-                            else begin
-                                div_d = $signed(op1_q) / $signed(op2_q);
-                            end
+
                         end
 
                         // REM/U
                         1'b1 : begin
+                            div_d = $signed(op1_q) % $signed(op2_q);
                             if (op2_q == 0) begin
                                 div_d = op1_q;
                             end
-                            else if (op1_q == {1'b1, {31{1'b0}}} && op2_q == '1) begin
+                            if (op1_q == {1'b1, {31{1'b0}}} && op2_q == '1) begin
                                 div_d = '0;
-                            end
-                            else begin
-                                div_d = $signed(op1_q) % $signed(op2_q);
                             end
                         end
                         default: ;

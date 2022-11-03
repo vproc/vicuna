@@ -203,24 +203,6 @@ module vproc_div #(
         end
     end
 
-    logic ex1_vsew_8, ex1_vsew_32;
-    always_comb begin
-        ex1_vsew_8  = DONT_CARE_ZERO ? '0 : 'x;
-        ex1_vsew_32 = DONT_CARE_ZERO ? '0 : 'x;
-        unique case (state_ex1_q.eew)
-            VSEW_8:  ex1_vsew_8 = 1'b1;
-            VSEW_16: ex1_vsew_8 = 1'b0;
-            VSEW_32: ex1_vsew_8 = 1'b0;
-            default: ;
-        endcase
-        unique case (state_ex1_q.eew)
-            VSEW_8:  ex1_vsew_32 = 1'b0;
-            VSEW_16: ex1_vsew_32 = 1'b0;
-            VSEW_32: ex1_vsew_32 = 1'b1;
-            default: ;
-        endcase
-    end
-
     logic [(DIV_OP_W*4)-1:0] div_op1, div_op2;
     always_comb begin
         div_op1 = DONT_CARE_ZERO ? '0 : 'x;
