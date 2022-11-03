@@ -107,9 +107,6 @@ $(VPROC_CONFIG_PKG):
 	    if echo "$$pipe" | grep -q "VMUL" && [ $$(($$width * 4)) -gt "$(VREG_W)" ]; then          \
 	        vport_cnt=2;                                                                          \
 	    fi;                                                                                       \
-		if echo "$$pipe" | grep -q "VDIV" && [ $$(($$width * 4)) -gt "$(VREG_W)" ]; then          \
-	        vport_cnt=2;                                                                          \
-	    fi;                                                                                       \
 	    if [ $$(($$width * 2)) -gt "$(VREG_W)" ]; then                                            \
 	        vport_cnt=$$(($$vport_cnt + 1));                                                      \
 	    fi;                                                                                       \

@@ -721,7 +721,7 @@ module vproc_core import vproc_pkg::*; #(
     generate
         if (INSTR_QUEUE_SZ > 0) begin
             vproc_queue #(
-                .WIDTH        ( $bits(decoder_data)     ),
+                .WIDTH        ( 119     ),
                 .DEPTH        ( INSTR_QUEUE_SZ          )
             ) instr_queue (
                 .clk_i        ( clk_i                   ),

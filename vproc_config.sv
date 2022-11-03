@@ -1,4 +1,4 @@
-// Auto-generated on Wed Nov  2 18:43:57 CDT 2022
+// Auto-generated on Wed Nov  2 19:23:49 CDT 2022
 
 // Vector coprocessor default configuration package
 //
@@ -16,6 +16,7 @@
 //   * Pipeline 0: 32 bits wide, contains VLSU, VALU, VMUL, VSLD, VELEM, VDIV
 //     Uses 1 128-bit vreg read ports and write port 0
 // - Vector register file needs 2 read ports and 1 write ports
+`define MAIN_CORE_IBEX
 
 package vproc_config;
 

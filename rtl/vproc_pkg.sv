@@ -227,6 +227,9 @@ typedef struct packed {
     opcode_div  op;
     logic       op1_signed;
     logic       op2_signed;
+`ifdef VPROC_OP_MODE_UNION
+    logic [8:0] unused;
+`endif                                            
 } op_mode_div;
 /***** END ECE 498 HK MODIFICATIONS *****/
 
