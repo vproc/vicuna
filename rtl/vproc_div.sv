@@ -139,6 +139,7 @@ module vproc_div #(
 
         if (BUF_RESULTS) begin
             always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_div_stage_res_valid
+                $display("DEBUG: %h %h %h %h", pipe_in_op1_i, pipe_in_op2_i, pipe_out_res_o, pipe_out_valid_o);
                 if (~async_rst_ni) begin
                     state_res_valid_q <= 1'b0;
                 end
