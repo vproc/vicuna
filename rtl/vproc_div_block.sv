@@ -25,9 +25,9 @@ module vproc_div_block #(
 
             vproc_pkg::DIV_GENERIC: begin
 
-                logic [16:0] op1_q, op2_q;
-                logic [16:0] div_q, div_d;
-                logic [16:0] res_q, res_d;
+                logic [31:0] op1_q, op2_q;
+                logic [31:0] div_q, div_d;
+                logic [31:0] res_q, res_d;
 
                 if (BUF_OPS) begin
                     always_ff @(posedge clk_i) begin
