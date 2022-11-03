@@ -22,7 +22,7 @@ module vproc_div #(
         input  logic [DIV_OP_W  -1:0] pipe_in_op2_i,
 
         input  logic [DIV_OP_W/8-1:0] pipe_in_mask_i,
-        
+
         output logic                  pipe_out_valid_o,
         input  logic                  pipe_out_ready_i,
 
@@ -76,7 +76,7 @@ module vproc_div #(
                 state_ex1_q       = state_ex1_d;
                 operand1_q        = operand1_d;
                 operand2_q        = operand2_d;
-                operand_mask_q <= operand_mask_d;
+                operand_mask_q    = operand_mask_d;
             end
             assign state_ex1_ready = state_ex2_ready;
         end
@@ -226,7 +226,7 @@ module vproc_div #(
         div_op1 = DONT_CARE_ZERO ? '0 : 'x;
         div_op2 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < DIV_OP_W / 32; i++) begin
-            unique case (state_ex1_q.eew) 
+            unique case (state_ex1_q.eew)
                 VSEW_8: begin
                     div_op1[32*(4*i+0) +: 32] = {{24{op1_signs[4*i+0]}},    operand1_q[32*(i)+8*0 +: 8]};
                     div_op1[32*(4*i+1) +: 32] = {{24{op1_signs[4*i+1]}},    operand1_q[32*(i)+8*1 +: 8]};
@@ -254,7 +254,7 @@ module vproc_div #(
                     div_op2[32*i +: 32] =  operand2_q[32*i +: 32];
                 end
                 default: ;
-            endcase 
+            endcase
         end
     end
 

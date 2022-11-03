@@ -823,7 +823,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         .OP_HOLD_FLAG         ( OP_HOLD_FLAG                 ),
         .UNPACK_STAGES        ( UNPACK_STAGES                ),
         .FLAGS_T              ( unpack_flags                 ),
-        .CTRL_DATA_W          ( 	$bits(ctrl_t)        ),
+        .CTRL_DATA_W          ($bits(ctrl_t)                 ),
         .DONT_CARE_ZERO       ( DONT_CARE_ZERO               )
     ) unpack (
         .clk_i                ( clk_i                        ),

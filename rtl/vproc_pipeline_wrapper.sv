@@ -172,7 +172,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
 
     // ECE498HK edits
     // The fixed-point instructions help preserve precision in narrow operands by supporting scaling and rounding
-    localparam bit OP0_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_ELEM]; 
+    localparam bit OP0_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_ELEM];
     localparam bit OP1_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU];
     localparam bit OP1_XREG               = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_DIV]; // OPMVX category of instr use GPR x register rs1 as scalar operand. vdiv/vrem supports .vv and .vx
     localparam bit OP0_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
@@ -185,7 +185,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     localparam int unsigned MAX_RES_W     = MAX_OP_W;
 
     // result flags
-    localparam bit RES0_ALWAYS_VREG       = ~UNITS[UNIT_LSU] & ~UNITS[UNIT_ALU] & ~UNITS[UNIT_ELEM]; // true for DIV 
+    localparam bit RES0_ALWAYS_VREG       = ~UNITS[UNIT_LSU] & ~UNITS[UNIT_ALU] & ~UNITS[UNIT_ELEM]; // true for DIV
     localparam bit RES0_NARROW            = UNITS[UNIT_ALU];
     localparam bit RES0_ALLOW_ELEMWISE    = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
 
@@ -487,11 +487,11 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
             state_init.res_vreg  [RES_CNT-1]        =  pipe_in_data_i.mode.alu.cmp;
         end
         // ECE498HK additions
-        if (unit_div) begin 
+        if (unit_div) begin
             state_init.op_vaddr[0]                          = pipe_in_data_i.rs2.r.vaddr; // for vmadd and vnmsub, MUL stores vaddr in .rd.addr, this is not needed for div
             state_init.op_flags[0].sigext                   = pipe_in_data_i.mode.div.op2_signed;
             state_init.op_flags[1].sigext                   = pipe_in_data_i.mode.div.op1_signed;
-        end 
+        end
         if (unit_mul) begin
             state_init.op_vaddr[0]                          = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rd.addr : pipe_in_data_i.rs2.r.vaddr;
             state_init.op_flags[0].sigext                   = pipe_in_data_i.mode.mul.op2_signed;
