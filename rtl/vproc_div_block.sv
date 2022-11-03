@@ -93,7 +93,7 @@ module vproc_div_block #(
                     endcase
                 end
 
-                assign res_d = div_d;
+                assign res_d = div_q;
                 assign res_o = res_q;
 
             end
