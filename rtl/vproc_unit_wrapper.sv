@@ -202,8 +202,8 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 .pipe_in_ready_o  ( pipe_in_ready_o                             ),
 
                 .pipe_in_ctrl_i   ( pipe_in_ctrl_i                              ),
-                .pipe_in_op1_i    ( pipe_in_op_data_i[1]                        ), // TODO double check if this
-                .pipe_in_op2_i    ( pipe_in_op_data_i[0]                        ), // TODO should be swapped
+                .pipe_in_op1_i    ( pipe_in_op_data_i[0]                        ), // TODO double check if this
+                .pipe_in_op2_i    ( pipe_in_op_data_i[1]                        ), // TODO should be swapped
 
                 .pipe_in_mask_i   ( pipe_in_op_data_i[OP_CNT-1][MAX_OP_W/8-1:0] ),
 
