@@ -4,7 +4,7 @@
 
 
 module vproc_tb #(
-        parameter              PROG_PATHS_LIST = "/home/hfaroo9/ece498hk-RISCV-V-Extension/src/vicuna/sim/files.txt",
+        parameter              PROG_PATHS_LIST = "",
         parameter int unsigned MEM_W           = 32,
         parameter int unsigned MEM_SZ          = 262144,
         parameter int unsigned MEM_LATENCY     = 1,
