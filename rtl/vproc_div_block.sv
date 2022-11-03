@@ -69,7 +69,7 @@ module vproc_div_block #(
                             if (op2_q == '0) begin
                                 div_d = '1;
                             end
-                            else if (op1_q == {1'b1, {31{1'b0}}} & op2_q == '1) begin
+                            else if (op1_q == {1'b1, {31{1'b0}}} && op2_q == '1) begin
                                 div_d = op1_q;
                             end
                             else begin
@@ -82,7 +82,7 @@ module vproc_div_block #(
                             if (op2_q == 0) begin
                                 div_d = op1_q;
                             end
-                            else if (op1_q == {1'b1, {31{1'b0}}} & op2_q == '1) begin
+                            else if (op1_q == {1'b1, {31{1'b0}}} && op2_q == '1) begin
                                 div_d = '0;
                             end
                             else begin
