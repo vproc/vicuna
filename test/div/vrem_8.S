@@ -1,5 +1,7 @@
 
 # vrem  8
+    .text
+    .global main
 main:
     la              a0, vdata_start 
 
@@ -22,10 +24,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0x0ac13f5d
-    .word           0x35526fd3
-    .word           0x3e94ebd7
-    .word           0x4d658752
+    .word           0xb2403082
+    .word           0x4cf473b5
+    .word           0x8e1f7e7e
+    .word           0x5c0055b7
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -60,10 +62,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0x03000002
-    .word           0x04050604
-    .word           0x06040001
-    .word           0x00030505
+    .word           0x06010600
+    .word           0x06020302
+    .word           0x05030000
+    .word           0x01000104
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049

@@ -1,5 +1,7 @@
 
 # vdiv u 16
+    .text
+    .global main
 main:
     la              a0, vdata_start 
 
@@ -22,10 +24,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0x851e7629
-    .word           0x13c40607
-    .word           0x56ff5f09
-    .word           0xb7bb7f5a
+    .word           0xc9e08679
+    .word           0x9cbd81e1
+    .word           0x1e4b7570
+    .word           0x632b869b
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -60,10 +62,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0xee7210e1
-    .word           0x02d200dc
-    .word           0x0c6d0d93
-    .word           0xf5ad1231
+    .word           0xf844eea3
+    .word           0xf1d1edfb
+    .word           0x045310c6
+    .word           0x0e2aeea8
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049

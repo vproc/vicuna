@@ -1,5 +1,7 @@
 
 # vrem u 16
+    .text
+    .global main
 main:
     la              a0, vdata_start 
 
@@ -22,10 +24,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0x7052126e
-    .word           0x1d1e029c
-    .word           0x57dfe41d
-    .word           0x64cadb32
+    .word           0x9bd23b5b
+    .word           0x65213d2d
+    .word           0xf3af75a9
+    .word           0xb2814de0
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -60,10 +62,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0x00050000
-    .word           0x00060003
-    .word           0x00040001
-    .word           0x00000000
+    .word           0x00020005
+    .word           0x00030002
+    .word           0x00040000
+    .word           0x00060000
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
