@@ -3,10 +3,10 @@
 module vproc_div #(
         parameter int unsigned        DIV_OP_W     = 64,    // DIV unit operand width in bits
         parameter vproc_pkg::div_type DIV_TYPE     = vproc_pkg::DIV_GENERIC,
-        parameter bit                 BUF_OPERANDS = 1'b1,
-        parameter bit                 BUF_DIV_IN   = 1'b1,
-        parameter bit                 BUF_DIV_OUT  = 1'b1,
-        parameter bit                 BUF_RESULTS  = 1'b1,
+        parameter bit                 BUF_OPERANDS = 1'b0,
+        parameter bit                 BUF_DIV_IN   = 1'b0,
+        parameter bit                 BUF_DIV_OUT  = 1'b0,
+        parameter bit                 BUF_RESULTS  = 1'b0,
         parameter type                CTRL_T       = logic,
         parameter bit                 DONT_CARE_ZERO = 1'b0
     )(
