@@ -89,7 +89,7 @@ module vproc_div_block #(
                                 div_d = $signed(op1_q) % $signed(op2_q);
                             end
                         end
-
+			default: ;
                     endcase
                 end
 
