@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-    branches: [ main ]
+    branches: [ main, divide ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, divide ]
 
 
 jobs:
@@ -73,7 +73,7 @@ jobs:
       fail-fast: false
       matrix:
         unit: [lsu, alu, mul, sld, elem, csr, misc]
-        main_core: [ibex, cv32e40x]
+        main_core: [ibex]
     steps:
       - uses: actions/checkout@v2
         with:
