@@ -223,7 +223,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 pipe_out_res_flags_o = '{default: pack_flags'('0)};
                 pipe_out_res_data_o  = '0;
                 pipe_out_res_mask_o  = '0;
-                pipe_out_res_flags_o[0].shift           = 1'b1;
+                pipe_out_res_flags_o[0].shift           = unit_out_ctrl.res_shift;
                 pipe_out_res_store_o[0]                 = unit_out_ctrl.res_store;
                 pipe_out_res_valid_o[0]                 = pipe_out_valid_o;
                 pipe_out_res_data_o [0]                 = unit_out_res;

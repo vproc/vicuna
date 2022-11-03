@@ -1,18 +1,21 @@
+# Copyright TU Wien
+# Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-# vdiv  32
+
     .text
     .global main
 main:
-    la              a0, vdata_start 
+    la              a0, vdata_start
 
     li              t0, 4
-    vsetvli         t0, t0, e32,m1,tu,mu 
+    vsetvli         t0, t0, e32,m1,tu,mu
 
     li              t0, 7
 
-    vle32.v         v0, (a0) # load v0 with a0
-    vdiv.vx      v1, v0, t0
-    vse32.v         v1, (a0) # store into a0
+    vle32.v         v0, (a0)
+    vdiv.vx         v0, v0, t0
+    vse32.v         v0, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
