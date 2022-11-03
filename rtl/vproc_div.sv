@@ -139,7 +139,6 @@ module vproc_div #(
 
         if (BUF_RESULTS) begin
             always_ff @(posedge clk_i or negedge async_rst_ni) begin : vproc_div_stage_res_valid
-                $display("DEBUG: %h %h %h %h", pipe_in_op1_i, pipe_in_op2_i, pipe_out_res_o, pipe_out_valid_o);
                 if (~async_rst_ni) begin
                     state_res_valid_q <= 1'b0;
                 end
@@ -242,11 +241,11 @@ module vproc_div #(
 
 
                 VSEW_16:begin
-                    div_op1[32*(2*i+0) +: 32] = {{16{op1_signs[4*i+0]}},    operand1_q[32*i+16*0 +: 16]};
-                    div_op1[32*(2*i+1) +: 32] = {{16{op1_signs[4*i+2]}},    operand1_q[32*i+16*1 +: 16]};
+                    div_op1[32*(2*i+0) +: 32] = {{16{op1_signs[4*i+1]}},    operand1_q[32*i+16*0 +: 16]};
+                    div_op1[32*(2*i+1) +: 32] = {{16{op1_signs[4*i+3]}},    operand1_q[32*i+16*1 +: 16]};
 
-                    div_op2[32*(2*i+0) +: 32] = {{16{op2_signs[4*i+0]}},    operand2_q[32*i+16*0 +: 16]};
-                    div_op2[32*(2*i+1) +: 32] = {{16{op2_signs[4*i+2]}},    operand2_q[32*i+16*1 +: 16]};
+                    div_op2[32*(2*i+0) +: 32] = {{16{op2_signs[4*i+1]}},    operand2_q[32*i+16*0 +: 16]};
+                    div_op2[32*(2*i+1) +: 32] = {{16{op2_signs[4*i+3]}},    operand2_q[32*i+16*1 +: 16]};
                 end
 
                 VSEW_32: begin

@@ -11,8 +11,8 @@ main:
     li              t0, 7
 
     vle32.v         v0, (a0) # load v0 with a0
-    vremu.vx      v0, v0, t0
-    vse32.v         v0, (a0) # store into a0
+    vremu.vx      v1, v0, t0
+    vse32.v         v1, (a0) # store into a0
 
     la              a0, vdata_start
     la              a1, vdata_end
@@ -24,10 +24,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0x6d966451
-    .word           0xbf28278b
-    .word           0xc8dc474c
-    .word           0x16ee6263
+    .word           0xa6c9f52d
+    .word           0x81cfa642
+    .word           0x91772b45
+    .word           0x6d37c3e4
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -62,10 +62,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0x00050005
-    .word           0x00060001
-    .word           0x00050003
-    .word           0x00040001
+    .word           0x00040003
+    .word           0x00020002
+    .word           0x00060003
+    .word           0x00010000
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
