@@ -288,38 +288,7 @@ module vproc_core import vproc_pkg::*; #(
 
     // Check if scalar source operands are valid
     logic source_xreg_valid;
-    logic [31:0] instr;
-    assign instr = xif_issue_if.issue_req.instr;
-
-    always_comb begin
-        source_xreg_valid = 1'b1;
-        if (instr[6:0] == 7'h57) begin
-            unique case (instr[14:12])
-                // rs1 must be valid for OPIVX and OPMVX
-                3'b100,
-                3'b110: begin
-                    source_xreg_valid = xif_issue_if.issue_req.rs_valid[0];
-                end
-                3'b111: begin
-                    // rs1 must be valid for vsetvli
-                    if (instr[31:30] == 2'b11) begin
-                        source_xreg_valid = xif_issue_if.issue_req.rs_valid[0];
-                    // rs1 and rs2 must be valid for vsetvl
-                    end else if (instr[31] == 1'b0) begin
-                        source_xreg_valid = xif_issue_if.issue_req.rs_valid[0] & xif_issue_if.issue_req.rs_valid[1];
-                    end
-                end
-                default: source_xreg_valid = 1'b1;
-            endcase
-        // rs1 must be valid for all load and store instructions
-        end else if (instr[6:0] == 7'h27 || instr[6:0] == 7'h07) begin
-            source_xreg_valid = xif_issue_if.issue_req.rs_valid[0];
-            // rs1 and rs2 must be valid for strided load and store instructions
-            if (instr[27:26] == 2'b10) begin
-                source_xreg_valid = xif_issue_if.issue_req.rs_valid[0] & xif_issue_if.issue_req.rs_valid[1];
-            end
-        end
-    end
+    assign source_xreg_valid = (!dec_data_d.rs1.xreg | xif_issue_if.issue_req.rs_valid[0]) & (!dec_data_d.rs2.xreg | xif_issue_if.issue_req.rs_valid[1]);
 
     // Stall instruction offloading in case the instruction ID is already used
     // by another instruction which is not complete
