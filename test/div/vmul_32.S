@@ -11,10 +11,10 @@ main:
     li              t0, 4
     vsetvli         t0, t0, e32,m1,tu,mu
 
-    li              t0, 7
+    li              t0, 3
 
     vle32.v         v0, (a0)
-    vdiv.vx         v0, v0, t0
+    vmul.vx         v0, v0, t0
     vse32.v         v0, (a0)
 
     la              a0, vdata_start
@@ -27,10 +27,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0xed35a74b
-    .word           0xea17c0b2
-    .word           0xf9bc6506
-    .word           0x6c6a2bc8
+    .word           0x323b3f47
+    .word           0x47434b3a
+    .word           0x302f2e32
+    .word           0xe8404a51
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -65,10 +65,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0xfd50cec1
-    .word           0xfcded262
-    .word           0xff1ae9dc
-    .word           0x0f7ce1ae
+    .word           0x96b1bdd5
+    .word           0xd5c9e1ae
+    .word           0x908d8a96
+    .word           0xb8c0def3
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -98,4 +98,3 @@ vref_start:
     .word           0x40504a3f
     .word           0x4448535a
 vref_end:
-            
