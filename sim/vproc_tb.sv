@@ -20,12 +20,6 @@ module vproc_tb #(
     // timeprecision 1ns; // TODO: are these correct?
 
     logic clk, rst;
-    // always begin
-    //     clk = 1'b0;
-    //     ##1;
-    //     clk = 1'b1;
-    //     ##1;
-    // end
 
     always begin
         #1 clk = ~clk;
@@ -35,9 +29,8 @@ module vproc_tb #(
 
     initial begin
         clk = 0;
-        rst = 0;
     end
-
+    
     // Flash storage SPI
     logic [3:0] external_qspi_io_i;
     logic [3:0] programming_qspi_io_o;
@@ -59,7 +52,6 @@ module vproc_tb #(
     // Inout
     // To/from GPIO
     wire [9:0] gpio_pins;
-
 
     toplevel_498 toplevel_498(
         .clk(clk),
@@ -93,12 +85,29 @@ module vproc_tb #(
         .qspi_cs_o(external_qspi_cs_o)
     );
 
-
-    assign prog_end = toplevel_498.vproc_mem_req_o & (toplevel_498.vproc_mem_addr_o == '0);
+    logic prog_end;
+    assign prog_end = toplevel_498.vproc_mem_req_o & (toplevel_498.vproc_top.mem_addr_o == '0);
     initial begin
+        rst = 1'b1;
+        #100
+        rst = 1'b0;
+
         while (1) begin
             @(posedge clk);
-            $display("addr = %h", toplevel_498.vproc_mem_addr_o);
+            if(toplevel_498.vproc_mem_rvalid_i) begin
+                $display("RVALID HIGH");
+            end
+            if(toplevel_498.vproc_mem_err_i) begin
+                $display("ERR HIGH");
+            end
+            if(toplevel_498.vproc_mem_req_o) begin
+                $display("vproc_mem_req_o HIGH");
+            end
+            $display("mem_req_o = %h", toplevel_498.vproc_top.mem_req_o);
+            $display("mem_addr_o = %h", toplevel_498.vproc_top.mem_addr_o);
+            // $display("mem_rvalid_i = %h", toplevel_498.vproc_top.mem_rvalid_i);
+            // $display("mem_err_i = %h", toplevel_498.vproc_top.mem_err_i);
+            // $display("mem_rdata_i = %h", toplevel_498.vproc_top.mem_rdata_i);
             if (prog_end) begin
                 break;
             end
