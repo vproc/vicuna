@@ -223,11 +223,11 @@ module vproc_div #(
 
 
                 VSEW_16:begin
-                    div_op1[33*(2*i+0) +: 33] = {{15{op1_signs[4*i+1]}},    operand1_q[32*i+16*0 +: 16]};
-                    div_op1[33*(2*i+1) +: 33] = {{15{op1_signs[4*i+3]}},    operand1_q[32*i+16*1 +: 16]};
+                    div_op1[33*(2*i+0) +: 33] = {{17{op1_signs[4*i+1]}},    operand1_q[32*i+16*0 +: 16]};
+                    div_op1[33*(2*i+1) +: 33] = {{17{op1_signs[4*i+3]}},    operand1_q[32*i+16*1 +: 16]};
 
-                    div_op2[33*(2*i+0) +: 33] = {{15{op2_signs[4*i+1]}},    operand2_q[32*i+16*0 +: 16]};
-                    div_op2[33*(2*i+1) +: 33] = {{15{op2_signs[4*i+3]}},    operand2_q[32*i+16*1 +: 16]};
+                    div_op2[33*(2*i+0) +: 33] = {{17{op2_signs[4*i+1]}},    operand2_q[32*i+16*0 +: 16]};
+                    div_op2[33*(2*i+1) +: 33] = {{17{op2_signs[4*i+3]}},    operand2_q[32*i+16*1 +: 16]};
                 end
 
                 VSEW_32: begin
