@@ -680,10 +680,10 @@ module vproc_pipeline import vproc_pkg::*; #(
         logic                          last_cycle;
         logic                          init_addr;       // initialize address (used by LSU)
         logic                          requires_flush;
-        logic                          alt_count_valid; // alternative counter value is valid
-        logic [AUX_COUNTER_W-1:0]      aux_count;
-        logic [XIF_ID_W-1:0]           id;
-        op_unit                        unit;
+        logic                          alt_count_valid; // alternative counter value is valid // 75
+        logic [AUX_COUNTER_W-1:0]      aux_count; // 74, 73
+        logic [XIF_ID_W-1:0]           id; // 72, 71, 70
+        op_unit                        unit; // unit 67, 68, 69
         op_mode                        mode;
         cfg_vsew                       eew;             // effective element width
         cfg_emul                       emul;            // effective MUL factor
