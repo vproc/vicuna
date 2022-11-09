@@ -254,7 +254,7 @@ module vproc_div #(
                 .clk_i          (clk_i                   ),
                 .async_rst_ni   (async_rst_ni            ),
                 .sync_rst_ni    (sync_rst_ni             ),
-                .mod            (state_ex3_q.mode.div.op), // tells div_block to mod or not
+                .mod            (state_ex2_q.mode.div.op), // tells div_block to mod or not
                 .op1_i          (div_op1    [33*g +: 33] ),
                 .op2_i          (div_op2    [33*g +: 33] ),
                 .res_o          (div_res    [32*g +: 32] )
