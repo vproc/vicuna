@@ -17,6 +17,12 @@ main:
     vdiv.vx         v0, v0, t0
     vse32.v         v0, (a0)
 
+    li              t1, 2
+
+    vle32.v         v1, (a0)
+    vmul.vx         v1, v1, t1
+    vse32.v         v1, (a0)
+
     la              a0, vdata_start
     la              a1, vdata_end
     j               spill_cache
