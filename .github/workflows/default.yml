@@ -72,7 +72,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        unit: [sld, div]
+        unit: [lsu, alu, mul, sld, elem, csr, misc, div]
         main_core: [ibex]
     steps:
       - uses: actions/checkout@v2
