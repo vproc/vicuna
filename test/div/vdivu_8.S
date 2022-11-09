@@ -10,9 +10,9 @@ main:
 
     li              t0, 7
 
-    vle8.v         v0, (a0) # load v0 with a0
-    vdivu.vx      v1, v0, t0
-    vse8.v         v1, (a0) # store into a0
+    vle8.v         v0, (a0)
+    vdivu.vx      v0, v0, t0
+    vse8.v         v0, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
@@ -24,10 +24,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0xc1b60b4d
-    .word           0xa712aeae
-    .word           0x49564f81
-    .word           0x71241229
+    .word           0xf4abfa2b
+    .word           0xd04307e8
+    .word           0xed88c629
+    .word           0xa28394bc
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -62,10 +62,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0x1b1a010b
-    .word           0x17021818
-    .word           0x0a0c0b12
-    .word           0x10050205
+    .word           0x22182306
+    .word           0x1d090121
+    .word           0x21131c05
+    .word           0x1712151a
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049

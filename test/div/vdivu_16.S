@@ -10,9 +10,9 @@ main:
 
     li              t0, 7
 
-    vle16.v         v0, (a0) # load v0 with a0
-    vdivu.vx      v1, v0, t0
-    vse16.v         v1, (a0) # store into a0
+    vle16.v         v0, (a0)
+    vdivu.vx      v0, v0, t0
+    vse16.v         v0, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
@@ -24,10 +24,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0xde02a01f
-    .word           0xbee70e60
-    .word           0x9ed75bbc
-    .word           0x5d7b59c1
+    .word           0x9c220819
+    .word           0xee4aa6b1
+    .word           0xfde66ff8
+    .word           0x4acabc92
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -62,10 +62,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0x1fb716df
-    .word           0x1b45020d
-    .word           0x16b10d1a
-    .word           0x0d5a0cd2
+    .word           0x164e0128
+    .word           0x220a17d0
+    .word           0x24450ffe
+    .word           0x0aaf1af0
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
