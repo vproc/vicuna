@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 
-`timescale 10us/100ns
+// `timescale 10us/100ns
 module vproc_tb #(
         parameter              PROG_PATHS_LIST = "/home/hfaroo9/ece498hk-RISCV-V-Extension/src/vicuna/sim/files.txt",
         parameter int unsigned MEM_W           = 32,
@@ -35,8 +35,9 @@ module vproc_tb #(
 
     initial begin
         clk = 0;
+        rst = 0;
     end
-    
+
     // Flash storage SPI
     logic [3:0] external_qspi_io_i;
     logic [3:0] programming_qspi_io_o;
@@ -93,10 +94,11 @@ module vproc_tb #(
     );
 
 
-    assign prog_end = toplevel_498.mem_req_o & (toplevel_498.mem_addr_o == '0);
+    assign prog_end = toplevel_498.vproc_mem_req_o & (toplevel_498.vproc_mem_addr_o == '0);
     initial begin
         while (1) begin
             @(posedge clk);
+            $display("addr = %h", toplevel_498.vproc_mem_addr_o);
             if (prog_end) begin
                 break;
             end
