@@ -203,7 +203,7 @@ module vproc_div #(
         end
     end
 
-    logic [(DIV_OP_W*4)-1+DIV_OP_W/32:0] div_op1, div_op2;
+    logic [(DIV_OP_W/8*33)-1:0] div_op1, div_op2;
     always_comb begin
         div_op1 = DONT_CARE_ZERO ? '0 : 'x;
         div_op2 = DONT_CARE_ZERO ? '0 : 'x;
