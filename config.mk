@@ -34,20 +34,20 @@ ifeq ($(VPROC_CONFIG), dual)
   VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 128
-  VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VELEM $(VPIPE_W_VMUL):VMUL,VSLD,VDIV
+  VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VELEM,VDIV $(VPIPE_W_VMUL):VMUL,VSLD
 else
 ifeq ($(VPROC_CONFIG), triple)
   VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 256
-  VPROC_PIPELINES ?= $(VMEM_W):VLSU $(VPIPE_W_DFLT):VALU,VELEM $(VPIPE_W_VMUL):VMUL,VSLD,VDIV
+  VPROC_PIPELINES ?= $(VMEM_W):VLSU $(VPIPE_W_DFLT):VALU,VELEM,VDIV $(VPIPE_W_VMUL):VMUL,VSLD
 else
 ifeq ($(VPROC_CONFIG), legacy)
   VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 128
   VPROC_PIPELINES ?= $(VMEM_W):VLSU $(VPIPE_W_DFLT):VALU $(VPIPE_W_VMUL):VMUL                     \
-                                    $(VPIPE_W_DFLT):VSLD 32:VELEM $(VPIPE_W_VMUL):VDIV
+                                    $(VPIPE_W_DFLT):VSLD 32:VELEM $(VPIPE_W_DFLT):VDIV
 else
 $(error Unknown vector coprocessor configuration $(VPROC_CONFIG))
 endif
