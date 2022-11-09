@@ -24,10 +24,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0x67bb2a86
-    .word           0x4d6a2cd6
-    .word           0x3cb971e8
-    .word           0xa8c23e95
+    .word           0xde449e5a
+    .word           0x392f8ffb
+    .word           0xd69a5b50
+    .word           0x22645570
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -63,9 +63,9 @@ vdata_end:
     .global vref_end
 vref_start:
     .word           0x00040001
-    .word           0x00010005
-    .word           0x00050005
-    .word           0x00050005
+    .word           0x00020004
+    .word           0x00020003
+    .word           0x00050004
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
