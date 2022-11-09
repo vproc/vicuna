@@ -105,6 +105,7 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
 	    -Wno-SYMRSVDWORD -Wno-BLKANDNBLK -Wno-BLKSEQ -Wno-SYNCASYNCNET        \
 	    -Wno-COMBDLY                                                          \
+	    -I$(TEST_DIR)/../ibex/rtl/ibex_pkg.sv -I$(SIM_DIR)/../rtl/ -I$(SIM_DIR)/../sva/ $$inc $$core                \ 
 	    -I$(SIM_DIR)/../rtl/ -I$(SIM_DIR)/../sva/ $$inc $$core                \
 	    -GMEM_W=$(MEM_W) -GVMEM_W=$(VMEM_W)                                   \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \
