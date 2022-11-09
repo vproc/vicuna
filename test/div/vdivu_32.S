@@ -1,5 +1,5 @@
 
-# vdiv  32
+# vdiv u 32
     .text
     .global main
 main:
@@ -11,7 +11,7 @@ main:
     li              t0, 7
 
     vle32.v         v0, (a0) # load v0 with a0
-    vdiv.vx      v1, v0, t0
+    vdivu.vx      v1, v0, t0
     vse32.v         v1, (a0) # store into a0
 
     la              a0, vdata_start
@@ -24,10 +24,10 @@ main:
     .global vdata_start
     .global vdata_end
 vdata_start:
-    .word           0xed35a74b
-    .word           0xea17c0b2
-    .word           0xf9bc6506
-    .word           0x6c6a2bc8
+    .word           0x2ad77dea
+    .word           0x1060d421
+    .word           0x274934b9
+    .word           0xc7ae8d3e
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
@@ -62,10 +62,10 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0xfd50cec1
-    .word           0xfcded262
-    .word           0xff1ae9dc
-    .word           0x0f7ce1ae
+    .word           0x061ec8d8
+    .word           0x0256f9bb
+    .word           0x059cbe63
+    .word           0x1c86a676
     .word           0x3f44383b
     .word           0x37424d54
     .word           0x5e4b5049
