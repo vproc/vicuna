@@ -203,37 +203,37 @@ module vproc_div #(
         end
     end
 
-    logic [(DIV_OP_W*4)-1:0] div_op1, div_op2;
+    logic [((DIV_OP_W+1)*4)-1:0] div_op1, div_op2;
     always_comb begin
         div_op1 = DONT_CARE_ZERO ? '0 : 'x;
         div_op2 = DONT_CARE_ZERO ? '0 : 'x;
         for (int i = 0; i < DIV_OP_W / 32; i++) begin
             unique case (state_ex1_q.eew)
                 VSEW_8: begin
-                    div_op1[32*(4*i+0) +: 32] = {{24{op1_signs[4*i+0]}},    operand1_q[32*(i)+8*0 +: 8]};
-                    div_op1[32*(4*i+1) +: 32] = {{24{op1_signs[4*i+1]}},    operand1_q[32*(i)+8*1 +: 8]};
-                    div_op1[32*(4*i+2) +: 32] = {{24{op1_signs[4*i+2]}},    operand1_q[32*(i)+8*2 +: 8]};
-                    div_op1[32*(4*i+3) +: 32] = {{24{op1_signs[4*i+3]}},    operand1_q[32*(i)+8*3 +: 8]};
+                    div_op1[33*(4*i+0) +: 33] = {{25{op1_signs[4*i+0]}},    operand1_q[32*(i)+8*0 +: 8]};
+                    div_op1[33*(4*i+1) +: 33] = {{25{op1_signs[4*i+1]}},    operand1_q[32*(i)+8*1 +: 8]};
+                    div_op1[33*(4*i+2) +: 33] = {{25{op1_signs[4*i+2]}},    operand1_q[32*(i)+8*2 +: 8]};
+                    div_op1[33*(4*i+3) +: 33] = {{25{op1_signs[4*i+3]}},    operand1_q[32*(i)+8*3 +: 8]};
 
-                    div_op2[32*(4*i+0) +: 32] = {{24{op2_signs[4*i+0]}},    operand2_q[32*(i)+8*0 +: 8]};
-                    div_op2[32*(4*i+1) +: 32] = {{24{op2_signs[4*i+1]}},    operand2_q[32*(i)+8*1 +: 8]};
-                    div_op2[32*(4*i+2) +: 32] = {{24{op2_signs[4*i+2]}},    operand2_q[32*(i)+8*2 +: 8]};
-                    div_op2[32*(4*i+3) +: 32] = {{24{op2_signs[4*i+3]}},    operand2_q[32*(i)+8*3 +: 8]};
+                    div_op2[33*(4*i+0) +: 33] = {{25{op2_signs[4*i+0]}},    operand2_q[32*(i)+8*0 +: 8]};
+                    div_op2[33*(4*i+1) +: 33] = {{25{op2_signs[4*i+1]}},    operand2_q[32*(i)+8*1 +: 8]};
+                    div_op2[33*(4*i+2) +: 33] = {{25{op2_signs[4*i+2]}},    operand2_q[32*(i)+8*2 +: 8]};
+                    div_op2[33*(4*i+3) +: 33] = {{25{op2_signs[4*i+3]}},    operand2_q[32*(i)+8*3 +: 8]};
                 end
 
 
                 VSEW_16:begin
-                    div_op1[32*(2*i+0) +: 32] = {{16{op1_signs[4*i+1]}},    operand1_q[32*i+16*0 +: 16]};
-                    div_op1[32*(2*i+1) +: 32] = {{16{op1_signs[4*i+3]}},    operand1_q[32*i+16*1 +: 16]};
+                    div_op1[33*(2*i+0) +: 33] = {{15{op1_signs[4*i+1]}},    operand1_q[32*i+16*0 +: 16]};
+                    div_op1[33*(2*i+1) +: 33] = {{15{op1_signs[4*i+3]}},    operand1_q[32*i+16*1 +: 16]};
 
-                    div_op2[32*(2*i+0) +: 32] = {{16{op2_signs[4*i+1]}},    operand2_q[32*i+16*0 +: 16]};
-                    div_op2[32*(2*i+1) +: 32] = {{16{op2_signs[4*i+3]}},    operand2_q[32*i+16*1 +: 16]};
+                    div_op2[33*(2*i+0) +: 33] = {{15{op2_signs[4*i+1]}},    operand2_q[32*i+16*0 +: 16]};
+                    div_op2[33*(2*i+1) +: 33] = {{15{op2_signs[4*i+3]}},    operand2_q[32*i+16*1 +: 16]};
                 end
 
                 VSEW_32: begin
-                    div_op1[32*i +: 32] =  operand1_q[32*i +: 32];
+                    div_op1[33*i +: 33] =  {{1{op1_signs[4*i+3]}},    operand1_q[32*i +: 32]}; // operand1_q[32*i +: 32];
 
-                    div_op2[32*i +: 32] =  operand2_q[32*i +: 32];
+                    div_op2[33*i +: 33] =  {{1{op2_signs[4*i+3]}},    operand2_q[32*i +: 32]}; // operand2_q[32*i +: 32];
                 end
                 default: ;
             endcase
@@ -255,8 +255,8 @@ module vproc_div #(
                 .async_rst_ni   (async_rst_ni            ),
                 .sync_rst_ni    (sync_rst_ni             ),
                 .mod            (state_ex3_q.mode.div.op), // tells div_block to mod or not
-                .op1_i          (div_op1    [32*g +: 32] ),
-                .op2_i          (div_op2    [32*g +: 32] ),
+                .op1_i          (div_op1    [33*g +: 33] ),
+                .op2_i          (div_op2    [33*g +: 33] ),
                 .res_o          (div_res    [32*g +: 32] )
             );
         end
