@@ -86,7 +86,7 @@ module vproc_tb #(
     );
 
     logic prog_end;
-    assign prog_end = toplevel_498.vproc_mem_req_o & (toplevel_498.vproc_top.mem_addr_o == '0);
+    assign prog_end = ~toplevel_498.vproc_mem_req_o & (toplevel_498.vproc_top.mem_addr_o == 32'h0000_2000);
     initial begin
         rst = 1'b1;
         #100

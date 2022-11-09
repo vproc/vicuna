@@ -658,13 +658,13 @@ module vproc_top import vproc_pkg::*; #(
 
     always_comb begin
         mem_req_o   = imem_req | dmem_req;
-        mem_addr_o  = imem_addr;
+        mem_addr_o  = imem_addr + 32'h0000_2000; // TODO: undo offet, add in correct place
         mem_we_o    = 1'b0;
         mem_be_o    = dmem_be;
         mem_wdata_o = dmem_wdata;
         if (dmem_req) begin
             mem_we_o   = dmem_we;
-            mem_addr_o = dmem_addr;
+            mem_addr_o = dmem_addr + 32'h0000_2000; // TODO: undo offet, add in correct place
         end
     end
     assign imem_gnt = imem_req & ~dmem_req;
