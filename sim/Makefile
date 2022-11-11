@@ -86,6 +86,8 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	core="";                                                                  \
 	inc="";                                                                   \
 	src="";                                                                   \
+	$(info $$SIM_DIR is [${SIM_DIR}]) \
+	$(info $$CORE_DIR is [${CORE_DIR}]) \
 	if echo "$(CORE_DIR)" | grep -q "ibex"; then                              \
 	    core="-DMAIN_CORE_IBEX";                                              \
 	    inc="-I$(CORE_DIR)/rtl/ -I$(CORE_DIR)/dv/uvm/core_ibex/common/prim/"; \
