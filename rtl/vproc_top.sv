@@ -130,7 +130,7 @@ module vproc_top import vproc_pkg::*; #(
         .ram_cfg_i              ( prim_ram_1p_pkg::ram_1p_cfg_t'('0) ),
 
         .hart_id_i              ( 32'b0                              ),
-        .boot_addr_i            ( 32'h00000000                       ),
+        .boot_addr_i            ( 32'h0000_2000                      ),
 
         .instr_req_o            ( instr_req                          ),
         .instr_gnt_i            ( instr_gnt                          ),
@@ -658,13 +658,13 @@ module vproc_top import vproc_pkg::*; #(
 
     always_comb begin
         mem_req_o   = imem_req | dmem_req;
-        mem_addr_o  = imem_addr + 32'h0000_2000; // TODO: undo offet, add in correct place
+        mem_addr_o  = imem_addr;
         mem_we_o    = 1'b0;
         mem_be_o    = dmem_be;
         mem_wdata_o = dmem_wdata;
         if (dmem_req) begin
             mem_we_o   = dmem_we;
-            mem_addr_o = dmem_addr + 32'h0000_2000; // TODO: undo offet, add in correct place
+            mem_addr_o = dmem_addr;
         end
     end
     assign imem_gnt = imem_req & ~dmem_req;
