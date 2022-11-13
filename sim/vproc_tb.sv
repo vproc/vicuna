@@ -137,7 +137,7 @@ module vproc_tb #(
         parameter              PROG_PATHS_LIST = "/home/hfaroo9/498-integ/ece498hk-RISCV-V-Extension/src/vicuna/sim/files.txt",
         parameter int unsigned MEM_W           = 32,
         parameter int unsigned MEM_SZ          = 262144,
-        parameter int unsigned MEM_LATENCY     = 32,
+        parameter int unsigned MEM_LATENCY     = 1,
         parameter int unsigned VMEM_W          = 32,
         parameter int unsigned ICACHE_SZ       = 0,   // instruction cache size in bytes
         parameter int unsigned ICACHE_LINE_W   = 128, // instruction cache line width in bits
@@ -164,24 +164,6 @@ module vproc_tb #(
 
     logic [31:0] tmp_addr;
     logic [31:0] tmp_addr2;
-    // assign mem_addr = tmp_addr - 32'h0000_2000;
-    logic mem_req_tmp;
-
-    always begin
-        @(posedge clk)
-        if(mem_we) begin
-            $display("MEM_WE HIGH");
-        end
-        if(mem_req_tmp) begin
-            mem_addr = tmp_addr2 - 32'h0000_2000;
-            tmp_addr = tmp_addr2;
-            mem_req = 1'b1;
-        end else begin
-            mem_req = 1'b0;
-        end
-        // mem_req = mem_req_tmp;
-
-    end
 
     // Programming/debug set pins
     logic set_programming_mode;
@@ -193,6 +175,20 @@ module vproc_tb #(
     logic [MEM_W-1:0] vproc_mem_rdata_i;
     logic [31:0] vproc_pend_vreg_wr_map_o;
     logic set_valid;
+    logic mem_req_tmp;
+    logic [31:0] addr_tmp;
+    logic [31:0] mem_rvalid_tmp;
+    logic valid_tmp;
+
+    logic [31:0] ibex_d_in;
+    logic ibex_d_in_valid;
+
+    logic [31:0] mem_tmp_data_out;
+    logic [31:0] mmu_tmp_data_out;
+    logic [31:0] mmu_data_out;
+    logic mem_tmp_data_out_valid;
+    logic mmu_tmp_data_out_valid;
+    logic send_to_ibex;
 
     vproc_top #(
         .MEM_W         ( MEM_W                       ),
@@ -206,14 +202,14 @@ module vproc_tb #(
     ) top (
         .clk_i         ( clk                         ),
         .rst_ni        ( ~rst                        ),
-        .mem_req_o     ( mem_req_tmp                     ),
-        .mem_addr_o    ( tmp_addr2                    ),
+        .mem_req_o     ( mem_req_tmp                 ),
+        .mem_addr_o    ( addr_tmp                    ),
         .mem_we_o      ( mem_we                      ),
         .mem_be_o      ( mem_be                      ),
         .mem_wdata_o   ( mem_wdata                   ),
-        .mem_rvalid_i  ( set_valid                   ),
+        .mem_rvalid_i  ( send_to_ibex                ),
         .mem_err_i     ( mem_err                     ),
-        .mem_rdata_i   ( mem_rdata                   ),
+        .mem_rdata_i   ( ibex_d_in                   ),
         .pend_vreg_wr_map_o (                        )
     );
     wire [9:0] gpio_pins;
@@ -246,13 +242,13 @@ module vproc_tb #(
 
         // To/from Vicuna/Ibex
         .vproc_mem_req_o(mem_req),
-        .vproc_mem_addr_o(tmp_addr),
+        .vproc_mem_addr_o(mem_addr + 32'h0000_2000),
         .vproc_mem_we_o(mem_we),
         .vproc_mem_be_o(mem_be),
         .vproc_mem_wdata_o(mem_wdata),
-        .vproc_mem_rvalid_i(vproc_mem_rvalid_i),
+        .vproc_mem_rvalid_i(mmu_out_valid),
         .vproc_mem_err_i(vproc_mem_err_i),
-        .vproc_mem_rdata_i(vproc_mem_rdata_i),
+        .vproc_mem_rdata_i(mmu_data_out),
 
         // To/from GPIO
         .gpio_pins(gpio_pins),
@@ -337,6 +333,7 @@ module vproc_tb #(
     logic [31:0] mmu_val;
     logic [31:0] mem_val;
     logic [31:0] prev_addr;
+    logic mem_tmp_data_out_valid;
     initial begin
 	$display("STARTING TB");
         done = 1'b0;
@@ -344,6 +341,10 @@ module vproc_tb #(
         mem_valid = 1'b0;
         prev_addr = 32'b0;
         set_valid = 1'b0;
+        mem_tmp_data_out_valid = 1'b0;
+        mmu_tmp_data_out_valid = 1'b0;
+        ibex_d_in_valid = 1'b0;
+        send_to_ibex = 1'b0;
 
         fd1 = $fopen(PROG_PATHS_LIST, "r");
         for (int i = 0; !$feof(fd1); i++) begin
@@ -398,41 +399,70 @@ module vproc_tb #(
 	    $display("STARTING WHILE LOOP");
             while (1) begin
                 @(posedge clk);
-                if(tmp_addr != prev_addr) begin
-                    $display("new addr (prev = %x, new = %x)", prev_addr, tmp_addr);
-                    prev_addr = tmp_addr;
+
+                // if(mem_req_tmp == 1'b1) begin
+                //     mem_addr = addr_tmp; //- 32'h0000_2000;
+                //     mem_req = 1'b1;
+                // end
+
+                
+                // if(mem_rvalid == 1'b1 && mem_tmp_data_out_valid == 1'b0) begin
+                //     mem_tmp_data_out = mem_rdata;
+                //     $display("INFO: mem_tmp_data_out=%x, mem_rdata=%x, mem_addr=%x", mem_tmp_data_out, mem_rdata, mem_addr);
+
+                //     mem_tmp_data_out_valid = 1'b1;
+                // end
+
+                // if(mmu_out_valid == 1'b1) begin
+                //     @(posedge clk)
+                //     mmu_tmp_data_out = mmu_data_out;
+                //     mmu_tmp_data_out_valid = 1'b1;
+                //     $display("mmu curr_addr = %x", mmu.curr_addr);
+                //     $display("INFO: mmu_tmp_data_out=%x, mmu_data_out=%x, mem_addr=%x", mmu_tmp_data_out, mmu_data_out, mem_addr);
+
+                // end
+
+                // if(ibex_d_in_valid == 1'b1) begin
+                //     @(posedge clk)
+                //     mmu_tmp_data_out_valid = 1'b0;
+                //     mem_tmp_data_out_valid = 1'b0;
+                //     ibex_d_in_valid = 1'b0;
+                // end
+
+                // if(mmu_tmp_data_out_valid == 1'b1 && mem_tmp_data_out_valid == 1'b1) begin
+                //     $display("INFO: mem_tmp_data_out=%x, mmu_tmp_data_out=%x, mem_addr=%x", mem_tmp_data_out, mmu_tmp_data_out, mem_addr);
+                //     assert(mem_tmp_data_out == mmu_tmp_data_out) else $error("ERROR: mem_tmp_data_out=%x, mmu_tmp_data_out=%x, mem_addr=%x", mem_tmp_data_out, mmu_tmp_data_out, mem_addr);
+                //     // mmu_tmp_data_out_valid = 1'b0;
+                //     // mem_tmp_data_out_valid = 1'b0;
+                //     ibex_d_in = mem_tmp_data_out;
+                //     ibex_d_in_valid = 1'b1;
+                //     mem_req = 1'b0;
+                // end
+
+                if(mem_req_tmp == 1'b1) begin
+                    mem_addr = addr_tmp; //- 32'h0000_2000;
+                    mem_req = mem_req_tmp;
+                    @(posedge clk)
+                    mem_req = 1'b0;
+                    @(posedge mmu_out_valid)
+                    ibex_d_in_valid = mmu_out_valid;
+                    ibex_d_in = mmu_data_out;
+                    send_to_ibex = 1'b1;
+                    $display("mmu curr_addr = %x", mmu.curr_addr);
+                    $display("INFO: mmu_data_out=%x, correct_val=%x, mem_addr=%x", mmu_data_out, mem[mem_addr[$clog2(MEM_SZ)-1 : $clog2(MEM_W/8)]], mem_addr);
+
+                    assert(mmu_data_out == mem[mem_addr[$clog2(MEM_SZ)-1 : $clog2(MEM_W/8)]]) else $error("GOT DIFFERENT VAL (mem_addr=%x, mmu_data_out=%x, mem[]=%x", mem_addr, mmu_data_out, mem[mem_addr[$clog2(MEM_SZ)-1 : $clog2(MEM_W/8)]]);
+                    @(posedge clk)
+                    send_to_ibex = 1'b0;
                 end
 
-                if (mmu_valid == 1'b0 && vproc_mem_rvalid_i == 1'b1) begin
-                    mmu_valid = 1'b1;
-                    mmu_val = vproc_mem_rdata_i;
-                    // $display("mmu valid at t=%x", $time);
-                    $display("mmu valid at t=%x (tmp_addr = %x, vproc_mem_rdata_i = %x, mmu_val = %x)", $time, tmp_addr, vproc_mem_rdata_i, mmu_val);
-                end
 
-                if(mem_valid == 1'b0 && mem_rvalid == 1'b1) begin
-                    mem_valid = 1'b1;
-                    mem_val = mem_rdata;
-                    $display("mem valid at t=%x (addr = %x, idx = %x, mem_rdata = %x, mem_val = %x)", $time, mem_addr, mem_idx, mem_rdata, mem_val);
-                end
 
-                if (set_valid) begin
-                    set_valid = 1'b0;
+                // if(mmu_out_valid == 1'b1) begin
+                // end
+                if (prog_end) begin
+                    break;
                 end
-
-                if(mem_valid == 1'b1 && mmu_valid == 1'b1) begin
-                    mem_valid = 1'b0;
-                    mmu_valid = 1'b0;
-                    set_valid = 1'b1;
-                    $display("Both valid");
-                    assert (mmu_val == mem_val) else begin
-                        $error("ERROR: mmu_val = %x, mem_val = %x, tmp_addr = %x, mem_addr = %x, mem_idx = %x, vproc_mem_rdata_i = %x, mem_rdata = %x, mem[mem_idx] = %x", mmu_val, mem_val, tmp_addr, mem_addr, mem_idx, vproc_mem_rdata_i, mem_rdata, mem[mem_idx]);
-                        $finish;
-                    end
-                end
-            end
-            if (prog_end) begin
-                break;
             end
 	    $display("OUT OF WHILE LOOP");
 
