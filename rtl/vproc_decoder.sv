@@ -61,10 +61,12 @@ module vproc_decoder #(
         mode_o.unused = DONT_CARE_ZERO ? '0 : 'x;
 
         rs1_o.vreg    = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        rs1_o.xreg    = 1'b0;
         rs1_o.r.xval  = DONT_CARE_ZERO ? '0 : 'x;
         rs1_o.r.vaddr = DONT_CARE_ZERO ? '0 : 'x;
 
         rs2_o.vreg    = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        rs2_o.xreg    = 1'b0;
         rs2_o.r.xval  = DONT_CARE_ZERO ? '0 : 'x;
         rs2_o.r.vaddr = DONT_CARE_ZERO ? '0 : 'x;
 
@@ -151,6 +153,7 @@ module vproc_decoder #(
                 mode_o.lsu.nfields = instr_i[31:29];
 
                 rs1_o.vreg   = 1'b0; // rs1 is an x register
+                rs1_o.xreg   = 1'b1;
                 rs1_o.r.xval = x_rs1_i;
 
                 rd_o.vreg = 1'b1; // vd/vs3 is a vreg
@@ -228,6 +231,7 @@ module vproc_decoder #(
                     2'b10: begin // strided load/store
                         mode_o.lsu.stride = LSU_STRIDED;
                         rs2_o.vreg        = 1'b0;
+                        rs2_o.xreg        = 1'b1;
                         rs2_o.r.xval      = x_rs2_i;
                     end
                     2'b01,
@@ -254,12 +258,14 @@ module vproc_decoder #(
                     3'b001,         // OPFVV
                     3'b010: begin   // OPMVV
                         rs1_o.vreg    = 1'b1; // rs1 is a vector register
+                        rs1_o.xreg    = 1'b0;
                         rs1_o.r.vaddr = instr_vs1;
                         rs2_o.vreg    = 1'b1; // rs2 is a vector register
                         rs2_o.r.vaddr = instr_vs2;
                     end
                     3'b011: begin   // OPIVI
                         rs1_o.vreg    = 1'b0; // rs1 field contains immediate (sign extend for all except slide instructions)
+                        rs1_o.xreg    = 1'b0;
                         rs1_o.r.xval  = ((instr_i[31:26] == 6'b001110) | (instr_i[31:26] == 6'b001111)) ? {{27{1'b0}}, instr_vs1} : {{27{instr_vs1[4]}}, instr_vs1};
                         rs2_o.vreg    = 1'b1; // rs2 is a vector register
                         rs2_o.r.vaddr = instr_vs2;
@@ -267,15 +273,18 @@ module vproc_decoder #(
                     3'b100,         // OPIVX
                     3'b110: begin   // OPMVX
                         rs1_o.vreg    = 1'b0; // rs1 is an x register
+                        rs1_o.xreg    = 1'b1;
                         rs1_o.r.xval  = x_rs1_i;
                         rs2_o.vreg    = 1'b1; // rs2 is a vector register
                         rs2_o.r.vaddr = instr_vs2;
                     end
                     3'b111: begin   // OPCFG
                         rs1_o.vreg    = 1'b0; // rs1 is either x reg or immediate
-                        rs1_o.r.xval  = (instr_i[31:30] != 2'b11) ? x_rs1_i : {{27{1'b0}}, instr_vs1};
+                        rs1_o.xreg    = instr_i[31:30] != 2'b11;
+                        rs1_o.r.xval  = rs1_o.xreg ? x_rs1_i : {{27{1'b0}}, instr_vs1};
                         rs2_o.vreg    = 1'b0; // rs2 is either x reg or immediate
-                        rs2_o.r.xval  = (instr_i[31:30] == 2'b10) ? x_rs2_i : {{21{1'b0}}, instr_i[30] & ~instr_i[31], instr_i[29:20]};
+                        rs2_o.xreg    = instr_i[31:30] == 2'b10;
+                        rs2_o.r.xval  = rs2_o.xreg ? x_rs2_i : {{21{1'b0}}, instr_i[30] & ~instr_i[31], instr_i[29:20]};
                     end
                     default: ;
                 endcase

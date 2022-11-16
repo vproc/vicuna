@@ -286,10 +286,14 @@ module vproc_core import vproc_pkg::*; #(
     end
     assign dec_buf_valid_d = (~dec_ready | dec_valid) & ~dec_clear;
 
+    // Check if scalar source operands are valid
+    logic source_xreg_valid;
+    assign source_xreg_valid = (!dec_data_d.rs1.xreg | xif_issue_if.issue_req.rs_valid[0]) & (!dec_data_d.rs2.xreg | xif_issue_if.issue_req.rs_valid[1]);
+
     // Stall instruction offloading in case the instruction ID is already used
     // by another instruction which is not complete
     logic instr_valid, issue_id_used;
-    assign instr_valid = xif_issue_if.issue_valid & ~issue_id_used;
+    assign instr_valid = xif_issue_if.issue_valid & ~issue_id_used & source_xreg_valid;
 
     op_unit instr_unit;
     op_mode instr_mode;
@@ -331,7 +335,7 @@ module vproc_core import vproc_pkg::*; #(
     // vset[i]vl[i] instruction that will change the configuration in the next
     // cycle and any subsequent offloaded instruction must be validated w.r.t.
     // the new configuration.
-    assign xif_issue_if.issue_ready          = dec_ready & ~issue_id_used;
+    assign xif_issue_if.issue_ready          = dec_ready & ~issue_id_used & source_xreg_valid;
 
     assign xif_issue_if.issue_resp.accept    = dec_valid;
     assign xif_issue_if.issue_resp.writeback = dec_valid & (((instr_unit == UNIT_ELEM) & instr_mode.elem.xreg) | (instr_unit == UNIT_CFG));
