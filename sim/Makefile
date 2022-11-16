@@ -86,12 +86,15 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	core="";                                                                  \
 	inc="";                                                                   \
 	src="";                                                                   \
+	$(info $$SIM_DIR is [${SIM_DIR}]) \
+	$(info $$CORE_DIR is [${CORE_DIR}]) \
 	if echo "$(CORE_DIR)" | grep -q "ibex"; then                              \
 	    core="-DMAIN_CORE_IBEX";                                              \
 	    inc="-I$(CORE_DIR)/rtl/ -I$(CORE_DIR)/dv/uvm/core_ibex/common/prim/"; \
 	    inc="$$inc -I$(CORE_DIR)/vendor/lowrisc_ip/dv/sv/dv_utils/";          \
 	    inc="$$inc -I$(CORE_DIR)/vendor/lowrisc_ip/ip/prim/rtl/";             \
 	    inc="$$inc -I$(CORE_DIR)/vendor/lowrisc_ip/ip/prim_generic/rtl/";     \
+		cat ibex_pkg.sv;													  \
 	    src="ibex_pkg.sv prim_pkg.sv prim_assert.sv prim_ram_1p_pkg.sv";      \
 	    src="$$src ibex_register_file_ff.sv";                                 \
 	elif echo "$(CORE_DIR)" | grep -q "cv32e40x"; then                        \
