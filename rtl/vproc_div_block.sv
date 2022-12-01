@@ -2,9 +2,9 @@
 
 module vproc_div_block #(
         parameter vproc_pkg::div_type  DIV_TYPE = vproc_pkg::DIV_GENERIC,
-        parameter bit                  BUF_OPS  = 1'b0, // buffer operands (op1_i and op2_i)
-        parameter bit                  BUF_DIV  = 1'b0, // buffer division result
-        parameter bit                  BUF_RES  = 1'b0  // buffer final result (res_o)
+        parameter bit                  BUF_OPS  = 1'b1, // buffer operands (op1_i and op2_i)
+        parameter bit                  BUF_DIV  = 1'b1, // buffer division result
+        parameter bit                  BUF_RES  = 1'b1  // buffer final result (res_o)
         // Other parameters...
     )(
         input  logic                   clk_i,
