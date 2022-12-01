@@ -15,7 +15,7 @@ TEST_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 SIMULATOR ?= verilator
 
 # test directories
-TEST_DIRS := lsu alu mul sld elem csr kernel misc
+TEST_DIRS := lsu alu mul sld elem csr kernel misc div
 
 # test targets
 TESTS_ALL := $(TEST_DIRS) $(addsuffix /, $(TEST_DIRS))

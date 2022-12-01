@@ -40,6 +40,12 @@ typedef enum {
     MUL_XLNX_DSP48E1 = 1
 } mul_type;
 
+/***** ECE 498 HK MODIFICATIONS *****/
+typedef enum {
+    DIV_GENERIC      = 0
+} div_type;
+/***** END ECE 498 HK MODIFICATIONS *****/
+
 typedef enum logic [1:0] {
     INSTR_INVALID,
     INSTR_SPECULATIVE,
@@ -98,6 +104,7 @@ typedef enum logic [1:0] {
 typedef enum logic [2:0] {
     UNIT_LSU,
     UNIT_ALU,
+    UNIT_DIV,   // ECE 498 HK MODIFICATION
     UNIT_MUL,
     UNIT_SLD,
     UNIT_ELEM,
@@ -106,7 +113,8 @@ typedef enum logic [2:0] {
 } op_unit;
 
 // The number of different types of execution units (excludes pseudo-units)
-parameter int unsigned UNIT_CNT = 5;
+parameter int unsigned UNIT_CNT = 6;
+// LSU ALU DIV MUL STD ELEM
 
 typedef enum logic [1:0] {
     COUNT_INC_1,
@@ -207,6 +215,24 @@ typedef struct packed {
 `endif
 } op_mode_mul;
 
+/***** ECE 498 HK MODIFICATIONS *****/
+typedef enum logic [0:0] {
+    DIV_VDIV,   //  divide
+    DIV_VREM    // remainder
+} opcode_div;
+
+typedef struct packed {
+    // TODO
+    logic       masked;
+    opcode_div  op;
+    logic       op1_signed;
+    logic       op2_signed;
+`ifdef VPROC_OP_MODE_UNION
+    logic [8:0] unused;
+`endif                                            
+} op_mode_div;
+/***** END ECE 498 HK MODIFICATIONS *****/
+
 typedef enum logic [0:0] {
     SLD_UP,
     SLD_DOWN
@@ -289,6 +315,7 @@ typedef struct packed {
 `endif
     op_mode_lsu  lsu;
     op_mode_alu  alu;
+    op_mode_div  div;   // ECE 498 HK MODIFICATION
     op_mode_mul  mul;
     op_mode_sld  sld;
     op_mode_elem elem;
