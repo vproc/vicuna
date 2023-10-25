@@ -59,7 +59,7 @@ jobs:
 
       - name: Install verible and lint
         run: |
-          curl -sSL https://api.github.com/repos/chipsalliance/verible/releases/latest | grep browser_download_url | grep Ubuntu-20.04 | cut -d '"' -f 4 | wget -qi -
+          curl -sSL https://api.github.com/repos/chipsalliance/verible/releases/latest | grep browser_download_url | grep Ubuntu-20.04 | grep "x86_64" | cut -d '"' -f 4 | wget -qi -
           mkdir verible
           tar -xf verible*.tar.gz -C verible --strip-components=1
           export PATH=$PATH:$PWD/verible/bin:/opt/verilator/bin
