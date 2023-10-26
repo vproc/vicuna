@@ -38,11 +38,11 @@ jobs:
     needs: verilator
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: false
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache-verilator
         with:
           path: /opt/verilator
@@ -85,11 +85,11 @@ jobs:
           remove-haskell: 'true'
           remove-codeql: 'true'
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache-verilator
         with:
           path: /opt/verilator
