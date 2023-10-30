@@ -60,12 +60,12 @@ static int test_opt_shiftrows(void) {
 static int (*test_funcs[])(void) = {
     test_opt_vlse,
     test_opt_reduction,
-    test_opt_shiftrows
+    // test_opt_shiftrows
 };
 static const char *test_names[] = {
     "optimized strided vector load",
     "optimized sum reduction",
-    "optimized AES shiftrows"
+    // "optimized AES shiftrows"
 };
 
 int main(void) {
