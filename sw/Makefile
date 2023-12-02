@@ -14,7 +14,7 @@ ifeq ($(COMPILER),gcc)
     RISCV_DUMP          := riscv32-unknown-elf-objdump
     RISCV_OBCP          := riscv32-unknown-elf-objcopy
     ARCH                := rv32imv
-    LD_SCRIPT           := $(SW_DIR)/link.ld
+    LD_SCRIPT           := $(SW_DIR)link.ld
 else ifeq ($(COMPILER),llvm)
     # Pick the first clang executable in $PATH with version >= 14, or the
     # default clang if there is no clang >= 14; the individual steps are:
@@ -32,7 +32,7 @@ else ifeq ($(COMPILER),llvm)
     RISCV_OBCP          := llvm-objcopy
     ARCH                := rv32imzve32x
     CC_SPECIFIC_OPTIONS := -fuse-ld=lld -Wno-unused-command-line-argument
-    LD_SCRIPT           := $(SW_DIR)/lld_link.ld
+    LD_SCRIPT           := $(SW_DIR)lld_link.ld
 endif
 
 
@@ -40,13 +40,13 @@ RISCV_FLAGS := -march=$(ARCH) -mabi=ilp32 -static -mcmodel=medany             \
                -fvisibility=hidden -nostdlib -nostartfiles -Wall              \
                $(CC_SPECIFIC_OPTIONS)
 
-CFLAGS := $(CFLAGS) -I$(SW_DIR)/lib/
+CFLAGS := $(CFLAGS) -I$(SW_DIR)lib/
 
 PROG ?= test
 OBJ  ?= test.o
 
 # add crt0 to object files
-RISCV_OBJ := $(SW_DIR)/crt0.o $(OBJ) $(SW_DIR)/lib/uart.o
+RISCV_OBJ := $(SW_DIR)crt0.o $(OBJ) $(SW_DIR)lib/uart.o
 
 all: $(PROG).vmem
 
@@ -77,4 +77,4 @@ $(PROG).elf: $(RISCV_OBJ) $(LD_SCRIPT)
 clean:
 	rm -f *.o *.elf *.bin *.vmem
 
-include $(SW_DIR)/toolchain.mk
+include $(SW_DIR)toolchain.mk

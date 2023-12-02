@@ -24,7 +24,7 @@ PROJ_DIR     ?= $(PROJ_DIR_TMP)
 
 # select the core to use as main processor (defaults to Ibex)
 CORE     ?= ibex
-CORE_DIR := $(SIM_DIR)/../$(CORE)/
+CORE_DIR := $(SIM_DIR)../$(CORE)/
 
 # memory initialization files
 PROG_PATHS ?= progs.txt
@@ -48,7 +48,7 @@ all: verilator
 
 # vector coprocessor configuration file generation (defines VMEM_W and VREG_W)
 VPROC_CONFIG_PKG := $(PROJ_DIR)/vproc_config.sv
-include $(SIM_DIR)/../config.mk
+include $(SIM_DIR)../config.mk
 
 verilator-version-check:
 	@version=`verilator --version | awk '{print $$2}'`;                       \
@@ -66,7 +66,7 @@ verilator: verilator-version-check $(PROJ_DIR)/obj_dir/Vvproc_top.mk
 	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
 
 $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
-	cp $(SIM_DIR)/verilator_main.cpp $(PROJ_DIR)/
+	cp $(SIM_DIR)verilator_main.cpp $(PROJ_DIR)/
 	cd $(PROJ_DIR);                                                           \
 	options="";                                                               \
 	cflags="";                                                                \
@@ -105,7 +105,7 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
 	    -Wno-SYMRSVDWORD -Wno-BLKANDNBLK -Wno-BLKSEQ -Wno-SYNCASYNCNET        \
 	    -Wno-COMBDLY                                                          \
-	    -I$(SIM_DIR)/../rtl/ -I$(SIM_DIR)/../sva/ $$inc $$core                \
+	    -I$(SIM_DIR)../rtl/ -I$(SIM_DIR)../sva/ $$inc $$core                \
 	    -GMEM_W=$(MEM_W) -GVMEM_W=$(VMEM_W)                                   \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \
 	    -GDCACHE_SZ=$(DCACHE_SZ) -GDCACHE_LINE_W=$(DCACHE_LINE_W)             \
@@ -115,7 +115,7 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 
 vivado: $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR) && vivado -mode batch -source $(VIVADO_TCL)                \
-	    -tclargs $(SIM_DIR)/../ $(CORE_DIR) $(VPROC_CONFIG_PKG)               \
+	    -tclargs $(SIM_DIR)../ $(CORE_DIR) $(VPROC_CONFIG_PKG)               \
 	    "MEM_W=$(MEM_W) MEM_SZ=$(MEM_SZ) MEM_LATENCY=$(MEM_LATENCY)           \
 	    VMEM_W=$(VMEM_W)                                                      \
 	    ICACHE_SZ=$(ICACHE_SZ) ICACHE_LINE_W=$(ICACHE_LINE_W)                 \
