@@ -77,7 +77,7 @@ interface vproc_xif #(
         logic                      dbg;     // Instruction caused a debug trigger with mcontrol.timing = 0
     } x_result_t;
 
-
+    
     // Issue interface
     logic               issue_valid;
     logic               issue_ready;

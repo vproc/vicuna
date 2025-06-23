@@ -22,26 +22,27 @@ set prog_paths_var "PROG_PATHS_LIST=\"[lindex $argv 5]\""
 
 # create project
 set _xil_proj_name_ "vproc_sim"
-create_project -part xc7a200tfbg484-2 ${_xil_proj_name_} ${_xil_proj_name_}
+create_project -part xc7a200tfbg484-2 ${_xil_proj_name_} ${_xil_proj_name_} -force
 set proj_dir [get_property directory [current_project]]
 
 # set project properties
 set obj [current_project]
+list_property [current_project]
 set_property -name "default_lib" -value "xil_defaultlib" -objects $obj
-set_property -name "dsa.accelerator_binary_content" -value "bitstream" -objects $obj
-set_property -name "dsa.accelerator_binary_format" -value "xclbin2" -objects $obj
-set_property -name "dsa.description" -value "Vivado generated DSA" -objects $obj
-set_property -name "dsa.dr_bd_base_address" -value "0" -objects $obj
-set_property -name "dsa.emu_dir" -value "emu" -objects $obj
-set_property -name "dsa.flash_interface_type" -value "bpix16" -objects $obj
-set_property -name "dsa.flash_offset_address" -value "0" -objects $obj
-set_property -name "dsa.flash_size" -value "1024" -objects $obj
-set_property -name "dsa.host_architecture" -value "x86_64" -objects $obj
-set_property -name "dsa.host_interface" -value "pcie" -objects $obj
-set_property -name "dsa.platform_state" -value "pre_synth" -objects $obj
-set_property -name "dsa.uses_pr" -value "1" -objects $obj
-set_property -name "dsa.vendor" -value "xilinx" -objects $obj
-set_property -name "dsa.version" -value "0.0" -objects $obj
+# set_property -name "xsa.accelerator_binary_content" -value "bitstream" -objects $obj (i have done this)
+# set_property -name "xsa.accelerator_binary_format" -value "xclbin2" -objects $obj
+# set_property -name "xsa.description" -value "Vivado generated xsa" -objects $obj
+# set_property -name "xsa.dr_bd_base_address" -value "0" -objects $obj
+# set_property -name "xsa.emu_dir" -value "emu" -objects $obj
+# set_property -name "xsa.flash_interface_type" -value "bpix16" -objects $obj
+# set_property -name "xsa.flash_offset_address" -value "0" -objects $obj
+# set_property -name "xsa.flash_size" -value "1024" -objects $obj
+# set_property -name "xsa.host_architecture" -value "x86_64" -objects $obj
+# set_property -name "xsa.host_interface" -value "pcie" -objects $obj
+# set_property -name "xsa.platform_state" -value "pre_synth" -objects $obj
+# set_property -name "xsa.uses_pr" -value "1" -objects $obj
+# set_property -name "xsa.vendor" -value "xilinx" -objects $obj
+# set_property -name "xsa.version" -value "0.0" -objects $obj
 set_property -name "enable_vhdl_2008" -value "1" -objects $obj
 set_property -name "ip_cache_permissions" -value "read write" -objects $obj
 set_property -name "ip_output_repo" -value "$proj_dir/${_xil_proj_name_}.cache/ip" -objects $obj
@@ -115,41 +116,51 @@ set_property generic "$prog_paths_var $params_var" -objects [get_filesets sim_1]
 
 report_property -all [get_filesets sim_1]
 
-launch_simulation
+# launch_simulation
 
-set log_signals [get_objects -r [lrange $argv 6 end]]
-add_wave $log_signals
+# #I added
 
-set complete_signal "done"
-add_wave $complete_signal
+# # set log_signals [get_objects -r sim:/vproc_tb/*]
 
-set outf [open $log_file_path "w"]
-puts "logging following signals to $log_file_path: $log_signals"
+# set log_signals [get_objects -r [lrange $argv 6 end]]
 
-foreach sig $log_signals {
-    set sig_name_start [string wordstart $sig end]
-    puts -nonewline $outf "[string range $sig $sig_name_start end];"
-}
-puts $outf ""
+# #I added
+# # puts "LOG SIGNALS: $log_signals"
+# # puts "ARGV: $argv"
+# # puts "TRACE SIGNALS (raw): [lrange $argv 6 end]"
 
-# restart the simulation
-restart
+# # add_wave $log_signals
 
-for {set step 0} 1 {incr step} {
-    # log the value of each signal
-    foreach sig $log_signals {
-        puts -nonewline $outf "[get_value $sig];"
-    }
-    puts $outf ""
+# set complete_signal "done"
+# # add_wave $complete_signal
 
-    # advance by 1 clock cycle
-    run 10 ns
+# set outf [open $log_file_path "w"]
+# puts "logging following signals to $log_file_path: $log_signals"
 
-    # check if the abort condition has been met
-    if {[get_value [lindex $complete_signal 0]] != 0} {
-        puts "exit condition met after $step clock cycles"
-        break
-    }
-}
-close $outf
-close_sim -force
+# foreach sig $log_signals {
+#     set sig_name_start [string wordstart $sig end]
+#     puts -nonewline $outf "[string range $sig $sig_name_start end];"
+# }
+# puts $outf ""
+
+# # restart the simulation
+# restart
+
+# for {set step 0} 1 {incr step} {
+#     # log the value of each signal
+#     foreach sig $log_signals {
+#         puts -nonewline $outf "[get_value $sig];"
+#     }
+#     puts $outf ""
+
+#     # advance by 1 clock cycle
+#     run 10 ns
+
+#     # check if the abort condition has been met
+#     if {[get_value [lindex $complete_signal 0]] != 0} {
+#         puts "exit condition met after $step clock cycles"
+#         break
+#     }
+# }
+# close $outf
+# close_sim -force

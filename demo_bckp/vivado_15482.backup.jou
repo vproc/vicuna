@@ -1,0 +1,29 @@
+#-----------------------------------------------------------
+# Vivado v2024.1 (64-bit)
+# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024
+# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+# Start of session at: Sat Jun 14 23:06:18 2025
+# Process ID: 15482
+# Current directory: /home/nikhil/vicuna-build/vicuna/demo
+# Command line: vivado /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/vicuna_demo.xpr
+# Log file: /home/nikhil/vicuna-build/vicuna/demo/vivado.log
+# Journal file: /home/nikhil/vicuna-build/vicuna/demo/vivado.jou
+# Running On        :nikhil
+# Platform          :Ubuntu
+# Operating System  :Ubuntu 24.04.2 LTS
+# Processor Detail  :12th Gen Intel(R) Core(TM) i5-1235U
+# CPU Frequency     :530.146 MHz
+# CPU Physical cores:10
+# CPU Logical cores :12
+# Host memory       :16484 MB
+# Swap memory       :4294 MB
+# Total Virtual     :20779 MB
+# Available Virtual :17033 MB
+#-----------------------------------------------------------
+start_gui
+open_project /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/vicuna_demo.xpr
+update_compile_order -fileset sources_1
+launch_simulation
+source demo_tb.tcl
+close_sim

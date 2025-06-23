@@ -1,0 +1,578 @@
+/*
+
+AMD Vivado v2024.1 (64-bit) [Major: 2024, Minor: 1]
+SW Build: 5076996 on Wed May 22 18:36:09 MDT 2024
+IP Build: 5075265 on Wed May 22 21:45:21 MDT 2024
+IP Build: 5075265 on Wed May 22 21:45:21 MDT 2024
+
+Process ID (PID): 45060
+License: Customer
+Mode: GUI Mode
+
+Current time: 	Fri Jun 13 17:55:18 IST 2025
+Time zone: 	India Standard Time (Asia/Kolkata)
+
+OS: Ubuntu
+OS Version: 6.11.0-26-generic
+OS Architecture: amd64
+Available processors (cores): 12
+LSB Release Description: Ubuntu 24.04.2 LTS
+
+Display: 0
+Screen size: 1920x1080
+Local screen bounds: x = 0, y = 32, width = 1920, height = 1048
+Screen resolution (DPI): 100
+Available screens: 1
+Default font: family=Dialog,name=Dialog,style=plain,size=12
+Scale size: 12
+OS font scaling: 100%
+Anti-Alias Enabled: false
+
+Java version: 	21.0.1 64-bit
+JavaFX version: 21.0.1
+Java home: 	/tools/Xilinx/Vivado/2024.1/tps/lnx64/jre21.0.1_12
+Java executable: 	/tools/Xilinx/Vivado/2024.1/tps/lnx64/jre21.0.1_12/bin/java
+Java arguments: 	[-Dsun.java2d.pmoffscreen=false, -Dhttps.protocols=TLSv1,TLSv1.1,TLSv1.2, -Dsun.java2d.xrender=false, -Dsun.java2d.uiScale.enabled=false, -Dswing.aatext=true, -XX:-UsePerfData, -Djdk.map.althashing.threshold=512, -XX:StringTableSize=4072, -XX:+UseStringDeduplication, -XX:MaxGCPauseMillis=200, -XX:+ParallelRefProcEnabled, --add-opens=java.desktop/javax.swing.plaf.synth=ALL-UNNAMED, --add-opens=java.base/java.nio=ALL-UNNAMED, --add-opens=java.desktop/sun.swing=ALL-UNNAMED, --add-opens=java.desktop/javax.swing=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.tree=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.plaf.basic=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.plaf.synth=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.plaf.basic=ALL-UNNAMED, --add-opens=java.desktop/javax.swing=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.tree=ALL-UNNAMED, --add-opens=java.desktop/java.awt.event=ALL-UNNAMED, --add-exports=java.desktop/javax.swing.plaf.synth=ALL-UNNAMED, --add-exports=java.base/java.nio=ALL-UNNAMED, --add-exports=java.desktop/sun.swing=ALL-UNNAMED, --add-exports=java.desktop/javax.swing=ALL-UNNAMED, --add-exports=java.desktop/javax.swing.tree=ALL-UNNAMED, --add-exports=java.desktop/javax.swing.plaf.basic=ALL-UNNAMED, --add-exports=java.desktop/sun.swing=ALL-UNNAMED, --add-exports=java.desktop/sun.swing.table=ALL-UNNAMED, --add-exports=java.desktop/sun.swing.plaf.synth=ALL-UNNAMED, --add-exports=java.desktop/sun.awt.shell=ALL-UNNAMED, --add-exports=java.base/sun.security.action=ALL-UNNAMED, --add-exports=java.desktop/sun.font=ALL-UNNAMED, --add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED, -XX:NewSize=80m, -XX:MaxNewSize=80m, -Xms512m, -Xmx4072m, -Xss10m, -Xrs]
+Java initial memory (-Xms): 	512 MB
+Java maximum memory (-Xmx):	 3 GB
+
+User name: 	nikhil
+User home directory: /home/nikhil
+User working directory: /home/nikhil/vicuna-build/vicuna/demo
+User country: 	US
+User language: 	en
+User locale: 	en_US
+
+RDI_BASEROOT: /tools/Xilinx/Vivado
+HDI_APPROOT: /tools/Xilinx/Vivado/2024.1
+RDI_DATADIR: /tools/Xilinx/Vivado/2024.1/data
+RDI_BINDIR: /tools/Xilinx/Vivado/2024.1/bin
+
+Vivado preferences file: /home/nikhil/.Xilinx/Vivado/2024.1/vivado.xml
+Vivado preferences directory: /home/nikhil/.Xilinx/Vivado/2024.1/
+Vivado layouts directory: /home/nikhil/.Xilinx/Vivado/2024.1/data/layouts
+PlanAhead jar file: 	/tools/Xilinx/Vivado/2024.1/lib/classes/planAhead.jar
+Vivado log file: 	/home/nikhil/vicuna-build/vicuna/demo/vivado.log
+Vivado journal file: 	/home/nikhil/vicuna-build/vicuna/demo/vivado.jou
+Engine tmp dir: 	./.Xil/Vivado-45060-nikhil
+Non-Default Parameters:	[]
+
+Xilinx & AMD Environment Variables
+--------------------------------------------------------------------------------------------
+GNOME_SHELL_SESSION_MODE: ubuntu
+RDI_APPROOT: /tools/Xilinx/Vivado/2024.1
+RDI_BASEROOT: /tools/Xilinx/Vivado
+RDI_BINROOT: /tools/Xilinx/Vivado/2024.1/bin
+RDI_BUILD: yes
+RDI_DATADIR: /tools/Xilinx/Vivado/2024.1/data
+RDI_INSTALLROOT: /tools/Xilinx
+RDI_INSTALLVER: 2024.1
+RDI_JAVA_PLATFORM: 
+RDI_JAVA_VERSION: 21.0.1_12
+RDI_LIBDIR: /tools/Xilinx/Vivado/2024.1/lib/lnx64.o/Ubuntu:/tools/Xilinx/Vivado/2024.1/lib/lnx64.o
+RDI_OPT_EXT: .o
+RDI_PATCHROOT: 
+RDI_PLATFORM: lnx64
+RDI_PREPEND_PATH: /tools/Xilinx/Vivado/2024.1/ids_lite/ISE/bin/lin64
+RDI_PROG: /tools/Xilinx/Vivado/2024.1/bin/unwrapped/lnx64.o/vivado
+RDI_SESSION_INFO: /home/nikhil/vicuna-build/vicuna/demo:nikhil_1749817503_44991
+RDI_SHARED_DATA: /tools/Xilinx/SharedData/2024.1/data
+RDI_TPS_ROOT: /tools/Xilinx/Vivado/2024.1/tps/lnx64
+RDI_USE_JDK21: True
+SHELL: /bin/bash
+XILINX: /tools/Xilinx/Vivado/2024.1/ids_lite/ISE
+XILINX_DSP: /tools/Xilinx/Vivado/2024.1/ids_lite/ISE
+XILINX_HLS: /tools/Xilinx/Vitis_HLS/2024.1
+XILINX_PLANAHEAD: /tools/Xilinx/Vivado/2024.1
+XILINX_VIVADO: /tools/Xilinx/Vivado/2024.1
+XILINX_VIVADO_HLS: /tools/Xilinx/Vivado/2024.1
+
+
+GUI allocated memory:	512 MB
+GUI max memory:		4,072 MB
+Engine allocated memory: 1,495 MB
+
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+
+*/
+
+// TclEventType: START_GUI
+// TclEventType: PROJECT_OPEN_DIALOG
+// Tcl Message: start_gui 
+// TclEventType: PROJECT_OPEN_DIALOG
+// Opening Vivado Project: /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/synth/vicuna_demo/vicuna_demo.xpr. Version: Vivado v2024.1 
+// TclEventType: DEBUG_PROBE_SET_CHANGE
+// TclEventType: FLOW_ADDED
+// Tcl Message: open_project /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/synth/vicuna_demo/vicuna_demo.xpr 
+// HMemoryUtils.trashcanNow. Engine heap size: 1,581 MB. GUI used memory: 68 MB. Current time: 6/13/25, 5:55:19 PM IST
+// TclEventType: MSGMGR_MOVEMSG
+// TclEventType: FILE_SET_CHANGE
+// TclEventType: FILE_SET_NEW
+// TclEventType: RUN_COMPLETED
+// TclEventType: RUN_STATUS_CHANGE
+// TclEventType: RUN_CURRENT
+// TclEventType: PROJECT_DASHBOARD_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_NEW
+// [GUI Memory]: 133 MB (+136940kb) [00:00:15]
+// [Engine Memory]: 1,734 MB (+1666898kb) [00:00:15]
+// WARNING: HEventQueue.dispatchEvent() is taking  2093 ms.
+// Tcl Message: open_project /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/synth/vicuna_demo/vicuna_demo.xpr 
+// Tcl Message: INFO: [filemgmt 56-3] Default IP Output Path : Could not find the directory '/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/synth/vicuna_demo/vicuna_demo.gen/sources_1'. 
+// Tcl Message: Scanning sources... Finished scanning sources 
+// Tcl Message: INFO: [IP_Flow 19-234] Refreshing IP repositories INFO: [IP_Flow 19-1704] No user IP repositories specified INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/tools/Xilinx/Vivado/2024.1/data/ip'. 
+// Tcl Message: open_project: Time (s): cpu = 00:00:24 ; elapsed = 00:00:10 . Memory (MB): peak = 7935.238 ; gain = 481.500 ; free physical = 4383 ; free virtual = 14507 
+// Project name: vicuna_demo; location: /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/synth/vicuna_demo; part: xc7a200tsbg484-1
+dismissDialog("Open Project"); // bj (Open Project Progress)
+// [Engine Memory]: 1,832 MB (+11254kb) [00:00:18]
+// [GUI Memory]: 142 MB (+2169kb) [00:00:19]
+// Tcl Message: update_compile_order -fileset sources_1 
+// [GUI Memory]: 150 MB (+1689kb) [00:00:24]
+selectTree(PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, "[, Synthesis, Run Synthesis]", 15, false); // g (PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, Flow Navigator Tree)
+// Run Command: PAResourceCommand.PACommandNames_RUN_SYNTHESIS
+// TclEventType: RUN_MODIFY
+// TclEventType: RUN_RESET
+// TclEventType: RUN_STATUS_CHANGE
+// TclEventType: RUN_RESET
+// TclEventType: RUN_MODIFY
+// Tcl Message: reset_run synth_1 
+selectButton(RDIResource.BaseDialog_OK, "OK", "Launch Runs"); // a (RDIResource.BaseDialog_OK)
+dismissDialog("Launch Runs"); // f (dialog0)
+// TclEventType: RUN_LAUNCH
+// TclEventType: RUN_MODIFY
+// TclEventType: RUN_STATUS_CHANGE
+// Tcl Message: launch_runs synth_1 -jobs 10 
+// Tcl Message: [Fri Jun 13 17:55:40 2025] Launched synth_1... Run output will be captured here: /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/synth/vicuna_demo/vicuna_demo.runs/synth_1/runme.log 
+// 'i' command handler elapsed time: 4 seconds
+dismissDialog("Starting Design Runs"); // bj (Starting Design Runs Progress)
+// TclEventType: RUN_STATUS_CHANGE
+selectTree(PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, "[, Simulation, Run Simulation]", 10, false); // g (PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, Flow Navigator Tree)
+selectTree(PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, "[, Simulation, Run Simulation]", 10, false); // g (PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, Flow Navigator Tree)
+// Elapsed time: 117 seconds
+selectTab((HResource) null, (HResource) null, "Messages", 1); // aa
+selectTab((HResource) null, (HResource) null, "Tcl Console", 0); // aa
+selectTab((HResource) null, (HResource) null, "Reports", 3); // aa
+selectTab((HResource) null, (HResource) null, "Log", 2); // aa
+// TclEventType: RUN_COMPLETED
+// TclEventType: RUN_STATUS_CHANGE
+// TclEventType: RUN_STEP_COMPLETED
+// Elapsed time: 181 seconds
+selectRadioButton(PAResourceCommand.PACommandNames_GOTO_NETLIST_DESIGN, "Open Synthesized Design"); // a (PAResourceCommand.PACommandNames_GOTO_NETLIST_DESIGN)
+selectButton(RDIResource.BaseDialog_OK, "OK", "Synthesis Completed"); // a (RDIResource.BaseDialog_OK)
+// Run Command: PAResourceCommand.PACommandNames_GOTO_NETLIST_DESIGN
+// Tcl Message: open_run synth_1 -name synth_1 
+// Tcl Message: Design is defaulting to impl run constrset: constrs_1 Design is defaulting to synth run part: xc7a200tsbg484-1 
+// HMemoryUtils.trashcanNow. Engine heap size: 2,021 MB. GUI used memory: 78 MB. Current time: 6/13/25, 6:00:54 PM IST
+// TclEventType: READ_XDC_FILE_START
+// TclEventType: PLACEDB_MODIFY_PRE
+// TclEventType: LOC_CONSTRAINT_ADD
+// TclEventType: SIGNAL_MODIFY
+// TclEventType: POWER_CNS_STALE
+// TclEventType: POWER_REPORT_STALE
+// TclEventType: SDC_CONSTRAINT_ADD
+// TclEventType: PLACEDB_MODIFY_PRE
+// TclEventType: LOC_CONSTRAINT_ADD
+// TclEventType: SIGNAL_MODIFY
+// TclEventType: PLACEDB_MODIFY_PRE
+// TclEventType: LOC_CONSTRAINT_ADD
+// TclEventType: SIGNAL_MODIFY
+// TclEventType: PLACEDB_MODIFY_PRE
+// TclEventType: LOC_CONSTRAINT_ADD
+// TclEventType: SIGNAL_MODIFY
+// TclEventType: READ_XDC_FILE_END
+// TclEventType: FLOORPLAN_MODIFY
+// TclEventType: DESIGN_NEW
+// HMemoryUtils.trashcanNow. Engine heap size: 2,512 MB. GUI used memory: 76 MB. Current time: 6/13/25, 6:01:06 PM IST
+// [Engine Memory]: 2,512 MB (+617230kb) [00:05:57]
+// Xgd.load filename: /home/nikhil/vicuna-build/vicuna/demo/./.Xil/Vivado-45060-nikhil/xc7a200t_floorplan.xgd_4A67E331 elapsed time: 0.6s
+// TclEventType: DESIGN_NEW
+// Xgd.load filename: /home/nikhil/vicuna-build/vicuna/demo/./.Xil/Vivado-45060-nikhil/xc7a200t_detail.xgd_4A67E331 elapsed time: 0.9s
+// DeviceModel: Load Xgds SwingWorker Join Forever elapsed time: 1.3s
+// TclEventType: HFED_INIT_ROUTE_STORAGE_COMPLETED
+// RouteApi::loadEngineXgdAndInitRouteStorage elapsed time: 1.1s
+// [Engine Memory]: 2,660 MB (+23576kb) [00:06:02]
+// DeviceView Instantiated
+// WARNING: HEventQueue.dispatchEvent() is taking  7124 ms.
+// TclEventType: CURR_DESIGN_SET
+// Tcl Message: INFO: [Device 21-403] Loading part xc7a200tsbg484-1 INFO: [Device 21-9227] Part: xc7a200tsbg484-1 does not have CEAM library. 
+// Tcl Message: Netlist sorting complete. Time (s): cpu = 00:00:00.24 ; elapsed = 00:00:00.24 . Memory (MB): peak = 8325.438 ; gain = 0.000 ; free physical = 8175 ; free virtual = 14140 
+// Tcl Message: INFO: [Netlist 29-17] Analyzing 1407 Unisim elements for replacement INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds INFO: [Project 1-479] Netlist was created with Vivado 2024.1 INFO: [Project 1-570] Preparing netlist for logic optimization 
+// Tcl Message: Parsing XDC File [/home/nikhil/vicuna-build/vicuna/demo/nexysvideo.xdc] Finished Parsing XDC File [/home/nikhil/vicuna-build/vicuna/demo/nexysvideo.xdc] 
+// Tcl Message: INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s). 
+// Tcl Message: Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00 . Memory (MB): peak = 8565.793 ; gain = 0.000 ; free physical = 8045 ; free virtual = 14021 
+// Tcl Message: INFO: [Project 1-111] Unisim Transformation Summary:   A total of 512 instances were transformed.   RAM32M => RAM32M (RAMD32(x6), RAMS32(x2)): 512 instances  
+// TclEventType: CURR_DESIGN_SET
+// Device view-level: 0.0
+// Tcl Message: open_run: Time (s): cpu = 00:00:25 ; elapsed = 00:00:23 . Memory (MB): peak = 8797.348 ; gain = 828.777 ; free physical = 7853 ; free virtual = 13860 
+// Elapsed Time for: 'o.a': 24s
+// 'dQ' command handler elapsed time: 24 seconds
+// Elapsed time: 24 seconds
+dismissDialog("Open Synthesized Design"); // bj (Open Synthesized Design Progress)
+// RouteApi::initDelayMediator elapsed time: 7.5s
+// RouteApi: Init Delay Mediator Swing Worker Finished
+// HMemoryUtils.trashcanNow. Engine heap size: 3,055 MB. GUI used memory: 110 MB. Current time: 6/13/25, 6:01:24 PM IST
+// [Engine Memory]: 3,055 MB (+274822kb) [00:06:17]
+// [GUI Memory]: 177 MB (+19819kb) [00:06:17]
+// Elapsed time: 10 seconds
+selectTree(PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, "[, Synthesis, Open Synthesized Design, Schematic]", 29, false); // g (PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, Flow Navigator Tree)
+// Run Command: PAResourceCommand.PACommandNames_SCHEMATIC
+// WARNING: HEventQueue.dispatchEvent() is taking  1382 ms.
+selectTab("PlanAheadTabBaseWorkspace_JideTabbedPane", (HResource) null, "Schematic", 2); // o (PlanAheadTabBaseWorkspace_JideTabbedPane)
+selectTab((HResource) null, "PlanAheadTabBaseWorkspace_JideTabbedPane", (HResource) null, "Schematic", 2, false, true); // o (PlanAheadTabBaseWorkspace_JideTabbedPane) - Double Click
+maximizeView(PAResourceOtoP.PAViews_BASE_WORKSPACE, "BaseWorkspace"); // D (PAResourceOtoP.PAViews_BASE_WORKSPACE, PlanAheadTabBaseWorkspace)
+// Elapsed time: 128 seconds
+unMinimizeFrame(PAResourceOtoP.PAViews_SOURCES, "Sources"); // R (PAResourceOtoP.PAViews_SOURCES, Sources)
+// [GUI Memory]: 188 MB (+1946kb) [00:08:32]
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, demo_top (demo_top.sv)]", 3); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_ram_1p_scr (prim_ram_1p_scr.sv)]", 7); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_alert_receiver (prim_alert_receiver.sv)]", 24); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_clock_div (prim_clock_div.sv)]", 30); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_alert_sender (prim_alert_sender.sv)]", 36); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_subreg_shadow (prim_subreg_shadow.sv)]", 41); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_esc_receiver (prim_esc_receiver.sv)]", 46); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_esc_sender (prim_esc_sender.sv)]", 50); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_sram_arbiter (prim_sram_arbiter.sv)]", 54); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_clock_gating_sync (prim_clock_gating_sync.sv)]", 58); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_edn_req (prim_edn_req.sv)]", 61); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_fifo_async (prim_fifo_async.sv)]", 64); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_lc_sync (prim_lc_sync.sv)]", 67); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_lc_dec (prim_lc_dec.sv)]", 70); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_lc_sender (prim_lc_sender.sv)]", 72); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv)]", 74); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_pulse_sync (prim_pulse_sync.sv)]", 76); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+// PAPropertyPanels.initPanels (prim_multibit_sync.sv) elapsed time: 0.3s
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv)]", 74, true); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE) - Node
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv), i_prim_flop_2sync : xil_defaultlib.prim_flop_2sync]", 75, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv), i_prim_flop_2sync : xil_defaultlib.prim_flop_2sync]", 75, false, false, false, false, false, true); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE) - Double Click
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv), i_prim_flop_2sync : xil_defaultlib.prim_flop_2sync]", 75, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv), i_prim_flop_2sync : xil_defaultlib.prim_flop_2sync]", 75, false, false, false, false, false, true); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE) - Double Click
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv), i_prim_flop_2sync : xil_defaultlib.prim_flop_2sync]", 75, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv), i_prim_flop_2sync : xil_defaultlib.prim_flop_2sync]", 75, false, false, false, false, false, true); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE) - Double Click
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv), i_prim_flop_2sync : xil_defaultlib.prim_flop_2sync]", 75, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_multibit_sync (prim_multibit_sync.sv), i_prim_flop_2sync : xil_defaultlib.prim_flop_2sync]", 75, false, false, false, false, false, true); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE) - Double Click
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_ram_2p_adv (prim_ram_2p_adv.sv)]", 78); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_rom_adv (prim_rom_adv.sv)]", 80); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+expandTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, prim_sync_slow_fast (prim_sync_slow_fast.sv)]", 82); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, ibex_tracer (ibex_tracer.sv)]", 84, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTab(PAResourceEtoH.FileSetView_TABBED_PANE, (HResource) null, "Libraries", 1); // g (PAResourceEtoH.FileSetView_TABBED_PANE, SourcesView)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, SystemVerilog, xil_defaultlib, vproc_pkg.sv]", 11, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, SystemVerilog, xil_defaultlib, vproc_pkg.sv]", 11, false, false, false, false, false, true); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE) - Double Click
+// HMemoryUtils.trashcanNow. Engine heap size: 3,126 MB. GUI used memory: 115 MB. Current time: 6/13/25, 6:04:58 PM IST
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, SystemVerilog, xil_defaultlib, ibex_branch_predict.sv]", 14, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, SystemVerilog, xil_defaultlib, uart_rx.sv]", 45, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, SystemVerilog, xil_defaultlib, ram.sv]", 44, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, SystemVerilog, xil_defaultlib, vproc_alu.sv]", 47, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, SystemVerilog, xil_defaultlib, vproc_core.sv]", 50, false); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE)
+selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sources, SystemVerilog, xil_defaultlib, vproc_core.sv]", 50, false, false, false, false, false, true); // E (PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE) - Double Click
+selectTab("PlanAheadTabBaseWorkspace_JideTabbedPane", (HResource) null, "vproc_pkg.sv", 3); // o (PlanAheadTabBaseWorkspace_JideTabbedPane)
+selectTab("PlanAheadTabBaseWorkspace_JideTabbedPane", (HResource) null, "Schematic", 2); // o (PlanAheadTabBaseWorkspace_JideTabbedPane)
+// HMemoryUtils.trashcanNow. Engine heap size: 3,161 MB. GUI used memory: 115 MB. Current time: 6/13/25, 6:05:13 PM IST
+// Elapsed time: 23 seconds
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+// PAPropertyPanels.initPanels (vcore_xif\.issue_ready) elapsed time: 0.4s
+// Elapsed time: 19 seconds
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+selectView(PAResourceOtoP.PAViews_SCHEMATIC, "Schematic", 286, 362, 1185, 829, false, false, false, true, false); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic) - Popup Trigger
+selectMenu(PAResourceQtoS.SelectMenu_HIGHLIGHT, "Highlight"); // am (PAResourceQtoS.SelectMenu_HIGHLIGHT, Highlight)
+selectMenu(PAResourceQtoS.SelectMenu_MARK, "Mark"); // am (PAResourceQtoS.SelectMenu_MARK, Mark)
+selectMenu(PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, "Expand Cone"); // am (PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, Expand Cone)
+selectMenu(PAResourceQtoS.SelectMenu_MARK, "Mark"); // am (PAResourceQtoS.SelectMenu_MARK, Mark)
+selectMenu(PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, "Expand Cone"); // am (PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, Expand Cone)
+selectMenu(PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, "Expand Cone"); // am (PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, Expand Cone)
+selectMenu(PAResourceQtoS.SelectMenu_MARK, "Mark"); // am (PAResourceQtoS.SelectMenu_MARK, Mark)
+selectMenu(PAResourceQtoS.SelectMenu_HIGHLIGHT, "Highlight"); // am (PAResourceQtoS.SelectMenu_HIGHLIGHT, Highlight)
+selectMenu(PAResourceQtoS.SelectMenu_HIGHLIGHT, "Highlight"); // am (PAResourceQtoS.SelectMenu_HIGHLIGHT, Highlight)
+selectMenu(PAResourceQtoS.SelectMenu_MARK, "Mark"); // am (PAResourceQtoS.SelectMenu_MARK, Mark)
+selectMenu(PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, "Expand Cone"); // am (PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, Expand Cone)
+selectMenu(PAResourceItoN.NetlistSchMenuAndMouse_VIEW, "View"); // am (PAResourceItoN.NetlistSchMenuAndMouse_VIEW, View)
+selectMenu(PAResourceItoN.NetlistSchMenuAndMouse_VIEW, "View"); // am (PAResourceItoN.NetlistSchMenuAndMouse_VIEW, View)
+selectMenu(PAResourceItoN.NetlistSchMenuAndMouse_VIEW, "View"); // am (PAResourceItoN.NetlistSchMenuAndMouse_VIEW, View)
+selectMenu(PAResourceItoN.NetlistSchMenuAndMouse_VIEW, "View"); // am (PAResourceItoN.NetlistSchMenuAndMouse_VIEW, View)
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.result[data]]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "unselect_objects"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+selectView(PAResourceOtoP.PAViews_SCHEMATIC, "Schematic", 532, 358, 1185, 829, false, false, false, true, false); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic) - Popup Trigger
+selectMenuItem(PAResourceCommand.PACommandNames_SELECT_DRIVER_PIN, "Select Driver Pin"); // ap (PAResourceCommand.PACommandNames_SELECT_DRIVER_PIN, select_driver_pin_menu)
+// Run Command: PAResourceCommand.PACommandNames_SELECT_DRIVER_PIN
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+selectView(PAResourceOtoP.PAViews_SCHEMATIC, "Schematic", 536, 361, 1185, 829, false, false, false, true, false); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic) - Popup Trigger
+selectMenuItem(PAResourceCommand.PACommandNames_SHOW_CONNECTIVITY, "Show Connectivity"); // ap (PAResourceCommand.PACommandNames_SHOW_CONNECTIVITY, show_connectivity_menu)
+// Run Command: PAResourceCommand.PACommandNames_SHOW_CONNECTIVITY
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+selectView(PAResourceOtoP.PAViews_SCHEMATIC, "Schematic", 399, 398, 1185, 829, false, false, false, true, false); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic) - Popup Trigger
+selectMenu(PAResourceQtoS.SelectMenu_HIGHLIGHT, "Highlight"); // am (PAResourceQtoS.SelectMenu_HIGHLIGHT, Highlight)
+selectMenu(PAResourceQtoS.SelectMenu_MARK, "Mark"); // am (PAResourceQtoS.SelectMenu_MARK, Mark)
+selectMenu(PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, "Expand Cone"); // am (PAResourceQtoS.SchMenuAndMouse_EXPAND_CONE, Expand Cone)
+selectMenuItem(PAResourceQtoS.SchMenuAndMouse_TO_FLOPS_OR_IOS, "To Flops or I/Os"); // ap (PAResourceQtoS.SchMenuAndMouse_TO_FLOPS_OR_IOS, To Flops or I/Os)
+runTclCommand (PAResourceOtoP.PAViews_SCHEMATIC, "select_objects [get_nets vproc/vcore_xif\\.issue_ready]"); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic)
+selectView(PAResourceOtoP.PAViews_SCHEMATIC, "Schematic", 308, 411, 1185, 829, false, false, false, true, false); // j (PAResourceOtoP.PAViews_SCHEMATIC, PlanAheadTabSchematic) - Popup Trigger
+selectMenuItem(RDIResourceCommand.RDICommands_PROPERTIES, "Net Properties..."); // ap (RDIResourceCommand.RDICommands_PROPERTIES, edit_properties_menu)
+// Run Command: RDIResourceCommand.RDICommands_PROPERTIES
+// Elapsed time: 13 seconds
+maximizeFrame(PAResourceOtoP.PAViews_NETLIST, "Netlist"); // R (PAResourceOtoP.PAViews_NETLIST, Netlist)
+selectTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), Nets (1324), vcore_xif\\.issue_ready]", 432, false, false, false, false, true, false); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE) - Popup Trigger
+selectMenu(PAResourceQtoS.SelectMenu_HIGHLIGHT, "Highlight"); // am (PAResourceQtoS.SelectMenu_HIGHLIGHT, Highlight)
+selectMenu(PAResourceQtoS.SelectMenu_HIGHLIGHT, "Highlight"); // am (PAResourceQtoS.SelectMenu_HIGHLIGHT, Highlight)
+selectMenuItem(PAResourceCommand.PACommandNames_SHOW_HIERARCHY, "Show Hierarchy"); // ap (PAResourceCommand.PACommandNames_SHOW_HIERARCHY, show_hierarchy_menu)
+// Run Command: PAResourceCommand.PACommandNames_SHOW_HIERARCHY
+// HMemoryUtils.trashcanNow. Engine heap size: 3,166 MB. GUI used memory: 125 MB. Current time: 6/13/25, 6:07:14 PM IST
+// Elapsed time: 16 seconds
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 3159003, 1068903); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 2806430, 1683858); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+// HMemoryUtils.trashcanNow. Engine heap size: 3,168 MB. GUI used memory: 126 MB. Current time: 6/13/25, 6:07:18 PM IST
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 626415, 940881); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+/********** leftMouseClick (1029, 420, true); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor) **********/
+// Instance Tree: 'Cell - pipeline'
+selectView(PAResourceOtoP.PAViews_HIERARCHY, "Hierarchy", 332, 187, 1210, 829); // l (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy)
+// PAPropertyPanels.initPanels (pipeline (vproc_pipeline__parameterized0)) elapsed time: 0.3s
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 933333, 427673); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+/********** leftMouseClick (1090, 318, true); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor) **********/
+// Instance Tree: 'Cell - vproc'
+selectView(PAResourceOtoP.PAViews_HIERARCHY, "Hierarchy", 393, 85, 1210, 829); // l (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy)
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 661635, 598742); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+/********** leftMouseClick (1036, 352, true); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor) **********/
+// Instance Tree: 'Cell - v_core'
+selectView(PAResourceOtoP.PAViews_HIERARCHY, "Hierarchy", 339, 119, 1210, 829); // l (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy)
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 3660377, 623899); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+/********** leftMouseClick (1632, 357, true); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor) **********/
+// Instance Tree: 'Cell - u_core'
+selectView(PAResourceOtoP.PAViews_HIERARCHY, "Hierarchy", 935, 124, 1210, 829); // l (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy)
+// [GUI Memory]: 200 MB (+2943kb) [00:12:21]
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 1728302, 669183); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+/********** leftMouseClick (1248, 366, true); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor) **********/
+// Instance Tree: 'Cell - v_core'
+selectView(PAResourceOtoP.PAViews_HIERARCHY, "Hierarchy", 551, 133, 1210, 829); // l (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy)
+// HMemoryUtils.trashcanNow. Engine heap size: 3,169 MB. GUI used memory: 129 MB. Current time: 6/13/25, 6:07:32 PM IST
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 2911531, 1572048); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+// HMemoryUtils.trashcanNow. Engine heap size: 3,169 MB. GUI used memory: 129 MB. Current time: 6/13/25, 6:07:39 PM IST
+// Elapsed time: 11 seconds
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 2835220, 966038); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+/********** leftMouseClick (1468, 425, true); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor) **********/
+// Instance Tree: 'Cell - pipeline'
+selectView(PAResourceOtoP.PAViews_HIERARCHY, "Hierarchy", 771, 192, 1210, 829); // l (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy)
+// [GUI Memory]: 228 MB (+19075kb) [00:12:38]
+// [Engine Memory]: 4,213 MB (+1053846kb) [00:12:39]
+expandTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), v_core (vproc_core), genblk9[2].pipe (vproc_pipeline_wrapper__parameterized1), pipeline (vproc_pipeline__parameterized1)]", 2100); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE)
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 983647, 971069); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+/********** leftMouseClick (1100, 426, true); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor) **********/
+// Instance Tree: 'Cell - pipeline'
+selectView(PAResourceOtoP.PAViews_HIERARCHY, "Hierarchy", 403, 193, 1210, 829); // l (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy)
+// HMemoryUtils.trashcanNow. Engine heap size: 4,222 MB. GUI used memory: 130 MB. Current time: 6/13/25, 6:07:54 PM IST
+// HMemoryUtils.trashcanNow. Engine heap size: 3,178 MB. GUI used memory: 130 MB. Current time: 6/13/25, 6:07:58 PM IST
+// HMemoryUtils.trashcanNow. Engine heap size: 3,178 MB. GUI used memory: 130 MB. Current time: 6/13/25, 6:08:01 PM IST
+// Elapsed time: 11 seconds
+selectGraphicalView(PAResourceOtoP.PAViews_HIERARCHY, 2313720, 2857861); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor)
+/********** leftMouseClick (1437, 803, true); // m (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy_editor) **********/
+// Instance Tree: 'Cell - lsu'
+selectView(PAResourceOtoP.PAViews_HIERARCHY, "Hierarchy", 1552, 1917, 1210, 829); // l (PAResourceOtoP.PAViews_HIERARCHY, PlanAheadTabHierarchy)
+expandTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), v_core (vproc_core), genblk9[0].pipe (vproc_pipeline_wrapper), pipeline (vproc_pipeline), unit_mux (vproc_unit_mux), genblk1[0].unit (vproc_unit_wrapper), lsu (vproc_lsu)]", 2104); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE)
+expandTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), v_core (vproc_core), genblk9[0].pipe (vproc_pipeline_wrapper), pipeline (vproc_pipeline), unit_mux (vproc_unit_mux), genblk1[0].unit (vproc_unit_wrapper), lsu (vproc_lsu), Nets (1939)]", 2105); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE)
+expandTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), v_core (vproc_core), genblk9[0].pipe (vproc_pipeline_wrapper), pipeline (vproc_pipeline), unit_mux (vproc_unit_mux), genblk1[0].unit (vproc_unit_wrapper), lsu (vproc_lsu), Nets (1939), instr_addr]", 2119); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE)
+collapseTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), v_core (vproc_core), genblk9[0].pipe (vproc_pipeline_wrapper), pipeline (vproc_pipeline), unit_mux (vproc_unit_mux), genblk1[0].unit (vproc_unit_wrapper), lsu (vproc_lsu), Nets (1939), instr_addr]", 2119); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE)
+expandTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), v_core (vproc_core), genblk9[0].pipe (vproc_pipeline_wrapper), pipeline (vproc_pipeline), unit_mux (vproc_unit_mux), genblk1[0].unit (vproc_unit_wrapper), lsu (vproc_lsu), Nets (1939), instr_rdata_i]", 2120); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE)
+selectTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), v_core (vproc_core), genblk9[0].pipe (vproc_pipeline_wrapper), pipeline (vproc_pipeline), unit_mux (vproc_unit_mux), genblk1[0].unit (vproc_unit_wrapper), lsu (vproc_lsu), Nets (1939), instr_rdata_i]", 2120, true); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE) - Node
+selectTree(PAResourceItoN.NetlistTreeView_NETLIST_TREE, "[demo_top, vproc (vproc_top), v_core (vproc_core), genblk9[0].pipe (vproc_pipeline_wrapper), pipeline (vproc_pipeline), unit_mux (vproc_unit_mux), genblk1[0].unit (vproc_unit_wrapper), lsu (vproc_lsu), Nets (1939), instr_rdata_i]", 2120, true, false, false, false, true, false); // aF (PAResourceItoN.NetlistTreeView_NETLIST_TREE) - Popup Trigger - Node
+selectMenuItem(RDIResourceCommand.RDICommands_PROPERTIES, "Bus Net Properties..."); // ap (RDIResourceCommand.RDICommands_PROPERTIES, edit_properties_menu)
+// Run Command: RDIResourceCommand.RDICommands_PROPERTIES
+// Elapsed time: 12 seconds
+selectMenuItem(RDIResourceCommand.RDICommands_COPY, "Copy"); // ap (RDIResourceCommand.RDICommands_COPY, edit_copy_menu)
+// Elapsed time: 30 seconds
+selectTree(PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, "[, Simulation, Run Simulation]", 10, false); // g (PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, Flow Navigator Tree)
+selectTree(PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, "[, RTL Analysis, Run Linter]", 12, false, false, false, false, true, false); // g (PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, Flow Navigator Tree) - Popup Trigger
+selectTree(PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, "[, RTL Analysis, Run Linter]", 12, false); // g (PAResourceEtoH.FlowNavigatorTreePanel_FLOW_NAVIGATOR_TREE, Flow Navigator Tree)
+// TclEventType: MSGMGR_REFRESH_MSG
+// Tcl Message: synth_design -top demo_top -part xc7a200tsbg484-1 -lint  
+// Tcl Message: Command: synth_design -top demo_top -part xc7a200tsbg484-1 -lint Starting synth_design Attempting to get a license for feature 'Synthesis' and/or device 'xc7a200t' 
+// Tcl Message: INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xc7a200t' INFO: [Synth 8-7079] Multithreading enabled for synth_design using a maximum of 4 processes. INFO: [Synth 8-7078] Launching helper process for spawning children vivado processes INFO: [Synth 8-7075] Helper process launched with PID 47467 
+// Tcl Message: --------------------------------------------------------------------------------- 
+// Tcl Message: Starting Synthesize : Time (s): cpu = 00:00:06 ; elapsed = 00:00:05 . Memory (MB): peak = 9631.754 ; gain = 392.680 ; free physical = 6466 ; free virtual = 12799 
+// Tcl Message: --------------------------------------------------------------------------------- 
+// Tcl Message: Clean up Linter database... 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'demo_top' [/home/nikhil/vicuna-build/vicuna/demo/rtl/demo_top.sv:6] 
+// Tcl Message: 	Parameter RAM_FPATH bound to: /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/vector_addition.vmem - type: string  	Parameter DIFF_CLK bound to: 1'b0  	Parameter SYSCLK_PER bound to: 10.000000 - type: double  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'PLLE2_BASE' [/tools/Xilinx/Vivado/2024.1/scripts/rt/data/unisim_comp.v:114829] 
+// Tcl Message: 	Parameter CLKFBOUT_MULT bound to: 10 - type: integer  	Parameter CLKIN1_PERIOD bound to: 10.000000 - type: double  	Parameter CLKOUT0_DIVIDE bound to: 20 - type: integer  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'PLLE2_BASE' (1#1) [/tools/Xilinx/Vivado/2024.1/scripts/rt/data/unisim_comp.v:114829] INFO: [Synth 8-6157] synthesizing module 'BUFG' [/tools/Xilinx/Vivado/2024.1/scripts/rt/data/unisim_comp.v:1951] INFO: [Synth 8-6155] done synthesizing module 'BUFG' (2#1) [/tools/Xilinx/Vivado/2024.1/scripts/rt/data/unisim_comp.v:1951] INFO: [Synth 8-6157] synthesizing module 'vproc_top' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_top.sv:6] 
+// Tcl Message: 	Parameter MEM_W bound to: 32'b00000000000000000000000000100000  	Parameter VMEM_W bound to: 32'b00000000000000000000000000100000  	Parameter VREG_TYPE bound to: 32'sb00000000000000000000000000000001  	Parameter MUL_TYPE bound to: 32'sb00000000000000000000000000000001  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_xif' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] 
+// Tcl Message: 	Parameter X_NUM_RS bound to: 2 - type: integer  	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000000100000  	Parameter X_RFR_WIDTH bound to: 32 - type: integer  	Parameter X_RFW_WIDTH bound to: 32 - type: integer  	Parameter X_MISA bound to: 0 - type: integer  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (2#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'ibex_top' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_top.sv:15] 
+// Tcl Message: 	Parameter RV32M bound to: 2 - type: integer  	Parameter ExternalCSRs bound to: 32'b00000000000000000000000000000111  	Parameter DmHaltAddr bound to: 0 - type: integer  	Parameter DmExceptionAddr bound to: 0 - type: integer  	Parameter CoprocOpcodes bound to: 2097666 - type: integer  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'ibex_register_file_ff' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_register_file_ff.sv:13] 
+// Tcl Message: 	Parameter RV32E bound to: 1'b0  	Parameter DataWidth bound to: 32'b00000000000000000000000000100000  	Parameter DummyInstructions bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_register_file_ff' (3#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_register_file_ff.sv:13] INFO: [Synth 8-6157] synthesizing module 'prim_clock_gating' [/home/nikhil/vicuna-build/vicuna/ibex/syn/rtl/prim_clock_gating.v:7] INFO: [Synth 8-6155] done synthesizing module 'prim_clock_gating' (4#1) [/home/nikhil/vicuna-build/vicuna/ibex/syn/rtl/prim_clock_gating.v:7] INFO: [Synth 8-6157] synthesizing module 'ibex_core' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_core.sv:15] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'ibex_if_stage' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_if_stage.sv:15] 
+// Tcl Message: 	Parameter DmHaltAddr bound to: 0 - type: integer  	Parameter DmExceptionAddr bound to: 0 - type: integer  	Parameter DummyInstructions bound to: 1'b0  	Parameter ICache bound to: 1'b0  	Parameter ICacheECC bound to: 1'b0  	Parameter BusSizeECC bound to: 32'b00000000000000000000000000100000  	Parameter TagSizeECC bound to: 32'b00000000000000000000000000010110  	Parameter LineSizeECC bound to: 32'b00000000000000000000000001000000  	Parameter PCIncrCheck bound to: 1'b0  	Parameter BranchPredictor bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'ibex_prefetch_buffer' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_prefetch_buffer.sv:12] 
+// Tcl Message: 	Parameter BranchPredictor bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'ibex_fetch_fifo' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_fetch_fifo.sv:15] 
+// Tcl Message: 	Parameter NUM_REQS bound to: 32'b00000000000000000000000000000010  
+// Tcl Message: 	Parameter RV32E bound to: 1'b0  	Parameter RV32M bound to: 2 - type: integer  	Parameter RV32B bound to: 0 - type: integer  	Parameter DataIndTiming bound to: 1'b0  	Parameter BranchTargetALU bound to: 1'b0  	Parameter SpecBranch bound to: 1'b0  	Parameter WritebackStage bound to: 1'b0  	Parameter BranchPredictor bound to: 1'b0  	Parameter CoprocOpcodes bound to: 2097666 - type: integer  
+// Tcl Message: INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_id_stage.sv:380] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_id_stage.sv:322] INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_id_stage.sv:322] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_id_stage.sv:429] INFO: [Synth 8-6157] synthesizing module 'ibex_decoder' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_decoder.sv:16] 
+// Tcl Message: 	Parameter RV32E bound to: 1'b0  	Parameter RV32M bound to: 2 - type: integer  	Parameter RV32B bound to: 0 - type: integer  	Parameter BranchTargetALU bound to: 1'b0  	Parameter CoprocOpcodes bound to: 2097666 - type: integer  
+// Tcl Message: 	Parameter WritebackStage bound to: 1'b0  	Parameter BranchPredictor bound to: 1'b0  
+// Tcl Message: 	Parameter RV32M bound to: 2 - type: integer  	Parameter RV32B bound to: 0 - type: integer  	Parameter BranchTargetALU bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'ibex_multdiv_fast' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_multdiv_fast.sv:17] 
+// Tcl Message: 	Parameter RV32M bound to: 2 - type: integer  
+// Tcl Message: INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_multdiv_fast.sv:288] INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_multdiv_fast.sv:288] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_multdiv_fast.sv:418] INFO: [Synth 8-6155] done synthesizing module 'ibex_multdiv_fast' (12#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_multdiv_fast.sv:17] INFO: [Synth 8-6157] synthesizing module 'ibex_alu' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_alu.sv:9] 
+// Tcl Message: 	Parameter RV32B bound to: 0 - type: integer  
+// Tcl Message: 	Parameter WritebackStage bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_wb_stage' (16#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_wb_stage.sv:17] INFO: [Synth 8-6157] synthesizing module 'ibex_cs_registers' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_cs_registers.sv:15] 
+// Tcl Message: 	Parameter Width bound to: 32'b00000000000000000000000000000110  	Parameter ShadowCopy bound to: 1'b0  	Parameter ResetValue bound to: 6'b010000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_csr' (17#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] INFO: [Synth 8-6157] synthesizing module 'ibex_csr__parameterized0' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] 
+// Tcl Message: 	Parameter Width bound to: 32'b00000000000000000000000000100000  	Parameter ShadowCopy bound to: 1'b0  	Parameter ResetValue bound to: 0 - type: integer  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_csr__parameterized0' (17#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] INFO: [Synth 8-6157] synthesizing module 'ibex_csr__parameterized1' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] 
+// Tcl Message: 	Parameter Width bound to: 32'b00000000000000000000000000010010  	Parameter ShadowCopy bound to: 1'b0  	Parameter ResetValue bound to: 18'b000000000000000000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_csr__parameterized1' (17#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] INFO: [Synth 8-6157] synthesizing module 'ibex_csr__parameterized2' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] 
+// Tcl Message: 	Parameter Width bound to: 32'b00000000000000000000000000000110  	Parameter ShadowCopy bound to: 1'b0  	Parameter ResetValue bound to: 6'b000000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_csr__parameterized2' (17#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] INFO: [Synth 8-6157] synthesizing module 'ibex_csr__parameterized3' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] 
+// Tcl Message: 	Parameter Width bound to: 32'b00000000000000000000000000100000  	Parameter ShadowCopy bound to: 1'b0  	Parameter ResetValue bound to: 1 - type: integer  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_csr__parameterized3' (17#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] INFO: [Synth 8-6157] synthesizing module 'ibex_csr__parameterized4' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] 
+// Tcl Message: 	Parameter Width bound to: 32'b00000000000000000000000000100000  	Parameter ShadowCopy bound to: 1'b0  	Parameter ResetValue bound to: 32'b01000000000000000000000000000011  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_csr__parameterized4' (17#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] INFO: [Synth 8-6157] synthesizing module 'ibex_csr__parameterized5' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] 
+// Tcl Message: 	Parameter Width bound to: 32'b00000000000000000000000000000011  	Parameter ShadowCopy bound to: 1'b0  	Parameter ResetValue bound to: 3'b100  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_csr__parameterized5' (17#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_csr.sv:11] INFO: [Synth 8-6157] synthesizing module 'ibex_counter' [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_counter.sv:1] 
+// Tcl Message: 	Parameter CounterWidth bound to: 32'sb00000000000000000000000001000000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ibex_counter' (18#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_counter.sv:1] INFO: [Synth 8-6155] done synthesizing module 'ibex_cs_registers' (19#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_cs_registers.sv:15] INFO: [Synth 8-6155] done synthesizing module 'ibex_core' (20#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_core.sv:15] INFO: [Synth 8-6155] done synthesizing module 'ibex_top' (21#1) [/home/nikhil/vicuna-build/vicuna/ibex/rtl/ibex_top.sv:15] INFO: [Synth 8-6157] synthesizing module 'vproc_core' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_core.sv:6] 
+// Tcl Message: 	Parameter XIF_ID_W bound to: 3 - type: integer  	Parameter XIF_MEM_W bound to: 32'b00000000000000000000000000100000  	Parameter VREG_TYPE bound to: 32'sb00000000000000000000000000000001  	Parameter VLSU_FLAGS bound to: 1'b1  	Parameter MUL_TYPE bound to: 32'sb00000000000000000000000000000001  	Parameter BUF_FLAGS bound to: 12'b100000000001  	Parameter DONT_CARE_ZERO bound to: 1'b0  	Parameter ASYNC_RESET bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_queue' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_queue.sv:6] 
+// Tcl Message: 	Parameter WIDTH bound to: 32'b00000000000000000000000001111010  	Parameter DEPTH bound to: 32'b00000000000000000000000000000010  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_queue' (22#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_queue.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_xif' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] 
+// Tcl Message: 	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000000100000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (22#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'vproc_pipeline_wrapper' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline_wrapper.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_pipeline' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline.sv:6] 
+// Tcl Message: INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregunpack.sv:371] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregunpack.sv:371] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregunpack.sv:348] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregunpack.sv:426] 
+// Tcl Message: INFO: [Common 17-14] Message 'Synth 8-6014' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings. 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_vregunpack' (23#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregunpack.sv:7] INFO: [Synth 8-6157] synthesizing module 'vproc_unit_mux' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_mux.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_xif' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] 
+// Tcl Message: 	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000000100000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (23#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'vproc_unit_wrapper' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_lsu' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_lsu.sv:6] 
+// Tcl Message: 	Parameter VMEM_W bound to: 32'b00000000000000000000000000100000  	Parameter XIF_ID_W bound to: 3 - type: integer  	Parameter XIF_ID_CNT bound to: 32'b00000000000000000000000000001000  	Parameter VLSU_QUEUE_SZ bound to: 32'b00000000000000000000000000000100  	Parameter VLSU_FLAGS bound to: 1'b1  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_lsu.sv:212] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_lsu.sv:226] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_lsu.sv:252] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_queue__parameterized0' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_queue.sv:6] 
+// Tcl Message: 	Parameter WIDTH bound to: 32'b00000000000000000000000000101010  	Parameter DEPTH bound to: 32'b00000000000000000000000000000100  	Parameter FLOW bound to: 1'b1  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_queue__parameterized0' (23#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_queue.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_queue__parameterized1' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_queue.sv:6] 
+// Tcl Message: 	Parameter WIDTH bound to: 32'b00000000000000000000000000001010  	Parameter DEPTH bound to: 32'b00000000000000000000000000000010  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_queue__parameterized1' (23#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_queue.sv:6] INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_lsu.sv:431] INFO: [Synth 8-6155] done synthesizing module 'vproc_lsu' (24#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_lsu.sv:6] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_unit_wrapper' (25#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_queue__parameterized2' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_queue.sv:6] 
+// Tcl Message: 	Parameter WIDTH bound to: 32'b00000000000000000000000000000011  	Parameter DEPTH bound to: 32'b00000000000000000000000000000100  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_queue__parameterized2' (25#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_queue.sv:6] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_unit_mux' (26#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_mux.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_vregpack' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregpack.sv:7] 
+// Tcl Message: 	Parameter VPORT_W bound to: 32'b00000000000000000000000100000000  	Parameter VADDR_W bound to: 32'b00000000000000000000000000000101  	Parameter MAX_RES_W bound to: 32'b00000000000000000000000000100000  	Parameter RES_CNT bound to: 32'b00000000000000000000000000000001  	Parameter RES_W bound to: 32'b00000000000000000000000000100000  	Parameter RES_MASK bound to: 1'b0  	Parameter RES_NARROW bound to: 1'b0  	Parameter RES_ALLOW_ELEMWISE bound to: 1'b1  	Parameter RES_ALWAYS_ELEMWISE bound to: 1'b0  	Parameter INSTR_ID_W bound to: 3 - type: integer  	Parameter INSTR_ID_CNT bound to: 32'b00000000000000000000000000001000  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-294] found qualifier unique on case statement: implementing as parallel_case [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregpack.sv:274] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_xif' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] 
+// Tcl Message: 	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000000100000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (29#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'vproc_pipeline_wrapper__parameterized0' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline_wrapper.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_pipeline__parameterized0' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline.sv:6] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_vregunpack__parameterized0' (29#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregunpack.sv:7] INFO: [Synth 8-6157] synthesizing module 'vproc_unit_mux__parameterized0' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_mux.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_xif' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] 
+// Tcl Message: 	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000010000000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (29#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'vproc_unit_wrapper__parameterized0' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_alu' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_alu.sv:6] 
+// Tcl Message: 	Parameter ALU_OP_W bound to: 32'b00000000000000000000000010000000  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_alu' (30#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_alu.sv:6] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_unit_wrapper__parameterized0' (30#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_xif' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] 
+// Tcl Message: 	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000010000000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (30#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'vproc_unit_wrapper__parameterized1' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_elem' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_elem.sv:6] 
+// Tcl Message: 	Parameter VREG_W bound to: 32'b00000000000000000000000100000000  	Parameter GATHER_OP_W bound to: 32'b00000000000000000000000010000000  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_elem.sv:125] INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_elem.sv:161] INFO: [Synth 8-6155] done synthesizing module 'vproc_elem' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_elem.sv:6] INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:432] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_unit_wrapper__parameterized1' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] 
+// Tcl Message: INFO: [Common 17-14] Message 'Synth 8-3848' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings. INFO: [Synth 8-6155] done synthesizing module 'vproc_unit_mux__parameterized0' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_mux.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_vregpack__parameterized0' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregpack.sv:7] 
+// Tcl Message: 	Parameter VPORT_W bound to: 32'b00000000000000000000000100000000  	Parameter VADDR_W bound to: 32'b00000000000000000000000000000101  	Parameter MAX_RES_W bound to: 32'b00000000000000000000000010000000  	Parameter RES_CNT bound to: 32'b00000000000000000000000000000010  	Parameter RES_W bound to: 64'b0000000000000000000000001000000000000000000000000000000000010000  	Parameter RES_MASK bound to: 2'b10  	Parameter RES_NARROW bound to: 2'b01  	Parameter RES_ALLOW_ELEMWISE bound to: 2'b01  	Parameter RES_ALWAYS_ELEMWISE bound to: 2'b00  	Parameter INSTR_ID_W bound to: 3 - type: integer  	Parameter INSTR_ID_CNT bound to: 32'b00000000000000000000000000001000  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_vregpack__parameterized0' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregpack.sv:7] INFO: [Synth 8-6155] done synthesizing module 'vproc_pipeline__parameterized0' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline.sv:6] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_pipeline_wrapper__parameterized0' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline_wrapper.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_xif' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] 
+// Tcl Message: 	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000000100000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'vproc_pipeline_wrapper__parameterized1' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline_wrapper.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_pipeline__parameterized1' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline.sv:6] 
+// Tcl Message: INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline.sv:582] INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline.sv:600] INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline.sv:600] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_vregunpack__parameterized1' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregunpack.sv:7] INFO: [Synth 8-6157] synthesizing module 'vproc_unit_mux__parameterized1' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_mux.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_xif' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] 
+// Tcl Message: 	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000010000000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (31#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'vproc_unit_wrapper__parameterized2' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_mul' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_mul.sv:6] 
+// Tcl Message: 	Parameter MUL_OP_W bound to: 32'b00000000000000000000000010000000  	Parameter MUL_TYPE bound to: 32'sb00000000000000000000000000000001  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_mul_block' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_mul_block.sv:6] 
+// Tcl Message: 	Parameter MUL_TYPE bound to: 32'sb00000000000000000000000000000001  	Parameter BUF_OPS bound to: 1'b1  	Parameter BUF_MUL bound to: 1'b1  	Parameter BUF_RES bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'DSP48E1' [/tools/Xilinx/Vivado/2024.1/scripts/rt/data/unisim_comp.v:39754] 
+// Tcl Message: 	Parameter ALUMODEREG bound to: 1 - type: integer  	Parameter AREG bound to: 1 - type: integer  	Parameter A_INPUT bound to: DIRECT - type: string  	Parameter BREG bound to: 1 - type: integer  	Parameter B_INPUT bound to: DIRECT - type: string  	Parameter CARRYINREG bound to: 0 - type: integer  	Parameter CARRYINSELREG bound to: 0 - type: integer  	Parameter CREG bound to: 1 - type: integer  	Parameter INMODEREG bound to: 0 - type: integer  	Parameter MREG bound to: 1 - type: integer  	Parameter OPMODEREG bound to: 1 - type: integer  	Parameter PREG bound to: 0 - type: integer  	Parameter USE_DPORT bound to: FALSE - type: string  	Parameter USE_MULT bound to: MULTIPLY - type: string  
+// Tcl Message: 	Parameter X_ID_WIDTH bound to: 3 - type: integer  	Parameter X_MEM_WIDTH bound to: 32'b00000000000000000000000010000000  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_xif' (34#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_xif.sv:12] INFO: [Synth 8-6157] synthesizing module 'vproc_unit_wrapper__parameterized3' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] 
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'vproc_sld' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_sld.sv:6] 
+// Tcl Message: 	Parameter SLD_OP_W bound to: 32'b00000000000000000000000010000000  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_sld' (35#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_sld.sv:6] INFO: [Synth 8-6155] done synthesizing module 'vproc_unit_wrapper__parameterized3' (35#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_wrapper.sv:6] INFO: [Synth 8-6155] done synthesizing module 'vproc_unit_mux__parameterized1' (35#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_unit_mux.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_vregpack__parameterized1' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregpack.sv:7] 
+// Tcl Message: 	Parameter VPORT_W bound to: 32'b00000000000000000000000100000000  	Parameter VADDR_W bound to: 32'b00000000000000000000000000000101  	Parameter MAX_RES_W bound to: 32'b00000000000000000000000010000000  	Parameter RES_CNT bound to: 32'b00000000000000000000000000000001  	Parameter RES_W bound to: 32'b00000000000000000000000010000000  	Parameter RES_MASK bound to: 1'b0  	Parameter RES_NARROW bound to: 1'b0  	Parameter RES_ALLOW_ELEMWISE bound to: 1'b0  	Parameter RES_ALWAYS_ELEMWISE bound to: 1'b0  	Parameter INSTR_ID_W bound to: 3 - type: integer  	Parameter INSTR_ID_CNT bound to: 32'b00000000000000000000000000001000  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_vregpack__parameterized1' (35#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregpack.sv:7] INFO: [Synth 8-6155] done synthesizing module 'vproc_pipeline__parameterized1' (35#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline.sv:6] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_pipeline_wrapper__parameterized1' (35#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pipeline_wrapper.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_decoder' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_decoder.sv:6] 
+// Tcl Message: 	Parameter CFG_VL_W bound to: 32'b00000000000000000000000000001000  	Parameter XIF_MEM_W bound to: 32'b00000000000000000000000000100000  	Parameter ALIGNED_UNITSTRIDE bound to: 1'b1  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_decoder.sv:171] INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_decoder.sv:1610] INFO: [Synth 8-226] default block is never used [/home/nikhil/vicuna-build/vicuna/rtl/vproc_decoder.sv:1639] INFO: [Synth 8-6155] done synthesizing module 'vproc_decoder' (36#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_decoder.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_pending_wr' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pending_wr.sv:6] 
+// Tcl Message: 	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_pending_wr' (37#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_pending_wr.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_dispatcher' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_dispatcher.sv:6] 
+// Tcl Message: 	Parameter PIPE_CNT bound to: 32'b00000000000000000000000000000011  	Parameter PIPE_UNITS bound to: 15'b000011001001100  	Parameter MAX_VADDR_W bound to: 32'b00000000000000000000000000000101  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_dispatcher' (38#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_dispatcher.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_vregfile' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregfile.sv:6] 
+// Tcl Message: 	Parameter VREG_TYPE bound to: 32'sb00000000000000000000000000000001  	Parameter VREG_W bound to: 32'b00000000000000000000000100000000  	Parameter MAX_PORT_W bound to: 32'b00000000000000000000000100000000  	Parameter MAX_ADDR_W bound to: 32'b00000000000000000000000000000101  	Parameter PORT_RD_CNT bound to: 32'b00000000000000000000000000000101  	Parameter PORT_RD_W bound to: 160'b0000000000000000000000010000000000000000000000000000000100000000000000000000000000000001000000000000000000000000000000010000000000000000000000000000000100000000  	Parameter PORT_WR_CNT bound to: 32'b00000000000000000000000000000010  	Parameter PORT_WR_W bound to: 64'b0000000000000000000000010000000000000000000000000000000100000000  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'RAM32M' [/tools/Xilinx/Vivado/2024.1/scripts/rt/data/unisim_comp.v:129077] INFO: [Synth 8-6155] done synthesizing module 'RAM32M' (39#1) [/tools/Xilinx/Vivado/2024.1/scripts/rt/data/unisim_comp.v:129077] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_vregfile' (40#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vregfile.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_vreg_wr_mux' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vreg_wr_mux.sv:6] 
+// Tcl Message: 	Parameter VREG_W bound to: 32'b00000000000000000000000100000000  	Parameter VPORT_WR_CNT bound to: 32'b00000000000000000000000000000010  	Parameter PIPE_CNT bound to: 32'b00000000000000000000000000000011  	Parameter PIPE_UNITS bound to: 15'b000011001001100  	Parameter PIPE_VPORT_WR bound to: 96'b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001  	Parameter TIMEPRED bound to: 1'b0  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_vreg_wr_mux' (41#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_vreg_wr_mux.sv:6] INFO: [Synth 8-6157] synthesizing module 'vproc_result' [/home/nikhil/vicuna-build/vicuna/rtl/vproc_result.sv:6] 
+// Tcl Message: 	Parameter XIF_ID_W bound to: 3 - type: integer  	Parameter DONT_CARE_ZERO bound to: 1'b0  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'vproc_result' (42#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_result.sv:6] INFO: [Synth 8-6155] done synthesizing module 'vproc_core' (43#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_core.sv:6] 
+// Tcl Message: INFO: [Common 17-14] Message 'Synth 8-7137' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings. INFO: [Synth 8-6155] done synthesizing module 'vproc_top' (44#1) [/home/nikhil/vicuna-build/vicuna/rtl/vproc_top.sv:6] INFO: [Synth 8-6157] synthesizing module 'ram32' [/home/nikhil/vicuna-build/vicuna/demo/rtl/ram.sv:7] 
+// Tcl Message: 	Parameter SIZE bound to: 65536 - type: integer  	Parameter INIT_FILE bound to: /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/vector_addition.vmem - type: string  
+// Tcl Message: INFO: [Synth 8-3876] $readmem data file '/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/vector_addition.vmem' is read successfully [/home/nikhil/vicuna-build/vicuna/demo/rtl/ram.sv:49] 
+// HMemoryUtils.trashcanNow. Engine heap size: 4,784 MB. GUI used memory: 135 MB. Current time: 6/13/25, 6:09:29 PM IST
+// HMemoryUtils.trashcanNow. Engine heap size: 9,585 MB. GUI used memory: 132 MB. Current time: 6/13/25, 6:09:42 PM IST
+// HMemoryUtils.trashcanNow. Engine heap size: 10,514 MB. GUI used memory: 132 MB. Current time: 6/13/25, 6:10:00 PM IST
+// WARNING: HTimer (ActiveMsgMonitor Process Messages Timer) is taking 292ms to process. Increasing delay to 2000 ms.
+// HMemoryUtils.trashcanNow. Engine heap size: 11,205 MB. GUI used memory: 132 MB. Current time: 6/13/25, 6:10:15 PM IST
+// HMemoryUtils.trashcanNow. Engine heap size: 11,884 MB. GUI used memory: 132 MB. Current time: 6/13/25, 6:10:30 PM IST
+// HMemoryUtils.trashcanNow. Engine heap size: 12,619 MB. GUI used memory: 132 MB. Current time: 6/13/25, 6:10:42 PM IST
+// HMemoryUtils.trashcanNow. Engine heap size: 13,556 MB. GUI used memory: 132 MB. Current time: 6/13/25, 6:11:00 PM IST
+// HMemoryUtils.trashcanNow. Engine heap size: 14,273 MB. GUI used memory: 132 MB. Current time: 6/13/25, 6:11:12 PM IST
+// WARNING: HEventQueue.dispatchEvent() is taking  30414 ms.
+// HMemoryUtils.trashcanNow. Engine heap size: 14,920 MB. GUI used memory: 132 MB. Current time: 6/13/25, 6:11:44 PM IST
+// WARNING: HEventQueue.dispatchEvent() is taking  5348 ms.
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'ram32' (45#1) [/home/nikhil/vicuna-build/vicuna/demo/rtl/ram.sv:7] 
+// WARNING: HEventQueue.dispatchEvent() is taking  5950 ms.
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'hwreg_iface' [/home/nikhil/vicuna-build/vicuna/demo/rtl/demo_top.sv:149] 
+// Tcl Message: 	Parameter CLK_FREQ bound to: 50000000 - type: integer  	Parameter UART_BAUD_RATE bound to: 32'b00000000000000011100001000000000  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'uart_iface' [/home/nikhil/vicuna-build/vicuna/demo/rtl/demo_top.sv:212] 
+// Tcl Message: 	Parameter CLK_FREQ bound to: 50000000 - type: integer  	Parameter BAUD_RATE bound to: 32'b00000000000000011100001000000000  
+// Tcl Message: INFO: [Synth 8-6157] synthesizing module 'uart_tx' [/home/nikhil/vicuna-build/vicuna/demo/rtl/uart_tx.sv:26] 
+// Tcl Message: 	Parameter DATA_WIDTH bound to: 8 - type: integer  	Parameter BAUD_RATE bound to: 115200 - type: integer  	Parameter CLK_FREQ bound to: 50000000 - type: integer  
+// WARNING: HEventQueue.dispatchEvent() is taking  1580 ms.
+// [Engine Memory]: 14,920 MB (+11006840kb) [00:17:12]
+// WARNING: HEventQueue.dispatchEvent() is taking  10965 ms.
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'uart_tx' (46#1) [/home/nikhil/vicuna-build/vicuna/demo/rtl/uart_tx.sv:26] INFO: [Synth 8-6157] synthesizing module 'uart_rx' [/home/nikhil/vicuna-build/vicuna/demo/rtl/uart_rx.sv:26] 
+// Tcl Message: 	Parameter DATA_WIDTH bound to: 8 - type: integer  	Parameter BAUD_RATE bound to: 115200 - type: integer  	Parameter CLK_FREQ bound to: 50000000 - type: integer  
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'uart_rx' (47#1) [/home/nikhil/vicuna-build/vicuna/demo/rtl/uart_rx.sv:26] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'uart_iface' (48#1) [/home/nikhil/vicuna-build/vicuna/demo/rtl/demo_top.sv:212] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'hwreg_iface' (49#1) [/home/nikhil/vicuna-build/vicuna/demo/rtl/demo_top.sv:149] 
+// Tcl Message: INFO: [Synth 8-6155] done synthesizing module 'demo_top' (50#1) [/home/nikhil/vicuna-build/vicuna/demo/rtl/demo_top.sv:6] 
+// WARNING: HEventQueue.dispatchEvent() is taking  2878 ms.
+// WARNING: HEventQueue.dispatchEvent() is taking  4049 ms.
+// WARNING: HTimer (ActiveMsgMonitor Process Messages Timer) is taking 840ms to process. Increasing delay to 3000 ms.
+// WARNING: HEventQueue.dispatchEvent() is taking  1015 ms.
+// WARNING: HEventQueue.dispatchEvent() is taking  1526 ms.
+// WARNING: HEventQueue.dispatchEvent() is taking  1344 ms.
+// WARNING: HEventQueue.dispatchEvent() is taking  12022 ms.
+// WARNING: HEventQueue.dispatchEvent() is taking  1012 ms.
+// WARNING: HEventQueue.dispatchEvent() is taking  1211 ms.
+// Tcl Message: INFO: [Common 17-41] Interrupt caught. Command should exit soon. INFO: [Common 17-41] Interrupt caught. Command should exit soon. INFO: [Common 17-41] Interrupt caught. Command should exit soon. INFO: [Common 17-41] Interrupt caught. Command should exit soon. 

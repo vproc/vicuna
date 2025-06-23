@@ -46,7 +46,7 @@ PROG ?= test
 OBJ  ?= test.o
 
 # add crt0 to object files
-RISCV_OBJ := $(SW_DIR)/crt0.o $(OBJ) $(SW_DIR)/lib/uart.o
+RISCV_OBJ := $(SW_DIR)/crt0.o $(OBJ) $(SW_DIR)/lib/uart.o  $(SW_DIR)/../test/spill_cache.o #i added
 
 all: $(PROG).vmem
 
@@ -55,6 +55,7 @@ dump: $(PROG).elf
 
 $(PROG).elf: $(RISCV_OBJ) $(LD_SCRIPT)
 	$(RISCV_CC) $(RISCV_FLAGS) -T $(LD_SCRIPT) $(LDFLAGS) $(RISCV_OBJ) -o $@
+
 
 %.o: %.c
 	$(RISCV_CC) $(RISCV_FLAGS) $(CFLAGS) -c -o $@ $<

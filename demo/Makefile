@@ -55,11 +55,12 @@ all: proj
 VPROC_CONFIG_PKG := $(PROJ_DIR)/vproc_config.sv
 VMEM_W			 := 32
 include $(DEMO_DIR)/../config.mk
+#from RAM_FILE i have removed the ($abspath $(RAM_FILE)) because it is not needed we will provide always abspath
 
 proj: $(VPROC_CONFIG_PKG)
 	cd $(PROJ_DIR) && vivado -mode batch -source $(abspath $(GEN_DEMO_TCL))   \
 	    -tclargs $(DEMO_DIR)/../ $(abspath $(CORE_DIR)) $(VPROC_CONFIG_PKG)   \
-	    $(PART) $(abspath $(CONSTR)) $(abspath $(RAM_FILE))                   \
+	    $(PART) $(abspath $(CONSTR))  $(RAM_FILE)                   \
 	    $(DIFF_CLK) $(CLK_PER);                                               \
 	echo "";                                                                  \
 	echo 'Open the project with: $$ vivado $(PROJ_DIR)/vicuna_demo/*.xpr'

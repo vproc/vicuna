@@ -6,7 +6,7 @@
 // minimalistic simulation top module with clock gen and initial reset
 
 module demo_tb #(
-        parameter              RAM_FPATH  = "",
+        parameter              RAM_FPATH  = "home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/compiler_test.vmem",
         parameter int unsigned RAM_SIZE   = 262144,
         parameter bit          DIFF_CLK   = 1'b0,
         parameter real         SYSCLK_PER = 0.0,

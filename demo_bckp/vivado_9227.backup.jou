@@ -1,0 +1,21 @@
+#-----------------------------------------------------------
+# Vivado v2019.1 (64-bit)
+# SW Build 2552052 on Fri May 24 14:47:09 MDT 2019
+# IP Build 2548770 on Fri May 24 18:01:18 MDT 2019
+# Start of session at: Fri Jun 13 14:05:17 2025
+# Process ID: 9227
+# Current directory: /home/nikhil/vicuna-build/vicuna/demo
+# Command line: vivado /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/synth/vicuna_demo/vicuna_demo.xpr
+# Log file: /home/nikhil/vicuna-build/vicuna/demo/vivado.log
+# Journal file: /home/nikhil/vicuna-build/vicuna/demo/vivado.jou
+#-----------------------------------------------------------
+start_gui
+open_project /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/vector_add/synth/vicuna_demo/vicuna_demo.xpr
+update_compile_order -fileset sources_1
+update_compile_order -fileset sim_1
+launch_simulation
+launch_runs synth_1 -jobs 10
+wait_on_run synth_1
+launch_simulation -mode post-synthesis -type functional
+launch_simulation -mode post-synthesis -type functional
+launch_simulation -mode post-synthesis -type functional

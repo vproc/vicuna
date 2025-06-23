@@ -31,7 +31,7 @@ PROG_PATHS ?= progs.txt
 
 # trace file
 TRACE_FILE ?= sim_trace.csv
-TRACE_SIGS ?= '*'
+TRACE_SIGS ?= "*"
 
 # select memory width (bits), size (bytes), and latency (cycles, 1 is minimum)
 MEM_W       ?= 32
@@ -99,12 +99,19 @@ $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	    inc="-I$(CORE_DIR)/rtl/ -I$(CORE_DIR)/rtl/include/";                  \
 	    inc="$$inc -I$(CORE_DIR)/bhv/";                                       \
 	    src="cv32e40x_pkg.sv if_xif.sv if_c_obi.sv";                          \
-	    src="$$src cv32e40x_sim_clock_gate.sv";                               \
-	fi;                                                                       \
+	    src="$$src cv32e40x_sim_clock_gate.sv";   							  \
+	elif echo "$(CORE_DIR)" | grep -q "srv32"; then                           \
+	    core="-DMAIN_CORE_SRV32";                                             \
+	    inc="-I$(CORE_DIR)/rtl/";                  							  \
+	    src="top.sv srv32_wrapper.sv srv32_core.v cv_xif.sv clint_wrapper.sv clint.v"; \
+	else																	  \
+		echo "Unsupported CORE! : You may choose ibex, cv32e40x, srv32 as of now."\
+		exit 1;														         \
+	fi;                             										 \
 	verilator --unroll-count 1024 -Wno-WIDTH -Wno-PINMISSING -Wno-UNOPTFLAT   \
 	    -Wno-UNSIGNED -Wno-IMPLICIT -Wno-LITENDIAN -Wno-CASEINCOMPLETE        \
 	    -Wno-SYMRSVDWORD -Wno-BLKANDNBLK -Wno-BLKSEQ -Wno-SYNCASYNCNET        \
-	    -Wno-COMBDLY                                                          \
+	    -Wno-COMBDLY -Wno-TIMESCALEMOD                                                        \
 	    -I$(SIM_DIR)/../rtl/ -I$(SIM_DIR)/../sva/ $$inc $$core                \
 	    -GMEM_W=$(MEM_W) -GVMEM_W=$(VMEM_W)                                   \
 	    -GICACHE_SZ=$(ICACHE_SZ) -GICACHE_LINE_W=$(ICACHE_LINE_W)             \

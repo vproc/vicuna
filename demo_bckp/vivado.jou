@@ -1,0 +1,68 @@
+#-----------------------------------------------------------
+# Vivado v2024.1 (64-bit)
+# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024
+# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+# Start of session at: Sat Jun 14 23:09:54 2025
+# Process ID: 16287
+# Current directory: /home/nikhil/vicuna-build/vicuna/demo
+# Command line: vivado /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/vicuna_demo.xpr
+# Log file: /home/nikhil/vicuna-build/vicuna/demo/vivado.log
+# Journal file: /home/nikhil/vicuna-build/vicuna/demo/vivado.jou
+# Running On        :nikhil
+# Platform          :Ubuntu
+# Operating System  :Ubuntu 24.04.2 LTS
+# Processor Detail  :12th Gen Intel(R) Core(TM) i5-1235U
+# CPU Frequency     :400.000 MHz
+# CPU Physical cores:10
+# CPU Logical cores :12
+# Host memory       :16484 MB
+# Swap memory       :4294 MB
+# Total Virtual     :20779 MB
+# Available Virtual :17035 MB
+#-----------------------------------------------------------
+start_gui
+open_project /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/vicuna_demo.xpr
+update_compile_order -fileset sim_1
+update_compile_order -fileset sources_1
+launch_simulation
+source demo_tb.tcl
+current_wave_config {Untitled 1}
+add_wave {{/\demo_tb(RAM_FPATH="/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/compiler_test.vmem",SYSCLK_PER=10.0) /soc/vproc/u_core/u_ibex_core/instr_addr_o}} 
+current_wave_config {Untitled 1}
+add_wave {{/\demo_tb(RAM_FPATH="/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/compiler_test.vmem",SYSCLK_PER=10.0) /soc/vproc/u_core/u_ibex_core/cpi_instr_o}} 
+relaunch_sim
+save_wave_config {/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/demo_tb_behav.wcfg}
+add_files -fileset sim_1 -norecurse /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/demo_tb_behav.wcfg
+set_property xsim.view /home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/demo_tb_behav.wcfg [get_filesets sim_1]
+run 1 us
+run 1 us
+current_wave_config {demo_tb_behav.wcfg}
+add_wave {{/\demo_tb(RAM_FPATH="/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/compiler_test.vmem",SYSCLK_PER=10.0) /soc/vproc/cpi_instr}} 
+current_wave_config {demo_tb_behav.wcfg}
+add_wave {{/\demo_tb(RAM_FPATH="/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/compiler_test.vmem",SYSCLK_PER=10.0) /soc/vproc/cpi_instr_illegal}} 
+relaunch_sim
+save_wave_config {/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/demo_tb_behav.wcfg}
+save_wave_config {/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/demo_tb_behav.wcfg}
+save_wave_config {/home/nikhil/Nikhil/ElectronicsDev/RISC-V/Vicuna/tests/compiler_test/synth/vicuna_demo/demo_tb_behav.wcfg}
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+run 1 us
+relaunch_sim
+run 1 us
+close_sim

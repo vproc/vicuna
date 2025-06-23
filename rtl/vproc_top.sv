@@ -349,11 +349,74 @@ module vproc_top import vproc_pkg::*; #(
     assign vect_csr_wdata = '{default:'0};
 
 `else
+`ifdef MAIN_CORE_SRV32
+    localparam bit USE_XIF_MEM = VMEM_W == 32;
+
+    logic interrupt;
+
+    logic        imem_ready;
+    logic        imem_valid;
+    logic [31:0] imem_addr;
+    logic        imem_rresp;
+    logic [31:0] imem_rdata;
+
+    logic        dmem_wready;
+    logic        dmem_wvalid;
+    logic [31:0] dmem_waddr;
+    logic [31:0] dmem_wdata;
+    logic [ 3:0] dmem_wstrb;
+
+    logic        dmem_rready;
+    logic        dmem_rvalid;
+    logic [31:0] dmem_raddr;
+    logic        dmem_rresp;
+    logic [31:0] dmem_rdata;
+
+    logic ex_irq;
+
+    cv_xif srv32_xif();
+
+    srv32_top u_core(
+        .clk   (clk_i),
+        .resetb(~rst_ni),
+
+        .stall    (stall),
+        .exception(exception),
+        .interrupt(interrupt),
+
+        .imem_ready(imem_ready),
+        .imem_valid(imem_valid),
+        .imem_addr (imem_addr),
+        .imem_rresp(imem_rresp),
+        .imem_rdata(imem_rdata),
+
+        .dmem_wready(dwready),
+        .dmem_wvalid(dwvalid),
+        .dmem_waddr (dwaddr),
+        .dmem_wdata (dwdata),
+        .dmem_wstrb (dwstrb),
+
+        .dmem_rready(drready),
+        .dmem_rvalid(drvalid),
+        .dmem_raddr (draddr),
+        .dmem_rresp (drresp),
+        .dmem_rdata (drdata),
+
+        .ex_irq(ex_irq),
+
+        .xif_issue_if        (srv32_xif),
+        .xif_commit_if       (srv32_xif),
+        .xif_reg_if          (srv32_xif),
+        .xif_mem_if          (srv32_xif),
+        .xif_mem_result_if   (srv32_xif),
+        .xif_result_if       (srv32_xif)
+    );
+`else
     localparam bit USE_XIF_MEM = '0;
     $fatal(1, "One of the MAIN_CORE_* macros must be defined to select a main core.");
 `endif
 `endif
-
+`endif
 
     ///////////////////////////////////////////////////////////////////////////
     // VECTOR CORE INTEGRATION
