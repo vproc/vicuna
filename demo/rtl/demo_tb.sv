@@ -16,6 +16,7 @@ module demo_tb #(
 
     logic clk, rst;
     logic rx, tx;
+    logic cpu_stall;
 
     demo_top #(
         .RAM_FPATH  ( RAM_FPATH  ),
@@ -29,13 +30,14 @@ module demo_tb #(
         .sys_clk_ni ( ~clk       ),
         .sys_rst_ni ( ~rst       ),
         .uart_rx_i  ( rx         ),
-        .uart_tx_o  ( tx         )
+        .uart_tx_o  ( tx         ),
+        .cpu_stall (cpu_stall)
     );
 
     initial begin
-        rst = 1'b1;
+        rst = 1'b1; cpu_stall = 1'b1;
         #(SYSCLK_PER*10);
-        rst = 1'b0;
+        rst = 1'b0; cpu_stall = 1'b0;
     end
 
     always begin

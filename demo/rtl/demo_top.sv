@@ -18,6 +18,7 @@ module demo_top #(
         input  logic sys_rst_ni,
 
         input  logic uart_rx_i,
+        input logic cpu_stall,
         output logic uart_tx_o
     );
 
@@ -93,6 +94,7 @@ module demo_top #(
     ) vproc (
         .clk_i        ( clk                         ),
         .rst_ni       ( rst_n                       ),
+        .cpu_stall    ( cpu_stall                   ),
         .mem_req_o    ( mem_req                     ),
         .mem_addr_o   ( mem_addr                    ),
         .mem_we_o     ( mem_we                      ),
