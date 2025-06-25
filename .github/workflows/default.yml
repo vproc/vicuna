@@ -123,3 +123,7 @@ jobs:
           name: vcd-trace-files
           path: |
             test/${{ matrix.unit }}/*.vcd
+
+
+      - name: Cache APT Packages
+        uses: awalsh128/cache-apt-pkgs-action@v1.4.3
