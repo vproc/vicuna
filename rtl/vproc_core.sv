@@ -1122,3 +1122,4 @@ module vproc_core import vproc_pkg::*; #(
 `endif
 
 endmodule
+

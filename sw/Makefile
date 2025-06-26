@@ -7,6 +7,7 @@
 # Specify program name with PROG, object files with OBJ
 
 SW_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+SRV32_SW_DIR := $(SW_DIR)/../srv32/sw
 
 COMPILER ?= llvm
 ifeq ($(COMPILER),gcc)
@@ -14,7 +15,7 @@ ifeq ($(COMPILER),gcc)
     RISCV_DUMP          := riscv32-unknown-elf-objdump
     RISCV_OBCP          := riscv32-unknown-elf-objcopy
     ARCH                := rv32imv
-    LD_SCRIPT           := $(SW_DIR)/link.ld
+    LD_SCRIPT           := $(SW_DIR)/link.ld  
 else ifeq ($(COMPILER),llvm)
     # Pick the first clang executable in $PATH with version >= 14, or the
     # default clang if there is no clang >= 14; the individual steps are:
@@ -32,20 +33,23 @@ else ifeq ($(COMPILER),llvm)
     RISCV_OBCP          := llvm-objcopy
     ARCH                := rv32imzve32x
     CC_SPECIFIC_OPTIONS := -fuse-ld=lld -Wno-unused-command-line-argument
-    LD_SCRIPT           := $(SW_DIR)/lld_link.ld
+    LD_SCRIPT           := $(SW_DIR)/lld_link.ld 
 endif
-
+ #I added =============================================
+# SRV32_FLAGS := -L$(SRV32_SW_DIR)/common
+# LDFLAGS += $(SRV32_SW_DIR)/common/default.ld
+# ==================================================
 
 RISCV_FLAGS := -march=$(ARCH) -mabi=ilp32 -static -mcmodel=medany             \
                -fvisibility=hidden -nostdlib -nostartfiles -Wall              \
-               $(CC_SPECIFIC_OPTIONS)
-
-CFLAGS := $(CFLAGS) -I$(SW_DIR)/lib/
+               $(CC_SPECIFIC_OPTIONS) # $(SRV32_FLAGS) #I ADDED
+CFLAGS := $(CFLAGS) -I$(SW_DIR)/lib/ 
 
 PROG ?= test
 OBJ  ?= test.o
 
 # add crt0 to object files
+# RISCV_OBJ := $(OBJ)  
 RISCV_OBJ := $(SW_DIR)/crt0.o $(OBJ) $(SW_DIR)/lib/uart.o  $(SW_DIR)/../test/spill_cache.o #i added
 
 all: $(PROG).vmem
@@ -55,7 +59,6 @@ dump: $(PROG).elf
 
 $(PROG).elf: $(RISCV_OBJ) $(LD_SCRIPT)
 	$(RISCV_CC) $(RISCV_FLAGS) -T $(LD_SCRIPT) $(LDFLAGS) $(RISCV_OBJ) -o $@
-
 
 %.o: %.c
 	$(RISCV_CC) $(RISCV_FLAGS) $(CFLAGS) -c -o $@ $<

@@ -70,7 +70,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
     generate
         if (UNIT == UNIT_LSU) begin
             CTRL_T                 unit_out_ctrl;
-            logic [MAX_OP_W  -1:0] unit_out_res;
+            logic [MAX_OP_W  -1:0] unit_out_res; 
             logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_lsu #(
                 .VMEM_W                   ( MAX_OP_W                                    ),
@@ -184,7 +184,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
         end
         else if (UNIT == UNIT_MUL) begin
             CTRL_T                 unit_out_ctrl;
-            logic [MAX_OP_W  -1:0] unit_out_res;
+            logic [MAX_OP_W-1:0] unit_out_res;
             logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_mul #(
                 .MUL_OP_W         ( MAX_OP_W                                    ),
@@ -205,7 +205,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 .pipe_out_valid_o ( pipe_out_valid_o                            ),
                 .pipe_out_ready_i ( pipe_out_ready_i                            ),
                 .pipe_out_ctrl_o  ( unit_out_ctrl                               ),
-                .pipe_out_res_o   ( unit_out_res                                ),
+                .pipe_out_res_o   ( unit_out_res                     ),
                 .pipe_out_mask_o  ( unit_out_mask                               )
             );
             always_comb begin
@@ -229,7 +229,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
         end
         else if (UNIT == UNIT_SLD) begin
             CTRL_T                 unit_out_ctrl;
-            logic [MAX_OP_W  -1:0] unit_out_res;
+            logic [MAX_OP_W -1:0] unit_out_res;
             logic [MAX_OP_W/8-1:0] unit_out_mask;
             vproc_sld #(
                 .SLD_OP_W         ( MAX_OP_W                                    ),

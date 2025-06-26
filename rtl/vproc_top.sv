@@ -2,7 +2,10 @@
 // Licensed under the Solderpad Hardware License v2.1, see LICENSE.txt for details
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-
+///IMPORTANT
+//NO REGISTER ISSUE SPLIT IN XIF
+//Removed the ICACHE and DCACHE selection
+//
 module vproc_top
   import vproc_pkg::*;
 #(
@@ -368,9 +371,8 @@ module vproc_top
   cv_xif srv32_xif ();
 
   //my tmp signals
-  logic sdata_req;
   logic sdata_wgnt;
-  logic sdata_wvalid;
+  logic sdata_wready;
   logic sdata_wstrb;
   logic sdata_rready;
 
@@ -382,14 +384,14 @@ module vproc_top
       .exception(exception),
       .interrupt(interrupt),
 
-      .imem_ready(instr_req),
+      .instr_req_o(instr_req),
       .imem_valid(instr_rvalid),
       .imem_addr (instr_addr),
       .imem_rresp(instr_err),
       .imem_rdata(instr_rdata),
 
-      .dmem_wready(sdata_gnt),
-      .dmem_wvalid(sdata_wvalid),
+      .dmem_wready(sdata_wready),
+      .dmem_wvalid(sdata_gnt),
       .dmem_waddr (sdata_addr),
       .dmem_wdata (sdata_wdata),
       .dmem_wstrb (sdata_wstrb),
@@ -667,44 +669,44 @@ module vproc_top
   logic [MEM_W-1:0] imem_rdata;
   logic             imem_err;
   generate
-    if (ICACHE_SZ != 0) begin
-      localparam int unsigned ICACHE_WAY_LEN = ICACHE_SZ / (ICACHE_LINE_W / 8) / 2;
-      vproc_cache #(
-          .ADDR_BIT_W (32),
-          .CPU_BYTE_W (4),
-          .MEM_BYTE_W (MEM_W / 8),
-          .LINE_BYTE_W(ICACHE_LINE_W / 8),
-          .WAY_LEN    (ICACHE_WAY_LEN)
-      ) icache (
-          .clk_i       (clk_i),
-          .rst_ni      (rst_ni),
-          .hold_mem_i  (1'b0),
-          .cpu_req_i   (instr_req),
-          .cpu_addr_i  (instr_addr),
-          .cpu_we_i    ('0),
-          .cpu_be_i    ('0),
-          .cpu_wdata_i ('0),
-          .cpu_gnt_o   (instr_gnt),
-          .cpu_rvalid_o(instr_rvalid),
-          .cpu_rdata_o (instr_rdata),
-          .cpu_err_o   (instr_err),
-          .mem_req_o   (imem_req),
-          .mem_addr_o  (imem_addr),
-          .mem_we_o    (),
-          .mem_wdata_o (),
-          .mem_gnt_i   (imem_gnt),
-          .mem_rvalid_i(imem_rvalid),
-          .mem_rdata_i (imem_rdata),
-          .mem_err_i   (imem_err)
-      );
-    end else begin
+//    if (ICACHE_SZ != 0) begin
+//      localparam int unsigned ICACHE_WAY_LEN = ICACHE_SZ / (ICACHE_LINE_W / 8) / 2;
+//      vproc_cache #(
+//          .ADDR_BIT_W (32),
+//          .CPU_BYTE_W (4),
+//          .MEM_BYTE_W (MEM_W / 8),
+//          .LINE_BYTE_W(ICACHE_LINE_W / 8),
+//          .WAY_LEN    (ICACHE_WAY_LEN)
+//      ) icache (
+//          .clk_i       (clk_i),
+//          .rst_ni      (rst_ni),
+//          .hold_mem_i  (1'b0),
+//          .cpu_req_i   (instr_req),
+//          .cpu_addr_i  (instr_addr),
+//          .cpu_we_i    ('0),
+//          .cpu_be_i    ('0),
+//          .cpu_wdata_i ('0),
+//          .cpu_gnt_o   (instr_gnt),
+//          .cpu_rvalid_o(instr_rvalid),
+//          .cpu_rdata_o (instr_rdata),
+//          .cpu_err_o   (instr_err),
+//          .mem_req_o   (imem_req),
+//          .mem_addr_o  (imem_addr),
+//          .mem_we_o    (),
+//          .mem_wdata_o (),
+//          .mem_gnt_i   (imem_gnt),
+//          .mem_rvalid_i(imem_rvalid),
+//          .mem_rdata_i (imem_rdata),
+//          .mem_err_i   (imem_err)
+//      );
+//    end else begin
       assign imem_req     = instr_req;
       assign imem_addr    = instr_addr;
       assign instr_gnt    = imem_gnt;
       assign instr_rvalid = imem_rvalid;
       assign instr_rdata  = imem_rdata[31:0];
       assign instr_err    = imem_err;
-    end
+//    end
   endgenerate
 
   // data cache
@@ -719,44 +721,44 @@ module vproc_top
   logic [MEM_W  -1:0] dmem_rdata;
   logic               dmem_err;
   generate
-    if (DCACHE_SZ != 0) begin
-      localparam int unsigned DCACHE_WAY_LEN = DCACHE_SZ / (DCACHE_LINE_W / 8) / 2;
-      // hold memory access (allows lookup only) for main core requests
-      // in case of pending vector loads / stores
-      logic hold_mem;
-      always_ff @(posedge clk_i) begin
-        hold_mem <= ~USE_XIF_MEM & ~vdata_req & vect_pending_store & vect_pending_load;
-      end
-      vproc_cache #(
-          .ADDR_BIT_W (32),
-          .CPU_BYTE_W (VMEM_W / 8),
-          .MEM_BYTE_W (MEM_W / 8),
-          .LINE_BYTE_W(DCACHE_LINE_W / 8),
-          .WAY_LEN    (DCACHE_WAY_LEN)
-      ) vcache (
-          .clk_i       (clk_i),
-          .rst_ni      (rst_ni),
-          .hold_mem_i  (hold_mem),
-          .cpu_req_i   (data_req),
-          .cpu_addr_i  (data_addr),
-          .cpu_we_i    (data_we),
-          .cpu_be_i    (data_be),
-          .cpu_wdata_i (data_wdata),
-          .cpu_gnt_o   (data_gnt),
-          .cpu_rvalid_o(data_rvalid),
-          .cpu_rdata_o (data_rdata),
-          .cpu_err_o   (data_err),
-          .mem_req_o   (dmem_req),
-          .mem_we_o    (dmem_we),
-          .mem_addr_o  (dmem_addr),
-          .mem_wdata_o (dmem_wdata),
-          .mem_gnt_i   (dmem_gnt),
-          .mem_rvalid_i(dmem_rvalid),
-          .mem_rdata_i (dmem_rdata),
-          .mem_err_i   (dmem_err)
-      );
-      assign dmem_be = '1;
-    end else begin
+//    if (DCACHE_SZ != 0) begin
+//      localparam int unsigned DCACHE_WAY_LEN = DCACHE_SZ / (DCACHE_LINE_W / 8) / 2;
+//      // hold memory access (allows lookup only) for main core requests
+//      // in case of pending vector loads / stores
+//      logic hold_mem;
+//      always_ff @(posedge clk_i) begin
+//        hold_mem <= ~USE_XIF_MEM & ~vdata_req & vect_pending_store & vect_pending_load;
+//      end
+//      vproc_cache #(
+//          .ADDR_BIT_W (32),
+//          .CPU_BYTE_W (VMEM_W / 8),
+//          .MEM_BYTE_W (MEM_W / 8),
+//          .LINE_BYTE_W(DCACHE_LINE_W / 8),
+//          .WAY_LEN    (DCACHE_WAY_LEN)
+//      ) vcache (
+//          .clk_i       (clk_i),
+//          .rst_ni      (rst_ni),
+//          .hold_mem_i  (hold_mem),
+//          .cpu_req_i   (data_req),
+//          .cpu_addr_i  (data_addr),
+//          .cpu_we_i    (data_we),
+//          .cpu_be_i    (data_be),
+//          .cpu_wdata_i (data_wdata),
+//          .cpu_gnt_o   (data_gnt),
+//          .cpu_rvalid_o(data_rvalid),
+//          .cpu_rdata_o (data_rdata),
+//          .cpu_err_o   (data_err),
+//          .mem_req_o   (dmem_req),
+//          .mem_we_o    (dmem_we),
+//          .mem_addr_o  (dmem_addr),
+//          .mem_wdata_o (dmem_wdata),
+//          .mem_gnt_i   (dmem_gnt),
+//          .mem_rvalid_i(dmem_rvalid),
+//          .mem_rdata_i (dmem_rdata),
+//          .mem_err_i   (dmem_err)
+//      );
+//      assign dmem_be = '1;
+//    end else begin
       if (MEM_W != VMEM_W) begin
         $fatal(
             1,
@@ -777,7 +779,7 @@ module vproc_top
       assign data_rvalid = dmem_rvalid | dmem_wvalid;
       assign data_rdata  = dmem_rdata;
       assign data_err    = dmem_err;
-    end
+//    end
   endgenerate
 
 
