@@ -130,6 +130,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         logic                            alt_last_cycle;
         logic                            init_addr;      // initialize address (used by LSU)
         logic                            requires_flush;
+        logic                            red_op;
         logic        [XIF_ID_W     -1:0] id;
         op_unit                          unit;
         op_mode                          mode;
@@ -241,6 +242,7 @@ module vproc_pipeline import vproc_pkg::*; #(
             state_next.first_cycle             = 1'b1;
             state_next.init_addr               = 1'b1;
             state_next.requires_flush          = pipe_in_state_i.requires_flush;
+            state_next.red_op                  = pipe_in_state_i.red_op;
             state_next.id                      = pipe_in_state_i.id;
             state_next.unit                    = pipe_in_state_i.unit;
             state_next.mode                    = pipe_in_state_i.mode;
@@ -679,6 +681,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         logic                          last_cycle;
         logic                          init_addr;       // initialize address (used by LSU)
         logic                          requires_flush;
+        logic                          red_op;
         logic                          alt_count_valid; // alternative counter value is valid
         logic [AUX_COUNTER_W-1:0]      aux_count;
         logic [XIF_ID_W-1:0]           id;
@@ -711,6 +714,7 @@ module vproc_pipeline import vproc_pkg::*; #(
                                       (~FIELD_COUNT_USED | (state_q.field_count == '0));
         unpack_ctrl.init_addr       = state_q.init_addr;
         unpack_ctrl.requires_flush  = state_q.requires_flush;
+        unpack_ctrl.red_op          = state_q.red_op;
         unpack_ctrl.alt_count_valid = DONT_CARE_ZERO ? '0 : 'x;
         unique case (state_q.emul)
             EMUL_1: unpack_ctrl.alt_count_valid =   state_q.alt_count.val[COUNTER_W-1 -: 4]             == '0;
