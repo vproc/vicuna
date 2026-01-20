@@ -9,11 +9,11 @@ main:
     la              a0, vdata_start
 
     li              t0, 16
-    vsetvli         t0, t0, e8,m1,tu,mu
+    vsetvli         t0, t0, e32,m2,tu,mu
 
-    vle8.v          v0, (a0)
-    vzext.vf2       v4, v0
-    vse16.v         v4, (a0)
+    vle16.v         v0, (a0)
+    vsext.vf2       v4, v0
+    vse32.v         v4, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
@@ -63,22 +63,22 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0x00bf0047
-    .word           0x0032003b
-    .word           0x004b003a
-    .word           0x00c70043
-    .word           0x002e0032
-    .word           0x0030002f
-    .word           0x004a0051
-    .word           0x00e80040
-    .word           0x4a505f3e
-    .word           0x485e5455
-    .word           0x4d4c4a41
-    .word           0x373b5451
-    .word           0x41454c45
-    .word           0x3a3e3738
-    .word           0x312f2e2f
-    .word           0x3d433f45
+    .word           0xffffbf47
+    .word           0x0000323b
+    .word           0x00004b3a
+    .word           0xffffc743
+    .word           0x00002e32
+    .word           0x0000302f
+    .word           0x00004a51
+    .word           0xffffe840
+    .word           0x0000383b
+    .word           0x00003f44
+    .word           0x00004d54
+    .word           0x00003742
+    .word           0x00005049
+    .word           0x00005e4b
+    .word           0x00004c4a
+    .word           0x00004c4c
     .word           0x46424949
     .word           0x494a4d51
     .word           0x49413c38
