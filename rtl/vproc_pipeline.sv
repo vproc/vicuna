@@ -180,6 +180,7 @@ module vproc_pipeline import vproc_pkg::*; #(
     counter_t          count_next_inc,  alt_count_next_inc;
     logic              last_cycle_next, alt_last_cycle_next, wait_alt_count_next;
     logic [OP_CNT-1:0] op_load_next, op_shift_next;
+    logic              vcompress_flushing;
     always_comb begin
         state_valid_d          = state_valid_q;
         state_wait_alt_count_d = state_wait_alt_count_q;
@@ -358,6 +359,9 @@ module vproc_pipeline import vproc_pkg::*; #(
                 end
                 default: ;
             endcase
+            if (state_q.requires_flush) begin
+                last_cycle_next &= vcompress_flushing;
+            end else begin
             // clear last cycle based on EMUL (note: the alt_last_cycle signal is not cleared here
             // as that is only required to indicate completion of one vreg cycle)
             unique case (state_q.emul)
@@ -366,6 +370,7 @@ module vproc_pipeline import vproc_pkg::*; #(
                 EMUL_8: last_cycle_next &= count_next_inc.part.mul[2:0] == '1;
                 default: ;
             endcase
+            end
             if ((OP_ALT_COUNTER != '0) & state_q.count.part.sign) begin
                 last_cycle_next = '0;
             end
@@ -373,6 +378,20 @@ module vproc_pipeline import vproc_pkg::*; #(
                 last_cycle_next = '0;
             end
         end
+    end
+
+    // Extra cycles for flushing output in vcompress
+    always_comb begin
+        vcompress_flushing = 1'b0;
+        unique case (state_q.emul)
+            EMUL_1: vcompress_flushing = count_next_inc.part.mul[0] == 1'b1;
+            EMUL_2: vcompress_flushing = count_next_inc.part.mul[1] == 1'b1;
+            EMUL_4: vcompress_flushing = count_next_inc.part.mul[2] == 1'b1;
+            EMUL_8: vcompress_flushing = count_next_inc.part.sign   == 1'b1;
+            default: ;
+        endcase
+        // Doesn't make sense to consider the vcompress_flushing when starting the pipe operation
+        vcompress_flushing &= ~pipe_in_ready_o;
     end
 
     // Operand load and shift signals
@@ -401,7 +420,8 @@ module vproc_pipeline import vproc_pkg::*; #(
             else if (~aux_count_used | (state_next.aux_count == '0) | pipe_in_ready_o) begin
                 if (~OP_MASK[i]) begin
                     if ((op_count[i].part.low == '0) &
-                        (~OP_NARROW[i] | ~state_next.op_flags[i].narrow | ~op_count[i].part.mul[0])
+                        (~OP_NARROW[i] | ~state_next.op_flags[i].narrow | ~op_count[i].part.mul[0]) &
+                        (~state_next.requires_flush | ~vcompress_flushing) // We don't load ops for vcompress when flushing
                     ) begin
                         op_load_next[i] = OP_ALWAYS_VREG[i] | state_next.op_flags[i].vreg;
 
@@ -596,7 +616,8 @@ module vproc_pipeline import vproc_pkg::*; #(
                 end
                 //else if (OP_ALT_COUNTER != '0) begin
                 //end
-                else begin
+                // In the second part of vcompress, we don't generate extra pending reads
+                else if(~state_q.requires_flush | (~vcompress_flushing & ~state_done)) begin
                     if (OP_ALWAYS_VREG[i] | state_q.op_flags[i].vreg) begin
                         op_pend_reads[i] = DONT_CARE_ZERO ? '0 : 'x;
                         unique case ({state_q.emul, OP_NARROW[i] & state_q.op_flags[i].narrow})
