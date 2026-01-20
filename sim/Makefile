@@ -62,19 +62,19 @@ verilator-version-check:
 verilator: verilator-version-check $(PROJ_DIR)/obj_dir/Vvproc_top.mk
 	make -C $(PROJ_DIR)/obj_dir -f Vvproc_top.mk Vvproc_top;                  \
 	$(PROJ_DIR)/obj_dir/Vvproc_top $(abspath $(PROG_PATHS)) $(MEM_W)          \
-	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(abspath $(TRACE_FILE)) \
+	    $(MEM_SZ) $(MEM_LATENCY) $$(($(VREG_W) * 2)) $(VREG_W) $(abspath $(TRACE_FILE)) \
 	    $(abspath $(TRACE_VCD)) $(abspath $(TRACE_FST))
 
 $(PROJ_DIR)/obj_dir/Vvproc_top.mk: verilator-version-check $(VPROC_CONFIG_PKG)
 	cp $(SIM_DIR)/verilator_main.cpp $(PROJ_DIR)/
 	cd $(PROJ_DIR);                                                           \
-	options="";                                                               \
+	options="-DVPROC_SIMULATION";                                             \
 	cflags="";                                                                \
 	if [ -n "$(TRACE_VCD)" ]; then                                            \
-	    options="--trace";                                                    \
+	    options="$$options --trace";                                          \
 	    cflags="-CFLAGS -DTRACE_VCD";                                         \
 	elif [ -n "$(TRACE_FST)" ]; then                                          \
-	    options="--trace-fst";                                                \
+	    options="$$options --trace-fst";                                      \
 	    cflags="-CFLAGS -DTRACE_FST";                                         \
 	fi;                                                                       \
 	if [ -n "$(SIM_ABORT_CYCLES)" ]; then                                     \

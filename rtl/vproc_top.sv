@@ -24,6 +24,10 @@ module vproc_top import vproc_pkg::*; #(
         input  logic               mem_rvalid_i,
         input  logic               mem_err_i,
         input  logic [MEM_W  -1:0] mem_rdata_i,
+`ifdef VPROC_SIMULATION
+        output logic               uart_we_o,
+        output logic [7:0]         uart_data_o,
+`endif
 
         output logic [31:0]        pend_vreg_wr_map_o
     );
@@ -709,5 +713,16 @@ module vproc_top import vproc_pkg::*; #(
     assign imem_rdata  = (ICACHE_SZ != 0) ? mem_rdata_i : mem_rdata_i[
         (imem_req_addr[0][$clog2(MEM_W)-1:0] & {3'b000, {($clog2(MEM_W/8)-2){1'b1}}, 2'b00})*8 +: 32];
     assign dmem_rdata  = mem_rdata_i;
+
+    // Additional UART logic for simulation with caches
+    // During simulation, we need to read and write from UART
+    // Since it's a simple simulation, when the status registers of UART never changes
+    // Then, after setting the initial value correctly, nothing needs to be done
+    // However, for writes, we need to correctly handle these access as non-cacheable
+    // Thus, we bypass the cache and send then directly to vproc_tb.sv and verilator_main.cpp
+`ifdef VPROC_SIMULATION
+    assign uart_we_o   = data_req & data_we & (data_addr == 32'hFF000000);
+    assign uart_data_o = data_wdata[7:0]; // only the lowest byte
+`endif
 
 endmodule
