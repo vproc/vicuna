@@ -34,6 +34,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
         input  logic                                 pipe_out_ready_i,
         output logic    [XIF_ID_W              -1:0] pipe_out_instr_id_o,
         output cfg_vsew                              pipe_out_eew_o,
+        output cfg_emul                              pipe_out_emul_o,
         output logic    [4:0]                        pipe_out_vaddr_o,
         output logic    [RES_CNT-1:0]                pipe_out_res_store_o,
         output logic    [RES_CNT-1:0]                pipe_out_res_valid_o,
@@ -87,6 +88,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
     logic      [UNIT_CNT-1:0]                             unit_out_ready;
     logic      [UNIT_CNT-1:0][XIF_ID_W              -1:0] unit_out_instr_id;
     cfg_vsew   [UNIT_CNT-1:0]                             unit_out_eew;
+    cfg_emul   [UNIT_CNT-1:0]                             unit_out_emul;
     logic      [UNIT_CNT-1:0][4:0]                        unit_out_vaddr;
     logic      [UNIT_CNT-1:0][RES_CNT-1:0]                unit_out_res_store;
     logic      [UNIT_CNT-1:0][RES_CNT-1:0]                unit_out_res_valid;
@@ -148,6 +150,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
                     .pipe_out_ready_i          ( unit_out_ready         [i] ),
                     .pipe_out_instr_id_o       ( unit_out_instr_id      [i] ),
                     .pipe_out_eew_o            ( unit_out_eew           [i] ),
+                    .pipe_out_emul_o           ( unit_out_emul          [i] ),
                     .pipe_out_vaddr_o          ( unit_out_vaddr         [i] ),
                     .pipe_out_res_store_o      ( unit_out_res_store     [i] ),
                     .pipe_out_res_valid_o      ( unit_out_res_valid     [i] ),
@@ -247,6 +250,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
         pipe_out_valid_o          = '0;
         pipe_out_instr_id_o       =          DONT_CARE_ZERO ?             '0  :             'x   ;
         pipe_out_eew_o            =          DONT_CARE_ZERO ? cfg_vsew'  ('0) : cfg_vsew'  ('x)  ;
+        pipe_out_emul_o           =          DONT_CARE_ZERO ? cfg_emul'  ('0) : cfg_emul'  ('x)  ;
         pipe_out_vaddr_o          =          DONT_CARE_ZERO ?             '0  :             'x   ;
         pipe_out_res_store_o      =          DONT_CARE_ZERO ?             '0  :             'x   ;
         pipe_out_res_valid_o      =          DONT_CARE_ZERO ?             '0  :             'x   ;
@@ -261,6 +265,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
                 pipe_out_valid_o          = unit_out_valid         [i];
                 pipe_out_instr_id_o       = unit_out_instr_id      [i];
                 pipe_out_eew_o            = unit_out_eew           [i];
+                pipe_out_emul_o           = unit_out_emul          [i];
                 pipe_out_vaddr_o          = unit_out_vaddr         [i];
                 pipe_out_res_store_o      = unit_out_res_store     [i];
                 pipe_out_res_valid_o      = unit_out_res_valid     [i];

@@ -468,7 +468,8 @@ module vproc_pipeline import vproc_pkg::*; #(
         if ((count_next_inc.part.low == '0) & ((OP_ALT_COUNTER == '0) | ~state_q.count.part.sign) &
             ((RES_ALWAYS_VREG | state_q.res_vreg) != '0) // at least one valid vreg
         ) begin
-            res_store = ((RES_NARROW & state_q.res_narrow) == '0) | ~count_next_inc.part.mul[0];
+            // state_q.last_cycle is necessary for narrowing instructions with EMUL < 1
+            res_store = ((RES_NARROW & state_q.res_narrow) == '0) | ~count_next_inc.part.mul[0] | state_q.last_cycle;
         end
         // Shifting is delayed by one cycle compared to the store and hence uses the current counter
         if ((state_q.count.val & ~({COUNTER_W{1'b1}} << $clog2(RES_W[0] / COUNTER_OP_W))) == '0) begin
@@ -862,6 +863,7 @@ module vproc_pipeline import vproc_pkg::*; #(
     logic                                   unit_out_ready;
     logic      [XIF_ID_W              -1:0] unit_out_instr_id;
     vproc_pkg::cfg_vsew                     unit_out_eew;
+    vproc_pkg::cfg_emul                     unit_out_emul;
     logic      [4:0]                        unit_out_vaddr;
     logic                                   unit_out_res_vaddr;
     logic      [RES_CNT-1:0]                unit_out_res_store;
@@ -900,6 +902,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         .pipe_out_ready_i          ( unit_out_ready           ),
         .pipe_out_instr_id_o       ( unit_out_instr_id        ),
         .pipe_out_eew_o            ( unit_out_eew             ),
+        .pipe_out_emul_o           ( unit_out_emul            ),
         .pipe_out_vaddr_o          ( unit_out_vaddr           ),
         .pipe_out_res_store_o      ( unit_out_res_store       ),
         .pipe_out_res_valid_o      ( unit_out_res_valid       ),
@@ -952,6 +955,7 @@ module vproc_pipeline import vproc_pkg::*; #(
         .pipe_in_ready_o             ( unit_out_ready          ),
         .pipe_in_instr_id_i          ( unit_out_instr_id       ),
         .pipe_in_eew_i               ( unit_out_eew            ),
+        .pipe_in_emul_i              ( unit_out_emul           ),
         .pipe_in_vaddr_i             ( unit_out_vaddr          ),
         .pipe_in_res_store_i         ( unit_out_res_store      ),
         .pipe_in_res_valid_i         ( unit_out_res_valid      ),
