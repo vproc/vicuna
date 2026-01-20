@@ -11,10 +11,12 @@ main:
     li              t0, 9
     vsetvli         t0, t0, e16,m2,tu,mu
 
-    vle16.v         v0, (a0)
-    vmv.v.x         v4, x0
-    vcompress.vm    v4, v0, v0
-    vse16.v         v4, (a0)
+    vle16.v         v4, (a0)
+    vmv.v.x         v2, x0
+    li              t0, 0x0123
+    vmv.v.x         v0, t0
+    vcompress.vm    v2, v4, v0
+    vse16.v         v2, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
@@ -65,8 +67,8 @@ vdata_end:
     .global vref_end
 vref_start:
     .word           0x323b3f47
-    .word           0x4a514b3a
-    .word           0x0000383b
+    .word           0x383b302f
+    .word           0x00000000
     .word           0x00000000
     .word           0x3f440000
     .word           0x37424d54

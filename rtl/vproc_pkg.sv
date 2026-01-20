@@ -332,6 +332,7 @@ typedef struct packed {
     logic       narrow;
     logic       saturate;
     logic       sig;
+    logic       red_op;
     logic [2:0] mul_idx;
 } pack_flags;
 
