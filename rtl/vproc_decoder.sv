@@ -49,10 +49,12 @@ module vproc_decoder #(
     logic      emul_override;
     cfg_emul   emul;
     evl_policy evl_pol;
+    logic      instr_vzsext;
 
     always_comb begin
         instr_illegal = 1'b0;
         emul_override = 1'b0;
+        instr_vzsext  = 1'b0;
         emul          = DONT_CARE_ZERO ? cfg_emul'('0) : cfg_emul'('x);
         evl_pol       = EVL_DEFAULT;
 
@@ -665,6 +667,7 @@ module vproc_decoder #(
                             mode_o.alu.op_mask  = instr_masked ? ALU_MASK_WRITE : ALU_MASK_NONE;
                             mode_o.alu.cmp      = 1'b0;
                             mode_o.alu.sigext   = instr_vs1[0];
+                            instr_vzsext        = 1'b1;
                             rs1_o.vreg          = 1'b0;
                             instr_illegal       = (instr_vs1[4:1] != 4'b0011);
                             widenarrow_o        = OP_WIDENING;
@@ -1542,7 +1545,7 @@ module vproc_decoder #(
 
         end else begin
 
-            if (widenarrow_o == OP_SINGLEWIDTH) begin
+            if (widenarrow_o == OP_SINGLEWIDTH || instr_vzsext) begin
                 vsew_o = vsew_i;
                 unique case (lmul_i)
                     LMUL_F8,
