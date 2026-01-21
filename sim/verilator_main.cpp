@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     Vvproc_top *top = new Vvproc_top;
     VerilatedTrace_t *tfp = NULL;
 #if defined(TRACE_VCD) || defined(TRACE_FST)
-    if (argc == 8) {
+    if (argc == 9) {
         tfp = new VerilatedTrace_t;
         top->trace(tfp, 99);  // Trace 99 levels of hierarchy
         tfp->open(argv[8]);
