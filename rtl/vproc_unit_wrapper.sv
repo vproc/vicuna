@@ -34,6 +34,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
         input  logic                                 pipe_out_ready_i,
         output logic    [XIF_ID_W              -1:0] pipe_out_instr_id_o,
         output cfg_vsew                              pipe_out_eew_o,
+        output cfg_emul                              pipe_out_emul_o,
         output logic    [4:0]                        pipe_out_vaddr_o,
         output logic    [RES_CNT-1:0]                pipe_out_res_store_o,
         output logic    [RES_CNT-1:0]                pipe_out_res_valid_o,
@@ -111,6 +112,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
             always_comb begin
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
+                pipe_out_emul_o     = unit_out_ctrl.emul;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
                 pipe_out_res_store_o = '0;
                 pipe_out_res_valid_o = '0;
@@ -156,6 +158,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
             always_comb begin
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
+                pipe_out_emul_o     = unit_out_ctrl.emul;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
                 pipe_out_res_store_o = '0;
                 pipe_out_res_valid_o = '0;
@@ -211,6 +214,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
             always_comb begin
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
+                pipe_out_emul_o     = unit_out_ctrl.emul;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
                 pipe_out_res_store_o = '0;
                 pipe_out_res_valid_o = '0;
@@ -253,6 +257,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
             always_comb begin
                 pipe_out_instr_id_o = unit_out_ctrl.id;
                 pipe_out_eew_o      = unit_out_ctrl.eew;
+                pipe_out_emul_o     = unit_out_ctrl.emul;
                 pipe_out_vaddr_o    = unit_out_ctrl.res_vaddr;
                 pipe_out_res_store_o = '0;
                 pipe_out_res_valid_o = '0;
@@ -428,6 +433,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
             always_comb begin
                 pipe_out_instr_id_o = flushing_q ? flushing_id_q  : unit_out_ctrl.id;
                 pipe_out_eew_o      = flushing_q ? flushing_eew_q : unit_out_ctrl.eew;
+                pipe_out_emul_o     = flushing_q ? flushing_emul_q : unit_out_ctrl.emul;
                 pipe_out_vaddr_o = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (flushing_q ? flushing_emul_q : unit_out_ctrl.emul)
                     EMUL_1: pipe_out_vaddr_o = base_vaddr;
@@ -449,7 +455,8 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                     default: ;
                 endcase
                 pipe_out_res_flags_o[0].elemwise = 1'b1;
-                pipe_out_res_store_o[0]          = ((~unit_out_ctrl.mode.elem.xreg & unit_out_res_valid) | flushing_q) & (vd_count_d.part.low == '1);
+                pipe_out_res_flags_o[0].red_op   = unit_out_ctrl.red_op;
+                pipe_out_res_store_o[0]          = ((~unit_out_ctrl.mode.elem.xreg & unit_out_res_valid) | flushing_q) & (vd_count_d.part.low == '1 | unit_out_ctrl.red_op);
                 pipe_out_res_valid_o[0]          = flushing_q | unit_out_res_valid;
                 pipe_out_res_data_o [0]          = unit_out_res;
                 pipe_out_res_mask_o [0][3:0]     = flushing_q ? '0 : unit_out_mask;

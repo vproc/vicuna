@@ -198,6 +198,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         count_inc_e                      count_inc;         // counter increment policy
         logic                      [2:0] field_count_init;  // field counter initial value
         logic                            requires_flush;    // whether the instr requires flushing
+        logic                            red_op;            // whether the instr is a reduction
         logic        [XIF_ID_W     -1:0] id;
         op_unit                          unit;
         op_mode                          mode;
@@ -224,99 +225,115 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     assign unit_elem = UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM);
 
     // identify the type of data that vs2 supplies for ELEM instructions
-    logic elem_flush, elem_vs2_data, elem_vs2_mask, elem_vs2_dyn_addr;
+    logic elem_flush, red_op, elem_vs2_data, elem_vs2_mask, elem_vs2_dyn_addr;
     always_comb begin
         elem_flush        = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        red_op            = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         elem_vs2_data     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         elem_vs2_mask     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         elem_vs2_dyn_addr = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (pipe_in_data_i.mode.elem.op)
             ELEM_XMV:       begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VPOPC:     begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
                 elem_vs2_mask     = 1'b1;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VFIRST:    begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
                 elem_vs2_mask     = 1'b1;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VID:       begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VIOTA:     begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
                 elem_vs2_mask     = 1'b1;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VRGATHER:  begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b1;
             end
             ELEM_VCOMPRESS: begin
                 elem_flush        = 1'b1;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
                 elem_vs2_mask     = 1'b1;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDSUM:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDAND:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDOR:    begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDXOR:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDMINU:  begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDMIN:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDMAXU:  begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDMAX:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
@@ -403,6 +420,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
 
         state_init.field_count_init = unit_lsu ? pipe_in_data_i.mode.lsu.nfields : '0;
         state_init.requires_flush = unit_elem & elem_flush;
+        state_init.red_op         = red_op;
         state_init.id             = pipe_in_data_i.id;
         state_init.unit           = pipe_in_data_i.unit;
         state_init.mode           = pipe_in_data_i.mode;

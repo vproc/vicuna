@@ -32,6 +32,7 @@ module vproc_vregpack #(
         output logic                                pipe_in_ready_o,
         input  logic   [INSTR_ID_W            -1:0] pipe_in_instr_id_i,     // ID of instruction
         input  vproc_pkg::cfg_vsew                  pipe_in_eew_i,          // current elem width
+        input  vproc_pkg::cfg_emul                  pipe_in_emul_i,         // current mul width
         input  logic   [VADDR_W               -1:0] pipe_in_vaddr_i,        // vreg address
         input  logic   [RES_CNT-1:0]                pipe_in_res_store_i,    // result store signal
         input  logic   [RES_CNT-1:0]                pipe_in_res_valid_i,    // result is valid
@@ -321,13 +322,44 @@ module vproc_vregpack #(
                     // by default, retain current value for lower part and assign default value for upper part
                     res_buffer_next[i] = {res_default, res_buffer[i][VPORT_W  -RES_W[i]  -1:0]};
                     msk_buffer_next[i] = {msk_default, msk_buffer[i][VPORT_W/8-RES_W[i]/8-1:0]};
+                    // For narrow with EMUL == 1, we need to put the new res(msk) at the middle of the buffer 
+                    if(RES_NARROW[i] & pipe_in_res_flags_i[i].narrow & pipe_in_emul_i == EMUL_1) begin
+                        msk_buffer_next[i][VPORT_W/8-1:VPORT_W/8-RES_W[i]/8] = {RES_W[i]/8{1'b0}};
+                        res_buffer_next[i][VPORT_W/2-1-:RES_W[i]] = {res_default[RES_W[i]-1:RES_W[i]/2], res_buffer[i][VPORT_W/2-1-:RES_W[i]/2]};
+                        msk_buffer_next[i][VPORT_W/16-1-:RES_W[i]/8] = {msk_default[RES_W[i]/8-1:RES_W[i]/16], msk_buffer[i][VPORT_W/16-1-:RES_W[i]/16]};
+                    end
                     // shift signal shifts entire content right by the width of the result; full-size results
                     // shift every cycle
-                    if ((~RES_MASK[i] & ~RES_NARROW[i] & ~RES_ALLOW_ELEMWISE[i] & ~RES_ALWAYS_ELEMWISE[i]) |
+                    else if ((~RES_MASK[i] & ~RES_NARROW[i] & ~RES_ALLOW_ELEMWISE[i] & ~RES_ALWAYS_ELEMWISE[i]) |
                         pipe_in_res_flags_i[i].shift
                     ) begin
                         res_buffer_next[i][VPORT_W  -RES_W[i]  -1:0] = res_buffer[i][VPORT_W  -1:RES_W[i]  ];
                         msk_buffer_next[i][VPORT_W/8-RES_W[i]/8-1:0] = msk_buffer[i][VPORT_W/8-1:RES_W[i]/8];
+                    end
+                    // For reduction operations, we write the reduction value directly in the lowest bits of the result
+                    // and set only the lowest bits of the mask buffer
+                    // We did this, because the current Vicuna code has a bug when the following instruction is executed
+                    // at the same pipeline, the unit deque will not be available for the new instruction because 
+                    // it is processing the flush logic for the reduction/compress operations
+                    // This extra if removes the need for the flush logic for reduction operations, but doesn't fix
+                    // the problem for compress instructions
+                    if((RES_ALLOW_ELEMWISE[i] | RES_ALWAYS_ELEMWISE[i]) & pipe_in_res_flags_i[i].red_op) begin
+                        msk_buffer_next[i] = '0;
+                        unique case (pipe_in_eew_i)
+                            VSEW_8: begin
+                                res_buffer_next[i][7:0] = pipe_in_res_data_i[i][7 :0];
+                                msk_buffer_next[i][0] = pipe_in_res_mask_i[i][0];
+                            end
+                            VSEW_16: begin
+                                res_buffer_next[i][15:0] = pipe_in_res_data_i[i][15:0];
+                                msk_buffer_next[i][1:0] = {2{pipe_in_res_mask_i[i][0]}};
+                            end
+                            VSEW_32: begin
+                                res_buffer_next[i][31:0] = pipe_in_res_data_i[i][31:0];
+                                msk_buffer_next[i][3:0] = {4{pipe_in_res_mask_i[i][0]}};
+                            end
+                            default: ;
+                        endcase
                     end
                 end
 
