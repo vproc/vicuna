@@ -24,12 +24,12 @@ typedef int VerilatedTrace_t;
 static void log_cycle(Vvproc_top *top, VerilatedTrace_t *tfp, FILE *fcsv);
 
 int main(int argc, char **argv) {
-    if (argc != 7 && argc != 8) {
-        fprintf(stderr, "Usage: %s PROG_PATHS_LIST MEM_W MEM_SZ MEM_LATENCY EXTRA_CYCLES TRACE_FILE [WAVEFORM_FILE]\n", argv[0]);
+    if (argc != 8 && argc != 9) {
+        fprintf(stderr, "Usage: %s PROG_PATHS_LIST MEM_W MEM_SZ MEM_LATENCY EXTRA_CYCLES VLEN TRACE_FILE [WAVEFORM_FILE]\n", argv[0]);
         return 1;
     }
 
-    int mem_w, mem_sz, mem_latency, extra_cycles;
+    int mem_w, mem_sz, mem_latency, extra_cycles, vlen;
     {
         char *endptr;
         mem_w = strtol(argv[2], &endptr, 10);
@@ -52,6 +52,11 @@ int main(int argc, char **argv) {
             fprintf(stderr, "ERROR: invalid EXTRA_CYCLES argument\n");
             return 1;
         }
+        vlen = strtol(argv[6], &endptr, 10);
+        if (*endptr != 0) {
+            fprintf(stderr, "ERROR: invalid VLEN argument\n");
+            return 1;
+        }
     }
 
     Verilated::traceEverOn(true);
@@ -63,9 +68,9 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    FILE *fcsv = fopen(argv[6], "w");
+    FILE *fcsv = fopen(argv[7], "w");
     if (fcsv == NULL) {
-        fprintf(stderr, "ERROR: opening `%s': %s\n", argv[6], strerror(errno));
+        fprintf(stderr, "ERROR: opening `%s': %s\n", argv[7], strerror(errno));
         return 2;
     }
     fprintf(fcsv, "rst_ni;mem_req;mem_addr;pend_vreg_wr_map_o;\n");
@@ -82,10 +87,10 @@ int main(int argc, char **argv) {
     Vvproc_top *top = new Vvproc_top;
     VerilatedTrace_t *tfp = NULL;
 #if defined(TRACE_VCD) || defined(TRACE_FST)
-    if (argc == 8) {
+    if (argc == 9) {
         tfp = new VerilatedTrace_t;
         top->trace(tfp, 99);  // Trace 99 levels of hierarchy
-        tfp->open(argv[7]);
+        tfp->open(argv[8]);
     }
 #endif
 
@@ -209,21 +214,29 @@ int main(int argc, char **argv) {
                         mem_rdata_queue[0] |= ((int64_t)mem[addr+i]) << (i*8);
                     }
                 }
+                // Cache access to the UART
                 else if (top->mem_req_o) {
                     // test for memory-mapped registers in case of a request for an invalid addr
-                    switch (addr) {
+                    switch (top->mem_addr_o) {
                         case 0xFF000000u: // UART data register
                             valid              = true;
                             mem_rdata_queue[0] = -1;   // always reads as -1, i.e. no data received
-                            if (top->mem_we_o) {
-                                putc(top->mem_wdata_o & 0xFF, stdout);
-                            }
                             break;
                         case 0xFF000004u: // UART status register
                             valid              = true;
                             mem_rdata_queue[0] = 0;    // always ready to transmit
                             break;
+                        default:
+                            if((top->mem_addr_o & ~(vlen/8 - 1)) == 0xFF000000u) {
+                                valid              = true;
+                                mem_rdata_queue[0] = -1;
+                            }
+                            break;
                     }
+                }
+                // Print bypassed UART data
+                if (top->uart_we_o) {
+                    putc(top->uart_data_o, stdout);
                 }
                 mem_rvalid_queue[0] = top->mem_req_o;
                 mem_err_queue   [0] = !valid;

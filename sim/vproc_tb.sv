@@ -31,6 +31,8 @@ module vproc_tb #(
     logic        mem_rvalid;
     logic        mem_err;
     logic [31:0] mem_rdata;
+    logic        uart_we;
+    logic [7:0]  uart_data;
 
     vproc_top #(
         .MEM_W         ( MEM_W                       ),
@@ -52,6 +54,8 @@ module vproc_tb #(
         .mem_rvalid_i  ( mem_rvalid                  ),
         .mem_err_i     ( mem_err                     ),
         .mem_rdata_i   ( mem_rdata                   ),
+        .uart_we_o     ( uart_we                     ),
+        .uart_data_o   ( uart_data                   ),
         .pend_vreg_wr_map_o (                        )
     );
 
