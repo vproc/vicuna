@@ -16,6 +16,10 @@ module vproc_mul_block #(
         input  logic [16:0]           op1_i,
         input  logic [16:0]           op2_i,
 
+        input  logic                  ops_valid_i,
+        input  logic                  mul_valid_i,
+        input  logic                  res_valid_i,
+
         // note that when operands are buffered, then acc*_i must be delayed by 1 cycle
         input  logic [15:0]           acc_i,
         input  logic                  acc_flag_i, // use accumulator (otherwise it is replaced with 0)
@@ -37,8 +41,10 @@ module vproc_mul_block #(
 
                 if (BUF_OPS) begin
                     always_ff @(posedge clk_i) begin
-                        op1_q <= op1_i;
-                        op2_q <= op2_i;
+                        if(ops_valid_i) begin
+                            op1_q <= op1_i;
+                            op2_q <= op2_i;
+                        end
                     end
                 end else begin
                     always_comb begin
@@ -49,9 +55,11 @@ module vproc_mul_block #(
 
                 if (BUF_MUL) begin
                     always_ff @(posedge clk_i) begin
-                        mul_q     <= mul_d;
-                        acc_q     <= acc_flag_i ? acc_i : '0;
-                        acc_sub_q <= acc_sub_i;
+                        if(mul_valid_i) begin
+                            mul_q     <= mul_d;
+                            acc_q     <= acc_flag_i ? acc_i : '0;
+                            acc_sub_q <= acc_sub_i;
+                        end
                     end
                 end else begin
                     always_comb begin
@@ -63,7 +71,9 @@ module vproc_mul_block #(
 
                 if (BUF_RES) begin
                     always_ff @(posedge clk_i) begin
-                        res_q <= res_d;
+                        if(res_valid_i) begin
+                            res_q <= res_d;
+                        end
                     end
                 end else begin
                     always_comb begin
@@ -72,7 +82,7 @@ module vproc_mul_block #(
                 end
 
                 assign mul_d = $signed(op1_q) * $signed(op2_q);
-                assign res_d = acc_sub_i ? {17'b0, acc_q} - mul_q : {17'b0, acc_q} + mul_q;
+                assign res_d = acc_sub_q ? {17'b0, acc_q} - mul_q : {17'b0, acc_q} + mul_q;
                 assign res_o = res_q;
 
             end
