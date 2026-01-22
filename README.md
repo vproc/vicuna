@@ -119,6 +119,6 @@ under the Solderpad Hardware License, see
 
 A new team at TU Wien has taken over development of this project.  
 
-For future development, please check out the other repositories under the [label](https://github.com/vproc/) organization.
+For future development, please check out the other repositories under the [https://github.com/vproc/](https://github.com/vproc/) organization.
 
 For backwards compatibility for projects still using the original Vicuna repo, this repository will stay up unchanged.
