@@ -114,3 +114,11 @@ for details.
 The CV32E40X core (included in this repository as a submodule) is licensed
 under the Solderpad Hardware License, see
 [the CV32E40X repository](https://github.com/openhwgroup/cv32e40x) for details.
+
+## Future Development
+
+A new team at TU Wien has taken over development of this project.  
+
+For future development, please check out the other repositories under the [label](https://github.com/vproc/) organization.
+
+For backwards compatibility for projects still using the original Vicuna repo, this repository will stay up unchanged.
