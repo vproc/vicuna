@@ -449,7 +449,8 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                     default: ;
                 endcase
                 pipe_out_res_flags_o[0].elemwise = 1'b1;
-                pipe_out_res_store_o[0]          = ((~unit_out_ctrl.mode.elem.xreg & unit_out_res_valid) | flushing_q) & (vd_count_d.part.low == '1);
+                pipe_out_res_flags_o[0].red_op   = unit_out_ctrl.red_op;
+                pipe_out_res_store_o[0]          = ((~unit_out_ctrl.mode.elem.xreg & unit_out_res_valid) | flushing_q) & (vd_count_d.part.low == '1 | unit_out_ctrl.red_op);
                 pipe_out_res_valid_o[0]          = flushing_q | unit_out_res_valid;
                 pipe_out_res_data_o [0]          = unit_out_res;
                 pipe_out_res_mask_o [0][3:0]     = flushing_q ? '0 : unit_out_mask;
