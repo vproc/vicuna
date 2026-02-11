@@ -269,7 +269,7 @@ module vproc_unit_mux import vproc_pkg::*; #(
                 pipe_out_res_mask_o       = unit_out_res_mask      [i];
                 pipe_out_pend_clear_o     = unit_out_pend_clear    [i];
                 pipe_out_pend_clear_cnt_o = unit_out_pend_clear_cnt[i];
-                pipe_out_instr_done_o     = unit_out_instr_done    [i];
+                pipe_out_instr_done_o     = unit_out_instr_done    [i] & unit_out_valid[i];
             end
         end
     end

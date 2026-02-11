@@ -329,6 +329,31 @@ module vproc_vregpack #(
                         res_buffer_next[i][VPORT_W  -RES_W[i]  -1:0] = res_buffer[i][VPORT_W  -1:RES_W[i]  ];
                         msk_buffer_next[i][VPORT_W/8-RES_W[i]/8-1:0] = msk_buffer[i][VPORT_W/8-1:RES_W[i]/8];
                     end
+                    // For reduction operations, we write the reduction value directly in the lowest bits of the result
+                    // and set only the lowest bits of the mask buffer
+                    // We did this, because the current Vicuna code has a bug when the following instruction is executed
+                    // at the same pipeline, the unit deque will not be available for the new instruction because 
+                    // it is processing the flush logic for the reduction/compress operations
+                    // This extra if removes the need for the flush logic for reduction operations, but doesn't fix
+                    // the problem for compress instructions
+                    if((RES_ALLOW_ELEMWISE[i] | RES_ALWAYS_ELEMWISE[i]) & pipe_in_res_flags_i[i].red_op) begin
+                        msk_buffer_next[i] = '0;
+                        unique case (pipe_in_eew_i)
+                            VSEW_8: begin
+                                res_buffer_next[i][7:0] = pipe_in_res_data_i[i][7 :0];
+                                msk_buffer_next[i][0] = pipe_in_res_mask_i[i][0];
+                            end
+                            VSEW_16: begin
+                                res_buffer_next[i][15:0] = pipe_in_res_data_i[i][15:0];
+                                msk_buffer_next[i][1:0] = {2{pipe_in_res_mask_i[i][0]}};
+                            end
+                            VSEW_32: begin
+                                res_buffer_next[i][31:0] = pipe_in_res_data_i[i][31:0];
+                                msk_buffer_next[i][3:0] = {4{pipe_in_res_mask_i[i][0]}};
+                            end
+                            default: ;
+                        endcase
+                    end
                 end
 
             end

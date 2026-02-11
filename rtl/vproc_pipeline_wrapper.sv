@@ -97,19 +97,20 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     // by indices loaded by a previous operand.  These operands have following indices (negative
     // indices must be added to the operand count):
     //
-    //  | Idx | Type | Address  | Units using it | Comment                                       |
-    //  +-----+------+----------+----------------+-----------------------------------------------+
-    //  |  0  | data | vs2 (vd) |      all       | Only MUL may change address to vd             |
-    //  |  1  | data | vs1 (vd) | all except SLD | Only LSU uses vd as address instead of vs1    |
-    //  |  2  | data |  vd/vs2  |      MUL       | MUL may use either vd or vs2 as address       |
-    //  | -3  | data | dynamic  |     ELEM       | Index-based dynamic address within vreg group |
-    //  | -2  | mask |   vs2    |     ELEM       | Mask operand for some ELEM operations         |
-    //  | -1  | mask |    v0    |      all       | Mask operand for masked operations            |
+    //  | Idx | Type | Address  | Units using it | Comment                                                            |
+    //  +-----+------+----------+----------------+--------------------------------------------------------------------+
+    //  |  0  | data | vs2 (vd) |      all       | Only MUL may change address to vd                                  |
+    //  |  1  | data | anything | all except SLD | LSU uses as vd, vcompress uses as vs2, everyone else use as vs1    |
+    //  |  2  | data |  vd/vs2  |      MUL       | MUL may use either vd or vs2 as address                            |
+    //  | -3  | data | dynamic  |     ELEM       | Index-based dynamic address within vreg group                      |
+    //  | -2  | mask | vs2(vs1) |     ELEM       | Mask operand for some ELEM operations                              |
+    //  | -1  | mask |    v0    |      all       | Mask operand for masked operations                                 |
 
     // Operand count:
     // - default is 3 (indices 0, 1, and -1 from above table, required by almost all units)
     // - MUL unit additionally requires index 2, raising the operand count to a minimum of 4
     // - ELEM unit additionally requires indices -3 and -2, hence a minimum of 5 operands
+    // - For indice -2, vs2 is required by vpopc, vfirst and viota, while vs1 is required for vcompress
     // - if MUL and ELEM units are both present in same pipeline, then all 6 operands are required
     // - in case a pipeline contains only the SLD unit the operand count is 2 (indices 0 and -1)
     localparam int unsigned OP_CNT        = UNITS[UNIT_MUL] ? (
@@ -198,6 +199,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         count_inc_e                      count_inc;         // counter increment policy
         logic                      [2:0] field_count_init;  // field counter initial value
         logic                            requires_flush;    // whether the instr requires flushing
+        logic                            red_op;            // whether the instr is a reduction
         logic        [XIF_ID_W     -1:0] id;
         op_unit                          unit;
         op_mode                          mode;
@@ -224,100 +226,132 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     assign unit_elem = UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM);
 
     // identify the type of data that vs2 supplies for ELEM instructions
-    logic elem_flush, elem_vs2_data, elem_vs2_mask, elem_vs2_dyn_addr;
+    logic elem_flush, red_op, elem_vs2_data, elem_vs1_mask, elem_vs2_mask, elem_vs2_dyn_addr;
     always_comb begin
         elem_flush        = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        red_op            = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         elem_vs2_data     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
+        elem_vs1_mask     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         elem_vs2_mask     = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         elem_vs2_dyn_addr = DONT_CARE_ZERO ? 1'b0 : 1'bx;
         unique case (pipe_in_data_i.mode.elem.op)
             ELEM_XMV:       begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VPOPC:     begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b1;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VFIRST:    begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b1;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VID:       begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VIOTA:     begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b1;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VRGATHER:  begin
                 elem_flush        = 1'b0;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b1;
             end
             ELEM_VCOMPRESS: begin
                 elem_flush        = 1'b1;
+                red_op            = 1'b0;
                 elem_vs2_data     = 1'b0;
-                elem_vs2_mask     = 1'b1;
+                elem_vs1_mask     = 1'b1;
+                elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDSUM:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDAND:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDOR:    begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDXOR:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDMINU:  begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDMIN:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDMAXU:  begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
             ELEM_VREDMAX:   begin
-                elem_flush        = 1'b1;
+                elem_flush        = 1'b0;
+                red_op            = 1'b1;
                 elem_vs2_data     = 1'b1;
+                elem_vs1_mask     = 1'b0;
                 elem_vs2_mask     = 1'b0;
                 elem_vs2_dyn_addr = 1'b0;
             end
@@ -403,6 +437,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
 
         state_init.field_count_init = unit_lsu ? pipe_in_data_i.mode.lsu.nfields : '0;
         state_init.requires_flush = unit_elem & elem_flush;
+        state_init.red_op         = red_op;
         state_init.id             = pipe_in_data_i.id;
         state_init.unit           = pipe_in_data_i.unit;
         state_init.mode           = pipe_in_data_i.mode;
@@ -483,16 +518,19 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
             state_init.op_vaddr[(OP_CNT >= 3) ? 2 : 0]      = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rd.addr;
         end
         if (unit_elem) begin
+            // elem_vs1_mask is used for vcompress, where OP1_SRC is used to fetch vs2 and OP0_SRC fetches vs1 (mask)
             state_init.op_flags[0                           ].vreg     = pipe_in_data_i.rs2.vreg & elem_vs2_data;
             state_init.op_flags[0                           ].elemwise = 1'b1;
             state_init.op_flags[0                           ].sigext   = pipe_in_data_i.mode.elem.sigext;
+            state_init.op_flags[1                           ].vreg     = pipe_in_data_i.rs1.vreg | (elem_vs1_mask & pipe_in_data_i.rs2.vreg);
             state_init.op_flags[1                           ].elemwise = 1'b1;
             state_init.op_flags[1                           ].narrow   = 1'b0; // only op 0 can be narrow
+            state_init.op_vaddr[1                           ]          = elem_vs1_mask ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rs1.r.vaddr;
             state_init.op_flags[(OP_CNT >= 3) ? OP_CNT-3 : 0].vreg     = elem_vs2_dyn_addr;
             state_init.op_vaddr[(OP_CNT >= 3) ? OP_CNT-3 : 0]          = pipe_in_data_i.rs2.r.vaddr;
-            state_init.op_flags[                OP_CNT-2    ].vreg     = pipe_in_data_i.rs2.vreg & elem_vs2_mask;
+            state_init.op_flags[                OP_CNT-2    ].vreg     = (pipe_in_data_i.rs2.vreg & elem_vs2_mask) | (pipe_in_data_i.rs1.vreg & elem_vs1_mask);
             state_init.op_flags[                OP_CNT-2    ].elemwise = 1'b1;
-            state_init.op_vaddr[                OP_CNT-2    ]          = pipe_in_data_i.rs2.r.vaddr;
+            state_init.op_vaddr[                OP_CNT-2    ]          = elem_vs1_mask ? pipe_in_data_i.rs1.r.vaddr : pipe_in_data_i.rs2.r.vaddr;
             state_init.op_flags[                OP_CNT-1    ].elemwise = 1'b1;
         end
     end

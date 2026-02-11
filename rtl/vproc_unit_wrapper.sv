@@ -311,19 +311,26 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
             // ELEM unit's output buffer signals
             logic                has_valid_result_q, has_valid_result_d;
             COUNTER_T            vd_count_q,         vd_count_d;
+            COUNTER_T            vs_count_q,         vs_count_d;
             logic                flushing_q,         flushing_d;
             logic [XIF_ID_W-1:0] flushing_id_q,      flushing_id_d;
             vproc_pkg::cfg_vsew  flushing_eew_q,     flushing_eew_d;
             vproc_pkg::cfg_emul  flushing_emul_q,    flushing_emul_d;
             logic [4:0]          flushing_vaddr_q,   flushing_vaddr_d;
+            // flush the downstream part of the pipeline after the last cycle if needed
+            logic                flush_finished_d, flush_finished_q;
+            // Symbolizes when we finish the compress operation and starts the flush process in vcompress
+            logic                compress_last_cycle;
             always_ff @(posedge clk_i) begin
                 if (pipe_out_ready_i) begin
                     vd_count_q         <= vd_count_d;
+                    vs_count_q         <= vs_count_d;
                     has_valid_result_q <= has_valid_result_d;
                     flushing_id_q      <= flushing_id_d;
                     flushing_eew_q     <= flushing_eew_d;
                     flushing_emul_q    <= flushing_emul_d;
                     flushing_vaddr_q   <= flushing_vaddr_d;
+                    flush_finished_q   <= flush_finished_d;
                 end
             end
             always_ff @(posedge clk_i or negedge async_rst_ni) begin
@@ -352,6 +359,7 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
             assign first_valid_result = ~flushing_q & res_valid & (unit_out_ctrl.first_cycle | ~has_valid_result_q);
             always_comb begin
                 vd_count_d.val = DONT_CARE_ZERO ? '0 : 'x;
+                vs_count_d.val = DONT_CARE_ZERO ? '0 : 'x;
                 unique case (flushing_q ? flushing_eew_q : unit_out_ctrl.eew)
                     VSEW_8:  vd_count_d.val = vd_count_q.val + {{(COUNTER_W-1){1'b0}}, flushing_q | res_valid      };
                     VSEW_16: vd_count_d.val = vd_count_q.val + {{(COUNTER_W-2){1'b0}}, flushing_q | res_valid, 1'b0};
@@ -365,6 +373,22 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                         VSEW_8:  vd_count_d.val[1:0] = 2'b00;
                         VSEW_16: vd_count_d.val[1:0] = 2'b01;
                         VSEW_32: vd_count_d.val[1:0] = 2'b11;
+                        default: ;
+                    endcase
+                end
+                unique case (unit_out_ctrl.eew)
+                    VSEW_8:  vs_count_d.val = vs_count_q.val + {{(COUNTER_W-1){1'b0}}, ~flushing_q & unit_out_valid      };
+                    VSEW_16: vs_count_d.val = vs_count_q.val + {{(COUNTER_W-2){1'b0}}, ~flushing_q & unit_out_valid, 1'b0};
+                    VSEW_32: vs_count_d.val = vs_count_q.val + {{(COUNTER_W-3){1'b0}}, ~flushing_q & unit_out_valid, 2'b0};
+                    default: ;
+                endcase
+                if (unit_out_ctrl.first_cycle) begin
+                    vs_count_d.val      = '0;
+                    vs_count_d.val[1:0] = DONT_CARE_ZERO ? '0 : 'x;
+                    unique case (unit_out_ctrl.eew)
+                        VSEW_8:  vs_count_d.val[1:0] = 2'b00;
+                        VSEW_16: vs_count_d.val[1:0] = 2'b01;
+                        VSEW_32: vs_count_d.val[1:0] = 2'b11;
                         default: ;
                     endcase
                 end
@@ -388,27 +412,48 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                 endcase
             end
 
+            always_comb begin
+                compress_last_cycle = 1'b0;
+                unique case (unit_out_ctrl.eew)
+                    VSEW_8:  compress_last_cycle = vs_count_d.val[COUNTER_W-5:0] == '1;
+                    VSEW_16: compress_last_cycle = vs_count_d.val[COUNTER_W-5:1] == '1;
+                    VSEW_32: compress_last_cycle = vs_count_d.val[COUNTER_W-5:2] == '1;
+                    default: ;
+                endcase
+                unique case (unit_out_ctrl.emul)
+                    EMUL_2: compress_last_cycle &= vs_count_d.part.mul[  0] == '1;
+                    EMUL_4: compress_last_cycle &= vs_count_d.part.mul[1:0] == '1;
+                    EMUL_8: compress_last_cycle &= vs_count_d.part.mul[2:0] == '1;
+                    default: ;
+                endcase
+                // We're flushing, so no compress more
+                if (flushing_q) begin
+                    compress_last_cycle = 1'b0;
+                end
+            end
+
             assign unit_out_stall = unit_out_xreg_valid & (instr_speculative | ~xreg_ready_i);
 
-            // flush the downstream part of the pipeline after the last cycle if needed
-            logic flushing_last_cycle;
             always_comb begin
                 flushing_d          = flushing_q;
                 flushing_id_d       = flushing_id_q;
                 flushing_eew_d      = flushing_eew_q;
                 flushing_emul_d     = flushing_emul_q;
                 flushing_vaddr_d    = flushing_vaddr_q;
-                flushing_last_cycle = 1'b0;
-                if (~flushing_q & unit_out_valid & unit_out_ctrl.last_cycle & unit_out_ctrl.requires_flush) begin
+                flush_finished_d    = flush_finished_q;
+                if (~flushing_q & ~flush_finished_d & unit_out_valid & compress_last_cycle & unit_out_ctrl.requires_flush) begin
                     flushing_d       = 1'b1;
                     flushing_id_d    = unit_out_ctrl.id;
                     flushing_eew_d   = unit_out_ctrl.eew;
                     flushing_emul_d  = unit_out_ctrl.emul;
                     flushing_vaddr_d = unit_out_ctrl.res_vaddr;
                 end
+                if (unit_out_valid & unit_out_ctrl.last_cycle) begin
+                    flush_finished_d = 1'b0;
+                end
                 if (flushing_q & (vd_count_d.part.low == '1)) begin
                     flushing_d          = 1'b0;
-                    flushing_last_cycle = 1'b1;
+                    flush_finished_d    = 1'b1;
                 end
             end
 
@@ -449,13 +494,14 @@ module vproc_unit_wrapper import vproc_pkg::*; #(
                     default: ;
                 endcase
                 pipe_out_res_flags_o[0].elemwise = 1'b1;
-                pipe_out_res_store_o[0]          = ((~unit_out_ctrl.mode.elem.xreg & unit_out_res_valid) | flushing_q) & (vd_count_d.part.low == '1);
-                pipe_out_res_valid_o[0]          = flushing_q | unit_out_res_valid;
+                pipe_out_res_flags_o[0].red_op   = unit_out_ctrl.red_op;
+                pipe_out_res_store_o[0]          = ((~unit_out_ctrl.mode.elem.xreg & unit_out_res_valid) | flushing_q) & (vd_count_d.part.low == '1 | unit_out_ctrl.red_op);
+                pipe_out_res_valid_o[0]          = flushing_q | (unit_out_res_valid & ~flush_finished_q);
                 pipe_out_res_data_o [0]          = unit_out_res;
                 pipe_out_res_mask_o [0][3:0]     = flushing_q ? '0 : unit_out_mask;
             end
-            assign pipe_out_instr_done_o     = (~flushing_q & unit_out_ctrl.last_cycle & ~unit_out_ctrl.requires_flush                                ) | flushing_last_cycle;
-            assign pipe_out_pend_clear_o     = (~flushing_q & unit_out_ctrl.last_cycle & ~unit_out_ctrl.requires_flush & ~unit_out_ctrl.mode.elem.xreg) | flushing_last_cycle;
+            assign pipe_out_instr_done_o     = unit_out_ctrl.last_cycle; // We only finish after the state being done
+            assign pipe_out_pend_clear_o     = (~flushing_q & unit_out_ctrl.last_cycle & ~unit_out_ctrl.requires_flush & ~unit_out_ctrl.mode.elem.xreg) | flush_finished_d;
             assign pipe_out_pend_clear_cnt_o = unit_out_ctrl.emul; // TODO reductions always have destination EMUL == 1
         end
     endgenerate
