@@ -11,9 +11,9 @@ main:
     li              t0, 8
     vsetvli         t0, t0, e16,m1,tu,mu
 
-    vle16.v         v0, (a0)
+    vle8.v          v0, (a0)
     vsext.vf2       v4, v0
-    vse32.v         v4, (a0)
+    vse16.v         v4, (a0)
 
     la              a0, vdata_start
     la              a1, vdata_end
@@ -63,14 +63,14 @@ vdata_end:
     .global vref_start
     .global vref_end
 vref_start:
-    .word           0xffffbf47
-    .word           0x0000323b
-    .word           0x00004b3a
-    .word           0xffffc743
-    .word           0x00002e32
-    .word           0x0000302f
-    .word           0x00004a51
-    .word           0xffffe840
+    .word           0xffbf0047
+    .word           0x0032003b
+    .word           0x004b003a
+    .word           0xffc70043
+    .word           0x3f44383b
+    .word           0x37424d54
+    .word           0x5e4b5049
+    .word           0x4c4c4c4a
     .word           0x4a505f3e
     .word           0x485e5455
     .word           0x4d4c4a41
