@@ -10,7 +10,7 @@ jobs:
   verilator:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache-verilator
         with:
           path: /opt/verilator
@@ -38,11 +38,11 @@ jobs:
     needs: verilator
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: false
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache-verilator
         with:
           path: /opt/verilator
@@ -59,7 +59,7 @@ jobs:
 
       - name: Install verible and lint
         run: |
-          curl -sSL https://api.github.com/repos/chipsalliance/verible/releases/latest | grep browser_download_url | grep Ubuntu-20.04 | cut -d '"' -f 4 | wget -qi -
+          curl -sSL https://api.github.com/repos/chipsalliance/verible/releases/latest | grep browser_download_url | grep Ubuntu-20.04 | grep "x86_64" | cut -d '"' -f 4 | wget -qi -
           mkdir verible
           tar -xf verible*.tar.gz -C verible --strip-components=1
           export PATH=$PATH:$PWD/verible/bin:/opt/verilator/bin
@@ -75,11 +75,21 @@ jobs:
         unit: [lsu, alu, mul, sld, elem, csr, misc]
         main_core: [ibex, cv32e40x]
     steps:
-      - uses: actions/checkout@v2
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 8192
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache-verilator
         with:
           path: /opt/verilator
