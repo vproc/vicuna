@@ -15,7 +15,7 @@
 #  - VPROC_PIPELINES: Defines the vector pipelines. Each pipeline is defined by
 #    a string of the form "WIDTH:UNIT[,UNIT]*" where WIDTH is the width in bits
 #    of the pipeline's datapath and each occurence of UNIT selects one of the
-#    vector execution units (either VLSU, VALU, VMUL, VSLD, or VELEM).
+#    vector execution units (either VLSU, VALU, VMUL, VSLD, VELEM, or VDIV).
 #  - VPROC_CONFIG: Sets default values for the other parameters (that can be
 #    individually overriden) depending on the desired number of vector
 #    pipelines (choose 1, 2, 3, or 5 pipelines by setting this variable to
@@ -28,26 +28,26 @@ ifeq ($(VPROC_CONFIG), compact)
   VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 128
-  VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VMUL,VSLD,VELEM
+  VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VMUL,VSLD,VELEM,VDIV
 else
 ifeq ($(VPROC_CONFIG), dual)
   VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 128
-  VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VELEM $(VPIPE_W_VMUL):VMUL,VSLD
+  VPROC_PIPELINES ?= $(VMEM_W):VLSU,VALU,VELEM,VDIV $(VPIPE_W_VMUL):VMUL,VSLD
 else
 ifeq ($(VPROC_CONFIG), triple)
   VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 256
-  VPROC_PIPELINES ?= $(VMEM_W):VLSU $(VPIPE_W_DFLT):VALU,VELEM $(VPIPE_W_VMUL):VMUL,VSLD
+  VPROC_PIPELINES ?= $(VMEM_W):VLSU $(VPIPE_W_DFLT):VALU,VELEM,VDIV $(VPIPE_W_VMUL):VMUL,VSLD
 else
 ifeq ($(VPROC_CONFIG), legacy)
   VPORT_POLICY    ?= some
   VMEM_W          ?= 32
   VREG_W          ?= 128
   VPROC_PIPELINES ?= $(VMEM_W):VLSU $(VPIPE_W_DFLT):VALU $(VPIPE_W_VMUL):VMUL                     \
-                                    $(VPIPE_W_DFLT):VSLD 32:VELEM
+                                    $(VPIPE_W_DFLT):VSLD 32:VELEM $(VPIPE_W_DFLT):VDIV
 else
 $(error Unknown vector coprocessor configuration $(VPROC_CONFIG))
 endif
@@ -102,7 +102,7 @@ $(VPROC_CONFIG_PKG):
 	    width=`echo $$pipe | cut -d ":" -f 1`;                                                    \
 	    unit_str=`echo $$pipe | cut -d ":" -f 2 | sed 's/,/, /g'`;                                \
 	    unit_mask=`echo $$pipe | cut -d ":" -f 2 | sed 's/,/ | /g' |                              \
-	               sed "s/V\(LSU\|ALU\|MUL\|SLD\|ELEM\)/(UNIT_CNT'(1) << UNIT_\1)/g"`;            \
+	               sed "s/V\(LSU\|ALU\|MUL\|SLD\|ELEM\|DIV\)/(UNIT_CNT'(1) << UNIT_\1)/g"`;       \
 	    vport_cnt=1;                                                                              \
 	    if echo "$$pipe" | grep -q "VMUL" && [ $$(($$width * 4)) -gt "$(VREG_W)" ]; then          \
 	        vport_cnt=2;                                                                          \
@@ -180,6 +180,7 @@ $(VPROC_CONFIG_PKG):
 	echo "    parameter int unsigned VLSU_QUEUE_SZ               = 4;"                      >>$@; \
 	echo "    parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0;"                     >>$@; \
 	echo "    parameter mul_type     MUL_TYPE                    = MUL_GENERIC;"            >>$@; \
+	echo "    parameter div_type     DIV_TYPE                    = DIV_GENERIC;"            >>$@; \
 	echo ""                                                                                 >>$@; \
 	echo "    parameter int unsigned INSTR_QUEUE_SZ              = 2;"                      >>$@; \
 	echo "    parameter bit [BUF_FLAGS_W-1:0] BUF_FLAGS          = $${buf_flags};"          >>$@; \

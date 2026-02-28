@@ -4,7 +4,7 @@
 
 
 module demo_top #(
-        parameter              RAM_FPATH      = "",
+        parameter              RAM_FPATH      = "/home/hfaroo9/ece498hk-RISCV-V-Extension/src/vicuna/sim/files.txt",
         parameter int unsigned RAM_SIZE       = 262144,
         parameter bit          DIFF_CLK       = 1'b0,
         parameter real         SYSCLK_PER     = 0.0,
@@ -88,8 +88,8 @@ module demo_top #(
     vproc_top #(
         .MEM_W        ( 32                          ),
         .VMEM_W       ( 32                          ),
-        .VREG_TYPE    ( vproc_pkg::VREG_XLNX_RAM32M ),
-        .MUL_TYPE     ( vproc_pkg::MUL_XLNX_DSP48E1 )
+        .VREG_TYPE    ( vproc_pkg::VREG_GENERIC ),
+        .MUL_TYPE     ( vproc_pkg::MUL_GENERIC )
     ) vproc (
         .clk_i        ( clk                         ),
         .rst_ni       ( rst_n                       ),

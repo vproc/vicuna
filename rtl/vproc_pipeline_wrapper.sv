@@ -28,6 +28,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         parameter int unsigned           VLSU_QUEUE_SZ     = 4,
         parameter bit [VLSU_FLAGS_W-1:0] VLSU_FLAGS        = '0,
         parameter mul_type               MUL_TYPE          = MUL_GENERIC,
+        parameter div_type               DIV_TYPE          = DIV_GENERIC,
         parameter type                  DECODER_DATA_T     = logic,
         parameter bit                   DONT_CARE_ZERO     = 1'b0  // initialize don't care values to zero
     )(
@@ -112,7 +113,9 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     // - ELEM unit additionally requires indices -3 and -2, hence a minimum of 5 operands
     // - if MUL and ELEM units are both present in same pipeline, then all 6 operands are required
     // - in case a pipeline contains only the SLD unit the operand count is 2 (indices 0 and -1)
-    localparam int unsigned OP_CNT        = UNITS[UNIT_MUL] ? (
+
+    // ECE498HK edits
+    localparam int unsigned OP_CNT        = (UNITS[UNIT_MUL])  ? (
                                                 UNITS[UNIT_ELEM] ? 6 : 4
                                             ) : (
                                                 UNITS[UNIT_ELEM] ? 5 : (
@@ -127,7 +130,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     // should be fetched at the latest possible stage, since the pipeline waits until the alt count
     // completes its cycle before accepting the next instruction.
     localparam int unsigned OP0_SRC   = 0;
-    localparam int unsigned OP1_SRC   = (VPORT_CNT >= (UNITS[UNIT_MUL] ? 3 : 2)) ? 1 : 0;
+    // ece498hk edits
+    localparam int unsigned OP1_SRC   = (VPORT_CNT >= ((UNITS[UNIT_MUL]) ? 3 : 2)) ? 1 : 0;
     localparam int unsigned OP2_SRC   = VPORT_CNT - 1;
     localparam int unsigned MIN_STAGE = 1; // first possible unpack stage
     // start by fetching op 0, then op1, except for ELEM unit which needs to fetch op1 first since
@@ -165,9 +169,12 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     // operand flags
     localparam bit OP_DYN_ADDR_OFFSET     = UNITS[UNIT_ELEM];   // operand with dynamic addr used
     localparam bit OP_SECOND_MASK         = UNITS[UNIT_ELEM];   // second mask operand used
+
+    // ECE498HK edits
+    // The fixed-point instructions help preserve precision in narrow operands by supporting scaling and rounding
     localparam bit OP0_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_ELEM];
     localparam bit OP1_NARROW             = UNITS[UNIT_MUL] | UNITS[UNIT_ALU];
-    localparam bit OP1_XREG               = UNITS[UNIT_MUL] | UNITS[UNIT_ALU];
+    localparam bit OP1_XREG               = UNITS[UNIT_MUL] | UNITS[UNIT_ALU] | UNITS[UNIT_DIV]; // OPMVX category of instr use GPR x register rs1 as scalar operand. vdiv/vrem supports .vv and .vx
     localparam bit OP0_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
     localparam bit OP1_ELEMWISE           = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
     localparam bit OPMASK_ELEMWISE        = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
@@ -178,7 +185,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     localparam int unsigned MAX_RES_W     = MAX_OP_W;
 
     // result flags
-    localparam bit RES0_ALWAYS_VREG       = ~UNITS[UNIT_LSU] & ~UNITS[UNIT_ALU] & ~UNITS[UNIT_ELEM];
+    localparam bit RES0_ALWAYS_VREG       = ~UNITS[UNIT_LSU] & ~UNITS[UNIT_ALU] & ~UNITS[UNIT_ELEM]; // true for DIV
     localparam bit RES0_NARROW            = UNITS[UNIT_ALU];
     localparam bit RES0_ALLOW_ELEMWISE    = UNITS[UNIT_LSU] | UNITS[UNIT_ELEM];
 
@@ -216,12 +223,14 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
     } state_t;
 
     // identify the unit of the supplied instruction
-    logic unit_lsu, unit_alu, unit_mul, unit_sld, unit_elem;
-    assign unit_lsu  = UNITS[UNIT_LSU ] & (pipe_in_data_i.unit == UNIT_LSU );
-    assign unit_alu  = UNITS[UNIT_ALU ] & (pipe_in_data_i.unit == UNIT_ALU );
-    assign unit_mul  = UNITS[UNIT_MUL ] & (pipe_in_data_i.unit == UNIT_MUL );
-    assign unit_sld  = UNITS[UNIT_SLD ] & (pipe_in_data_i.unit == UNIT_SLD );
-    assign unit_elem = UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM);
+    // ECE498HK additions
+    logic unit_lsu, unit_alu, unit_mul, unit_sld, unit_elem, unit_div;
+    assign unit_lsu     = UNITS[UNIT_LSU ] & (pipe_in_data_i.unit == UNIT_LSU );
+    assign unit_alu     = UNITS[UNIT_ALU ] & (pipe_in_data_i.unit == UNIT_ALU );
+    assign unit_div     = UNITS[UNIT_DIV ] & (pipe_in_data_i.unit == UNIT_DIV );
+    assign unit_mul     = UNITS[UNIT_MUL ] & (pipe_in_data_i.unit == UNIT_MUL );
+    assign unit_sld     = UNITS[UNIT_SLD ] & (pipe_in_data_i.unit == UNIT_SLD );
+    assign unit_elem    = UNITS[UNIT_ELEM] & (pipe_in_data_i.unit == UNIT_ELEM);
 
     // identify the type of data that vs2 supplies for ELEM instructions
     logic elem_flush, elem_vs2_data, elem_vs2_mask, elem_vs2_dyn_addr;
@@ -450,6 +459,8 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
         unique case (1'b1)
             unit_lsu:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.lsu.masked;
             unit_alu:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.alu.op_mask != ALU_MASK_NONE;
+            // ECE498HK additions
+            unit_div:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.div.masked;
             unit_mul:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.mul.masked;
             unit_sld:  state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.sld.masked;
             unit_elem: state_init.op_flags[OP_CNT-1].vreg = pipe_in_data_i.mode.elem.masked;
@@ -475,11 +486,17 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
             state_init.res_narrow[0        ]        =  pipe_in_data_i.widenarrow == OP_NARROWING;
             state_init.res_vreg  [RES_CNT-1]        =  pipe_in_data_i.mode.alu.cmp;
         end
+        // ECE498HK additions
+        if (unit_div) begin
+            state_init.op_vaddr[0]                          = pipe_in_data_i.rs2.r.vaddr; // for vmadd and vnmsub, MUL stores vaddr in .rd.addr, this is not needed for div
+            state_init.op_flags[0].sigext                   = pipe_in_data_i.mode.div.op2_signed;
+            state_init.op_flags[1].sigext                   = pipe_in_data_i.mode.div.op1_signed;
+        end
         if (unit_mul) begin
             state_init.op_vaddr[0]                          = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rd.addr : pipe_in_data_i.rs2.r.vaddr;
             state_init.op_flags[0].sigext                   = pipe_in_data_i.mode.mul.op2_signed;
             state_init.op_flags[1].sigext                   = pipe_in_data_i.mode.mul.op1_signed;
-            state_init.op_flags[(OP_CNT >= 3) ? 2 : 0].vreg = pipe_in_data_i.mode.mul.op == MUL_VMACC;
+            state_init.op_flags[(OP_CNT >= 3) ? 2 : 0].vreg = pipe_in_data_i.mode.mul.op == MUL_VMACC; // macc is desctructive, vd overwrites addend or minuend
             state_init.op_vaddr[(OP_CNT >= 3) ? 2 : 0]      = pipe_in_data_i.mode.mul.op2_is_vd ? pipe_in_data_i.rs2.r.vaddr : pipe_in_data_i.rd.addr;
         end
         if (unit_elem) begin
@@ -560,6 +577,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -625,6 +643,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -690,6 +709,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -755,6 +775,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -820,6 +841,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -885,6 +907,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -950,6 +973,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -1015,6 +1039,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
@@ -1080,6 +1105,7 @@ module vproc_pipeline_wrapper import vproc_pkg::*; #(
                 .VLSU_QUEUE_SZ       ( VLSU_QUEUE_SZ       ),
                 .VLSU_FLAGS          ( VLSU_FLAGS          ),
                 .MUL_TYPE            ( MUL_TYPE            ),
+                .DIV_TYPE            ( DIV_TYPE            ),
                 .INIT_STATE_T        ( state_t             ),
                 .DONT_CARE_ZERO      ( DONT_CARE_ZERO      )
             ) pipeline (
