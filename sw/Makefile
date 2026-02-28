@@ -46,7 +46,7 @@ PROG ?= test
 OBJ  ?= test.o
 
 # add crt0 to object files
-RISCV_OBJ := $(SW_DIR)/crt0.o $(OBJ) $(SW_DIR)/lib/uart.o
+RISCV_OBJ := $(SW_DIR)/crt0.o $(OBJ) $(SW_DIR)/lib/uart.o $(SW_DIR)/lib/runtime.o
 
 all: $(PROG).vmem
 
