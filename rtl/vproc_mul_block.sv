@@ -13,6 +13,9 @@ module vproc_mul_block #(
         input  logic                  async_rst_ni,
         input  logic                  sync_rst_ni,
 
+        input  logic                  ops_en_i,  // advance the operand stage
+        input  logic                  mul_en_i,  // advance the multiplication stage
+
         input  logic [16:0]           op1_i,
         input  logic [16:0]           op2_i,
 
@@ -37,8 +40,10 @@ module vproc_mul_block #(
 
                 if (BUF_OPS) begin
                     always_ff @(posedge clk_i) begin
-                        op1_q <= op1_i;
-                        op2_q <= op2_i;
+                        if (ops_en_i) begin
+                            op1_q <= op1_i;
+                            op2_q <= op2_i;
+                        end
                     end
                 end else begin
                     always_comb begin
@@ -49,9 +54,11 @@ module vproc_mul_block #(
 
                 if (BUF_MUL) begin
                     always_ff @(posedge clk_i) begin
-                        mul_q     <= mul_d;
-                        acc_q     <= acc_flag_i ? acc_i : '0;
-                        acc_sub_q <= acc_sub_i;
+                        if (mul_en_i) begin
+                            mul_q     <= mul_d;
+                            acc_q     <= acc_flag_i ? acc_i : '0;
+                            acc_sub_q <= acc_sub_i;
+                        end
                     end
                 end else begin
                     always_comb begin

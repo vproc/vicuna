@@ -351,6 +351,8 @@ module vproc_mul #(
                 .clk_i        ( clk_i                   ),
                 .async_rst_ni ( async_rst_ni            ),
                 .sync_rst_ni  ( sync_rst_ni             ),
+                .ops_en_i     ( state_ex2_ready & state_ex1_valid_q ),
+                .mul_en_i     ( state_ex3_ready & state_ex2_valid_q ),
                 .op1_i        ( mul_op1    [17*g +: 17] ),
                 .op2_i        ( mul_op2    [17*g +: 17] ),
                 .acc_i        ( mul_acc    [16*g +: 16] ),
